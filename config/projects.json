@@ -1,0 +1,61 @@
+[
+  {
+    "project_id": "wgh30",
+    "project_name": "WGH30 (3T Car Jacks)",
+    "items": [
+      {
+        "item_key": "ebay-DE",
+        "marketplace": "ebay",
+        "country": "DE",
+        "ebay_item_id": "REPLACE_WITH_YOUR_EBAY_ITEM_ID",
+        "ebay_seller_username": "REPLACE_WITH_YOUR_EBAY_USERNAME",
+        "title_contains": ["wagenheber"],
+        "keywords": [
+          "wagenheber",
+          "wagenheber 3t",
+          "wagenheber hydraulisch",
+          "rangierwagenheber",
+          "wagenheber 5t",
+          "hydraulischer wagenheber",
+          "wagenheber flach",
+          "rangierwagenheber 3t"
+        ]
+      },
+      {
+        "item_key": "otto-DE",
+        "marketplace": "otto",
+        "country": "DE",
+        "otto_product_id": "REPLACE_WITH_YOUR_OTTO_PRODUCT_ID",
+        "keywords": [
+          "wagenheber",
+          "wagenheber 3t",
+          "rangierwagenheber",
+          "wagenheber hydraulisch"
+        ]
+      },
+      {
+        "item_key": "kaufland-DE",
+        "marketplace": "kaufland",
+        "country": "DE",
+        "kaufland_product_id": "REPLACE_WITH_YOUR_KAUFLAND_PRODUCT_ID",
+        "keywords": [
+          "wagenheber",
+          "wagenheber 3t",
+          "rangierwagenheber",
+          "wagenheber hydraulisch"
+        ]
+      },
+      {
+        "item_key": "temu-US",
+        "marketplace": "temu",
+        "country": "US",
+        "temu_goods_id": "REPLACE_WITH_YOUR_TEMU_GOODS_ID",
+        "keywords": [
+          "car jack",
+          "hydraulic car jack",
+          "floor jack"
+        ]
+      }
+    ]
+  }
+]
