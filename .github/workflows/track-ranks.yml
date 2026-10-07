@@ -1,0 +1,107 @@
+name: Track marketplace ranks
+
+on:
+  schedule:
+    # 1) Full daily check of every product + keyword.
+    - cron: "0 6 * * *"
+    # 2) Hourly "pick-up": only checks products/keywords that were added since
+    #    the last run (so new sheet rows start tracking on their own, with no
+    #    button and no token). If nothing is new, the run ends in seconds.
+    #    GitHub may start scheduled runs a little late.
+    - cron: "20 * * * *"
+  workflow_dispatch: {}   # the "Sync now" button / "Run workflow" on GitHub: a full check
+
+permissions:
+  contents: write
+
+# Only one run at a time; a second one waits for the first to finish.
+# Two runs writing ranks.json together could lose data.
+concurrency:
+  group: track-ranks
+  cancel-in-progress: false
+
+jobs:
+  track:
+    runs-on: ubuntu-latest
+    env:
+      # Your products & keywords: a Google Sheet link (repo secret), or, if that
+      # isn't set, config/tracked.csv in the repo.
+      TRACKING_SHEET_CSV_URL: ${{ secrets.TRACKING_SHEET_CSV_URL }}
+      # "1" for any scheduled run EXCEPT the daily one => the hourly pick-up checks only
+      # what's new. (Manual/Sync runs and the daily run check everything.)
+      # If you change the daily time above ("0 6 * * *"), change it here too.
+      ONLY_NEW: ${{ github.event_name == 'schedule' && github.event.schedule != '0 6 * * *' && '1' || '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Check whether there is anything to do
+        id: check
+        env:
+          EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
+          EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+          BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+          BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+          BRIGHTDATA_BROWSER_AUTH: ${{ secrets.BRIGHTDATA_BROWSER_AUTH }}
+        run: python scripts/has_new.py
+
+      # continue-on-error on each tracker below is deliberate: if you've only
+      # set up eBay so far (or Otto/Kaufland/Bright Data secrets are missing
+      # or wrong), that tracker fails but the others still run and their data
+      # still gets committed, rather than one missing marketplace blocking
+      # every marketplace's update. A green checkmark on this workflow does NOT
+      # mean every marketplace succeeded — expand each step below to check.
+
+      - name: Run eBay rank tracker
+        if: steps.check.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
+          EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+        run: python scripts/ebay_rank_tracker.py
+
+      - name: Run Otto rank tracker
+        if: steps.check.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+          BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+        run: python scripts/otto_rank_tracker.py
+
+      - name: Run Kaufland rank tracker
+        if: steps.check.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+          BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+        run: python scripts/kaufland_rank_tracker.py
+
+      - name: Install Playwright (client only — connects to a remote browser, no local Chromium download)
+        if: steps.check.outputs.run == 'true'
+        continue-on-error: true
+        run: pip install playwright
+
+      - name: Run Temu rank tracker
+        if: steps.check.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          BRIGHTDATA_BROWSER_AUTH: ${{ secrets.BRIGHTDATA_BROWSER_AUTH }}
+        run: python scripts/temu_rank_tracker.py
+
+      - name: Commit updated rank data
+        if: steps.check.outputs.run == 'true'
+        run: |
+          git config user.name "rank-tracker-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/data/ranks.json
+          git diff --staged --quiet || {
+            git commit -m "Update ranks $(date -u +%Y-%m-%d)"
+            git pull --rebase
+            git push
+          }
