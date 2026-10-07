@@ -110,17 +110,43 @@ def parse_csv_text(text: str):
     return rows_to_projects(csv.DictReader(io.StringIO(text)))
 
 
+def normalize_sheet_url(url: str) -> str:
+    """
+    Accept the normal Google Sheets link you copy from the address bar or the
+    Share button (.../d/<id>/edit?usp=sharing) and turn it into the CSV
+    download link. Links that are already CSV/published links are left alone.
+    """
+    if "/pub" in url or "/export" in url or "output=csv" in url or "format=csv" in url:
+        return url
+    m = re.search(r"docs\.google\.com/spreadsheets/d/([\w-]+)", url)
+    if not m:
+        return url
+    gid = re.search(r"[#&?]gid=(\d+)", url)
+    export = f"https://docs.google.com/spreadsheets/d/{m.group(1)}/export?format=csv"
+    return export + (f"&gid={gid.group(1)}" if gid else "")
+
+
 def fetch_sheet_csv(url: str) -> str:
+    url = normalize_sheet_url(url)
     try:
         resp = requests.get(url, timeout=30)
         resp.raise_for_status()
     except requests.RequestException as e:
         raise RuntimeError(
             "Could not download the tracking sheet from TRACKING_SHEET_CSV_URL. "
-            "Check the link is the 'Publish to web' CSV link and that it is still "
-            f"published. ({e})"
+            "The sheet must be shared as 'Anyone with the link: Viewer' (or published "
+            f"to the web as CSV). ({e})"
         )
-    return resp.content.decode("utf-8-sig")
+    text = resp.content.decode("utf-8-sig")
+    # A sheet that isn't shared widely enough returns a sign-in web page, not
+    # data. Fail loudly instead of quietly tracking nothing.
+    if text.lstrip()[:15].lower().startswith(("<!doctype", "<html")):
+        raise RuntimeError(
+            "TRACKING_SHEET_CSV_URL returned a web page instead of spreadsheet data. "
+            "In Google Sheets, click Share -> General access -> 'Anyone with the link' "
+            "(Viewer), or use File -> Share -> Publish to web -> CSV."
+        )
+    return text
 
 
 def load_projects():

@@ -55,14 +55,16 @@ nothing until you fill it in.
 
 **Option A — Google Sheet (easiest to edit):**
 1. Make a sheet with those five column headings in row 1, and your rows below.
-2. **File → Share → Publish to web** → choose the sheet tab and
-   **Comma-separated values (.csv)** → Publish → copy the link.
+2. Click **Share → General access → Anyone with the link → Viewer** (people you
+   don't invite can read it but not change it).
 3. In GitHub: **Settings → Secrets and variables → Actions → New repository
-   secret**, name `TRACKING_SHEET_CSV_URL`, value = that link.
-4. Edit `docs/settings.json` and set `"sheet_url"` to the sheet's normal
-   (edit) link, so the dashboard's **+ Add products & keywords** panel links to it.
+   secret**, name `TRACKING_SHEET_CSV_URL`, value = the sheet's normal link
+   (the one ending in `/edit?usp=sharing`). The tracker converts it for you.
+   (A *File → Share → Publish to web → CSV* link works too.)
+4. Edit `docs/settings.json` and set `"sheet_url"` to the same link, so the
+   dashboard's **+ Add products & keywords** panel links to the sheet.
 
-Edits reach the tracker a few minutes after you make them. Note: a published
+Edits reach the tracker on the next run. Note: with "Anyone with the link", the
 sheet is readable by anyone who has the link (it only contains product IDs and
 keywords, but it isn't private).
 
@@ -125,8 +127,8 @@ or matching detail needs adjusting.
   site you chose.
 - **eBay auth error:** secrets must be named exactly `EBAY_CLIENT_ID` /
   `EBAY_CLIENT_SECRET` and be the *Production* keys.
-- **"Could not download the tracking sheet":** the sheet's *Publish to web*
-  link must be the **CSV** link and still published.
+- **"Could not download the tracking sheet" / "returned a web page":** the sheet
+  must be shared as *Anyone with the link → Viewer*.
 
 ## Previewing the dashboard on your own computer
 Opening `docs/index.html` by double-click doesn't work (browsers block it from
