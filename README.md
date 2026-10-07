@@ -96,6 +96,26 @@ A green tick doesn't mean every marketplace worked — a marketplace you haven't
 set up fails its own step but doesn't stop the others. After that it runs by
 itself every day at 06:00 UTC (edit the `cron` line to change that).
 
+## The Sync button (run it now instead of waiting for 06:00 UTC)
+
+**↻ Sync now** at the top of the dashboard starts the same workflow as the daily
+run: it re-reads your sheet, checks the marketplaces, and reloads the dashboard
+when the new ranks are published (usually 2–5 minutes). A status line shows
+progress, with a link to the run on GitHub. If someone else has already started
+a sync, your click just follows that one. A keyword is only checked once per
+day, so syncing again the same day only adds keywords that haven't been
+checked yet.
+
+**For everyone, no setup per person:** one admin sets up the small shared sync
+service once (about 10 minutes, free) — see `sync-worker/README.md`. After that,
+anyone who can open the dashboard can press the button, with no GitHub account
+and no token.
+
+**Until that's done**, the button still works for people who create their own
+GitHub token (click **⚙** for the steps; the token stays only in that person's
+browser). Without either, **⚙** offers a link that opens the workflow on GitHub,
+where **Run workflow** does the same thing.
+
 ## How much to trust each marketplace
 
 - **eBay** — official API, exact item-ID match. Solid.

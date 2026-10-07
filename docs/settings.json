@@ -1,3 +1,7 @@
 {
-  "sheet_url": "https://docs.google.com/spreadsheets/d/1lo5XJ3CuBjBsSIkjn_OrDfC16jSi32En1EiP3vcEG88/edit?usp=sharing"
+  "sheet_url": "https://docs.google.com/spreadsheets/d/1lo5XJ3CuBjBsSIkjn_OrDfC16jSi32En1EiP3vcEG88/edit?usp=sharing",
+  "repo": "cd-commerce-de/Rank-Tracker",
+  "branch": "main",
+  "workflow_file": "track-ranks.yml",
+  "sync_url": ""
 }
