@@ -12,7 +12,7 @@ keyword-research tools typically do, to surface more long-tail phrases.
 
 No volume/conversion numbers — just real phrases eBay itself suggests to
 buyers. Review the output and copy whichever ones are actually relevant
-into config/projects.json yourself; this script never edits that file.
+into your products & keywords table yourself; this script never edits it.
 
 Usage:
     python scripts/ebay_keyword_ideas.py "wagenheber" --country DE

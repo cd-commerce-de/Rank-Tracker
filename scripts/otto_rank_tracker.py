@@ -16,8 +16,8 @@ HTML, in the order it appears, and counts position from there. It's a
 deliberately low-maintenance approach: Otto can redesign its result tiles
 completely and this still works, as long as product URLs keep this shape.
 
-Config (config/projects.json), per Otto item:
-    "otto_product_id": the ID from your listing's own URL, e.g. "S0ECP02L"
+Tracking table (sheet or config/tracked.csv), per Otto product:
+    product_id: the ID from your listing's own URL, e.g. "S0ECP02L"
 
 Caveat: pagination uses Otto's "?o=" offset parameter (confirmed from
 observed search-result URLs), but the exact page size wasn't verified
@@ -39,10 +39,10 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 import bright_data
+import config_loader
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = ROOT / "config" / "projects.json"
 DATA_PATH = ROOT / "docs" / "data" / "ranks.json"
 
 SEARCH_URL = "https://www.otto.de/suche/{query}/?o={offset}"
@@ -109,7 +109,7 @@ def save_json(path: Path, data):
 
 
 def main():
-    projects = load_json(CONFIG_PATH, [])
+    projects = config_loader.load_projects()
     history = load_json(DATA_PATH, [])
     today = date.today().isoformat()
     seen_today = {

@@ -18,8 +18,8 @@ trusting it — run scripts/kaufland_rank_tracker.py by hand once, for a
 keyword you know your product ranks for, and check the number it reports
 against what you see searching on kaufland.de yourself.
 
-Config (config/projects.json), per Kaufland item:
-    "kaufland_product_id": the numeric ID from your listing's own URL,
+Tracking table (sheet or config/tracked.csv), per Kaufland product:
+    product_id: the numeric ID from your listing's own URL,
     e.g. "123456789" from "kaufland.de/product/123456789/"
 
 Requires (see README.md):
@@ -34,10 +34,10 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 import bright_data
+import config_loader
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = ROOT / "config" / "projects.json"
 DATA_PATH = ROOT / "docs" / "data" / "ranks.json"
 
 SEARCH_URL = "https://www.kaufland.de/s/?search_value={query}&page={page}"
@@ -99,7 +99,7 @@ def save_json(path: Path, data):
 
 
 def main():
-    projects = load_json(CONFIG_PATH, [])
+    projects = config_loader.load_projects()
     history = load_json(DATA_PATH, [])
     today = date.today().isoformat()
     seen_today = {

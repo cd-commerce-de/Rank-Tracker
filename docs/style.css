@@ -215,3 +215,25 @@ table.simple tr:hover td { background: #fafafa; cursor: pointer; }
 .trend-up { color: #d13c3c; }
 .trend-down { color: #1f9d55; }
 .trend-flat { color: var(--text-dim); }
+
+/* ---------- Ranks-only layout additions ---------- */
+.topbar .spacer { flex: 1; }
+.topbar .updated { color: var(--text-dim); font-size: 0.8rem; }
+.demo-banner {
+  background: #fff7e0; border-bottom: 1px solid #f0dca0;
+  padding: 10px 28px; font-size: 0.82rem; color: #8a6d1d;
+}
+.help-panel {
+  margin: 16px 28px 0; padding: 16px 20px;
+  background: var(--accent-dim); border: 1px solid #d9dcff; border-radius: 12px;
+  font-size: 0.88rem; line-height: 1.5;
+}
+.help-panel p { margin: 6px 0; }
+.help-panel code { background: #fff; padding: 1px 6px; border-radius: 5px; font-size: 0.82rem; }
+.ctrl-group { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.search-input {
+  font-size: 0.85rem; padding: 9px 14px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--card); min-width: 200px;
+}
+.card .value .of { font-size: 0.85rem; font-weight: 500; color: var(--text-dim); }
+td.nodata { color: var(--gray); }

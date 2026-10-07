@@ -1,0 +1,9 @@
+project,marketplace,country,product_id,keyword
+WGH30 (3T Car Jacks),ebay,DE,REPLACE_WITH_EBAY_ITEM_ID,wagenheber
+WGH30 (3T Car Jacks),ebay,DE,REPLACE_WITH_EBAY_ITEM_ID,wagenheber 3t
+WGH30 (3T Car Jacks),ebay,DE,REPLACE_WITH_EBAY_ITEM_ID,rangierwagenheber
+WGH30 (3T Car Jacks),otto,DE,REPLACE_WITH_OTTO_PRODUCT_ID,wagenheber
+WGH30 (3T Car Jacks),otto,DE,REPLACE_WITH_OTTO_PRODUCT_ID,wagenheber 3t
+WGH30 (3T Car Jacks),kaufland,DE,REPLACE_WITH_KAUFLAND_PRODUCT_ID,wagenheber
+WGH30 (3T Car Jacks),kaufland,DE,REPLACE_WITH_KAUFLAND_PRODUCT_ID,wagenheber 3t
+WGH30 (3T Car Jacks),temu,US,REPLACE_WITH_TEMU_GOODS_ID,car jack

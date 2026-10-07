@@ -1,14 +1,55 @@
 // ---------- Config ----------
 const FLAGS = { DE: "🇩🇪", US: "🇺🇸", GB: "🇬🇧", FR: "🇫🇷", IT: "🇮🇹", ES: "🇪🇸", AT: "🇦🇹", NL: "🇳🇱", PL: "🇵🇱" };
 const MP_LABEL = { ebay: "eBay", otto: "Otto", kaufland: "Kaufland", temu: "Temu" };
-const MP_CLASS = { ebay: "mp-ebay", otto: "mp-otto", kaufland: "mp-kaufland", temu: "mp-temu" };
+const MP_ORDER = ["ebay", "otto", "kaufland", "temu"];
 
 let ALL_ROWS = [];
 let IS_DEMO = false;
-let PROJECTS = {};          // project_id -> { project_id, project_name, items: {item_key: {...}}, rows: [] }
-let state = { projectId: null, itemKey: null, tab: "ranks", range: "daily" };
-let sparkCharts = {};       // keep chart instances so we can destroy before re-render
-let trendChart = null;
+let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
+let SETTINGS = {};   // docs/settings.json
+let state = { projectId: null, itemKey: null, range: "daily", days: 30, q: "", helpOpen: false };
+let sparkCharts = {};
+let LAST_GRID = null; // what the grid currently shows, used by CSV export
+
+// ---------- Small helpers ----------
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function uniq(arr) { return [...new Set(arr)]; }
+function mean(nums) {
+  const v = nums.filter((n) => n !== null && n !== undefined);
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+}
+// All date maths is done in UTC so results don't shift by a day depending on
+// the viewer's time zone.
+function utcDate(iso) { return new Date(iso + "T00:00:00Z"); }
+function shiftDate(iso, days) {
+  const d = utcDate(iso);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+function fmtDateShort(iso) {
+  return utcDate(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", timeZone: "UTC" });
+}
+function isoWeekStart(iso) {
+  const d = utcDate(iso);
+  const dow = (d.getUTCDay() + 6) % 7; // Monday = 0
+  d.setUTCDate(d.getUTCDate() - dow);
+  return d.toISOString().slice(0, 10);
+}
+function monthKey(iso) { return iso.slice(0, 7); }
+function monthLabel(key) {
+  return utcDate(key + "-01").toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
+}
+function tierClass(rank) {
+  if (rank === "BLOCKED") return "r-blocked";
+  if (rank === null || rank === undefined) return "r-5";
+  if (rank <= 3) return "r-1";
+  if (rank <= 10) return "r-2";
+  if (rank <= 50) return "r-3";
+  if (rank <= 100) return "r-4";
+  return "r-5";
+}
 
 // ---------- Data loading ----------
 async function fetchJSON(path) {
@@ -29,323 +70,178 @@ async function loadData() {
     IS_DEMO = true;
   }
   ALL_ROWS = rows || [];
+  SETTINGS = (await fetchJSON("settings.json")) || {};
   PROJECTS = buildProjects(ALL_ROWS);
 }
 
 function buildProjects(rows) {
   const map = {};
   rows.forEach((r) => {
-    if (!map[r.project_id]) {
-      map[r.project_id] = { project_id: r.project_id, project_name: r.project_name, items: {}, rows: [] };
-    }
-    const p = map[r.project_id];
+    const p = (map[r.project_id] = map[r.project_id] || {
+      project_id: r.project_id, project_name: r.project_name, items: {}, rows: [],
+    });
     p.rows.push(r);
-    if (!p.items[r.item_key]) {
-      p.items[r.item_key] = { item_key: r.item_key, marketplace: r.marketplace, country: r.country, rows: [] };
-    }
-    p.items[r.item_key].rows.push(r);
+    const it = (p.items[r.item_key] = p.items[r.item_key] || {
+      item_key: r.item_key, marketplace: r.marketplace, country: r.country, product_id: r.item_id || r.item_key, rows: [],
+    });
+    it.rows.push(r);
   });
   return map;
 }
 
-// ---------- Small helpers ----------
-function uniq(arr) { return [...new Set(arr)]; }
-function fmtDateShort(iso) {
-  const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short" });
-}
-function isoWeekStart(iso) {
-  const d = new Date(iso + "T00:00:00");
-  const day = (d.getDay() + 6) % 7; // Monday=0
-  d.setDate(d.getDate() - day);
-  return d.toISOString().slice(0, 10);
-}
-function monthKey(iso) { return iso.slice(0, 7); }
-function monthLabel(key) {
-  const d = new Date(key + "-01T00:00:00");
-  return d.toLocaleDateString(undefined, { month: "short", year: "numeric" });
-}
-function tierClass(rank) {
-  if (rank === "BLOCKED") return "r-blocked";
-  if (rank === null || rank === undefined) return "r-5";
-  if (rank <= 3) return "r-1";
-  if (rank <= 10) return "r-2";
-  if (rank <= 50) return "r-3";
-  if (rank <= 100) return "r-4";
-  return "r-5";
-}
-function mean(nums) {
-  const v = nums.filter((n) => n !== null && n !== undefined);
-  if (!v.length) return null;
-  return v.reduce((a, b) => a + b, 0) / v.length;
+function sortedItems(project) {
+  return Object.values(project.items).sort(
+    (a, b) =>
+      MP_ORDER.indexOf(a.marketplace) - MP_ORDER.indexOf(b.marketplace) ||
+      a.country.localeCompare(b.country) ||
+      String(a.product_id).localeCompare(String(b.product_id))
+  );
 }
 
-// ---------- Routing ----------
-function parseHash() {
-  const h = location.hash.replace(/^#\/?/, "");
-  const parts = h.split("/").filter(Boolean);
-  if (parts[0] === "project" && parts[1]) {
-    return { view: "project", projectId: decodeURIComponent(parts[1]) };
-  }
-  return { view: "projects" };
+// ---------- Current selection ----------
+function currentProject() { return PROJECTS[state.projectId]; }
+function currentItem() { return currentProject().items[state.itemKey]; }
+
+// Rows of the selected product, limited to the selected period (counted back
+// from the most recent day we have data for).
+function periodRows(item) {
+  if (state.days === "all") return item.rows;
+  const latest = item.rows.map((r) => r.date).sort().pop();
+  const cutoff = shiftDate(latest, -(state.days - 1));
+  return item.rows.filter((r) => r.date >= cutoff);
 }
 
-window.addEventListener("hashchange", render);
-
+// ---------- Page ----------
 async function boot() {
   await loadData();
-  render();
+  const first = Object.keys(PROJECTS)[0];
+  state.projectId = first || null;
+  state.helpOpen = !first; // nothing tracked yet -> show how to add products straight away
+  renderPage();
 }
 
-function render() {
-  const route = parseHash();
-  if (route.view === "project" && PROJECTS[route.projectId]) {
-    state.projectId = route.projectId;
-    renderProjectView();
-  } else {
-    renderProjectsLanding();
-  }
+function helpPanelHTML() {
+  const link = SETTINGS.sheet_url
+    ? `<p><a href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener"><b>Open the tracking sheet</b></a> and add one row per product + keyword. They're picked up on the next daily run.</p>`
+    : `<p>No Google Sheet is linked yet. Until you link one, add rows to <code>config/tracked.csv</code> in your GitHub repo (see the README for linking a Google Sheet, which is easier to edit).</p>`;
+  return `
+    <div class="help-panel">
+      <b>Add or change what's tracked</b>
+      <p>Products and keywords live in one table with five columns: <code>project</code>, <code>marketplace</code> (ebay / otto / kaufland / temu), <code>country</code>, <code>product_id</code> (the ID from your own listing's URL) and <code>keyword</code>. One row per keyword.</p>
+      ${link}
+      <p>A new keyword's history starts the first day it's checked. To check it right away, run the workflow from your repo's <b>Actions</b> tab instead of waiting for the next scheduled run.</p>
+    </div>`;
 }
 
-// ---------- Projects landing ----------
-function renderProjectsLanding() {
+function renderPage() {
   const app = document.getElementById("app");
   const projects = Object.values(PROJECTS);
 
   const demoBanner = IS_DEMO
-    ? `<div style="background:#fff7e0;border-bottom:1px solid #f0dca0;padding:10px 28px;font-size:0.82rem;color:#8a6d1d;">
-         Showing demo data — no real tracker data yet. Once the GitHub Actions workflow runs, your real ranks replace this automatically.
-       </div>`
+    ? `<div class="demo-banner">Showing demo data — no real tracker data yet. Once the daily workflow has run, your real ranks replace this automatically.</div>`
     : "";
 
   if (!projects.length) {
     app.innerHTML = `
       ${demoBanner}
-      <div class="projects-header"><h1>Projects</h1></div>
-      <div class="content"><div class="empty-state">No projects yet. Add one to <code>config/projects.json</code> and run the tracker.</div></div>`;
+      <div class="topbar"><h1>Rank Tracker</h1></div>
+      ${helpPanelHTML()}
+      <div class="content"><div class="empty-state">Nothing is being tracked yet.</div></div>`;
     return;
   }
 
-  const cards = projects
-    .map((p) => {
-      const items = Object.values(p.items);
-      const keywordCount = uniq(p.rows.map((r) => r.keyword)).length;
-      const marketplaces = uniq(items.map((i) => i.marketplace));
-      const pills = marketplaces
-        .map((m) => `<span class="mp-pill ${MP_CLASS[m] || ""}">${MP_LABEL[m] || m}</span>`)
-        .join("");
-      return `
-        <div class="project-card" onclick="location.hash='#/project/${encodeURIComponent(p.project_id)}'">
-          <div class="project-thumb">📦</div>
-          <div class="name">${p.project_name}</div>
-          <div class="meta">${items.length} item${items.length !== 1 ? "s" : ""} · ${keywordCount} keywords</div>
-          <div>${pills}</div>
-        </div>`;
-    })
+  if (!PROJECTS[state.projectId]) state.projectId = projects[0].project_id;
+  const project = currentProject();
+  const items = sortedItems(project);
+  if (!state.itemKey || !project.items[state.itemKey]) state.itemKey = items[0].item_key;
+  const item = currentItem();
+
+  const lastChecked = project.rows.map((r) => r.checked_at || r.date).sort().pop();
+  const projectOptions = projects
+    .map((p) => `<option value="${esc(p.project_id)}" ${p.project_id === state.projectId ? "selected" : ""}>${esc(p.project_name)}</option>`)
+    .join("");
+  const itemOptions = items
+    .map((i) => `<option value="${esc(i.item_key)}" ${i.item_key === state.itemKey ? "selected" : ""}>${FLAGS[i.country] || ""} ${esc(MP_LABEL[i.marketplace] || i.marketplace)} · ${esc(i.country)} · ${esc(i.product_id)}</option>`)
+    .join("");
+  const periods = [[14, "Last 14 days"], [30, "Last 30 days"], [60, "Last 60 days"], [90, "Last 90 days"], ["all", "All time"]]
+    .map(([v, label]) => `<option value="${v}" ${String(v) === String(state.days) ? "selected" : ""}>${label}</option>`)
     .join("");
 
   app.innerHTML = `
     ${demoBanner}
-    <div class="projects-header"><div><h1>Projects</h1></div></div>
-    <div class="projects-grid">${cards}</div>`;
+    <div class="topbar">
+      <h1>Rank Tracker</h1>
+      <select class="project-select" id="projectSelect">${projectOptions}</select>
+      <div class="spacer"></div>
+      <span class="updated">Last checked: ${esc(new Date(lastChecked).toLocaleString())}</span>
+      <button class="btn primary" id="helpBtn">+ Add products &amp; keywords</button>
+    </div>
+    ${state.helpOpen ? helpPanelHTML() : ""}
+    <div class="content">
+      <div class="controls-row">
+        <div class="ctrl-group">
+          <select class="item-select" id="itemSelect">${itemOptions}</select>
+          <input class="search-input" id="kwSearch" placeholder="Filter keywords…" value="${esc(state.q)}" />
+        </div>
+        <div class="ctrl-group">
+          <div class="range-group">
+            ${["daily", "weekly", "monthly"].map((r) => `<div class="range-btn ${state.range === r ? "active" : ""}" data-range="${r}">${r[0].toUpperCase() + r.slice(1)}</div>`).join("")}
+          </div>
+          <select id="periodSelect">${periods}</select>
+          <button class="btn" id="exportBtn">Export CSV</button>
+        </div>
+      </div>
+      <div class="summary-grid" id="summaryGrid"></div>
+      <div class="grid-wrap"><table class="rankgrid" id="rankGrid"></table></div>
+    </div>`;
+
+  document.getElementById("projectSelect").addEventListener("change", (e) => {
+    state.projectId = e.target.value; state.itemKey = null; renderPage();
+  });
+  document.getElementById("itemSelect").addEventListener("change", (e) => { state.itemKey = e.target.value; renderPage(); });
+  document.getElementById("periodSelect").addEventListener("change", (e) => {
+    state.days = e.target.value === "all" ? "all" : Number(e.target.value); renderPage();
+  });
+  document.querySelectorAll(".range-btn").forEach((b) => b.addEventListener("click", () => { state.range = b.dataset.range; renderPage(); }));
+  document.getElementById("helpBtn").addEventListener("click", () => { state.helpOpen = !state.helpOpen; renderPage(); });
+  document.getElementById("exportBtn").addEventListener("click", exportCSV);
+  document.getElementById("kwSearch").addEventListener("input", (e) => {
+    state.q = e.target.value;
+    renderGrid(periodRows(item)); // only the grid, so the search box keeps focus
+  });
+
+  const rows = periodRows(item);
+  renderSummaryCards(rows);
+  renderGrid(rows);
 }
 
-// ---------- Project view ----------
-function renderProjectView() {
-  const project = PROJECTS[state.projectId];
-  const items = Object.values(project.items);
+// ---------- Summary cards ----------
+function renderSummaryCards(rows) {
+  // A blocked check means "we couldn't look", not "you weren't found", so it
+  // stays out of the headline numbers entirely.
+  const valid = rows.filter((r) => !r.blocked);
+  const dates = uniq(valid.map((r) => r.date)).sort();
+  const wrap = document.getElementById("summaryGrid");
 
-  if (!state.itemKey || !project.items[state.itemKey]) {
-    state.itemKey = items[0].item_key;
+  if (!dates.length) {
+    wrap.innerHTML = `<div class="card" style="grid-column:1/-1"><div class="label">No usable checks in this period yet.</div></div>`;
+    return;
   }
 
-  const countries = uniq(items.map((i) => i.country));
-  const flagStr =
-    countries.slice(0, 1).map((c) => FLAGS[c] || c).join("") +
-    (countries.length > 1 ? ` +${countries.length - 1}` : "");
-
-  const keywordCount = uniq(project.rows.map((r) => r.keyword)).length;
-
-  const app = document.getElementById("app");
-  app.innerHTML = `
-    <div class="topbar">
-      <div class="back-btn" onclick="location.hash='#/projects'">←</div>
-      <h1>${project.project_name}</h1>
-      <div class="flags">${flagStr}</div>
-    </div>
-    <div class="tabs">
-      <div class="tab" data-tab="items">Items <span class="badge-count">${items.length}</span></div>
-      <div class="tab" data-tab="keywords">Keywords <span class="badge-count">${keywordCount}</span></div>
-      <div class="tab" data-tab="ranks">Ranks</div>
-      <div class="tab" data-tab="trends">Trends</div>
-    </div>
-    <div class="content" id="tabContent"></div>
-  `;
-
-  app.querySelectorAll(".tab").forEach((el) => {
-    el.classList.toggle("active", el.dataset.tab === state.tab);
-    el.addEventListener("click", () => {
-      state.tab = el.dataset.tab;
-      renderProjectView();
-    });
-  });
-
-  const target = document.getElementById("tabContent");
-  if (state.tab === "items") renderItemsTab(target, project);
-  else if (state.tab === "keywords") renderKeywordsTab(target, project);
-  else if (state.tab === "trends") renderTrendsTab(target, project);
-  else renderRanksTab(target, project);
-}
-
-function itemSelectHTML(project) {
-  const items = Object.values(project.items);
-  const opts = items
-    .map(
-      (i) =>
-        `<option value="${i.item_key}" ${i.item_key === state.itemKey ? "selected" : ""}>
-           ${FLAGS[i.country] || i.country} ${MP_LABEL[i.marketplace] || i.marketplace} · ${i.country}
-         </option>`
-    )
-    .join("");
-  return `<select class="item-select" id="itemSelect">${opts}</select>`;
-}
-
-function bindItemSelect() {
-  const el = document.getElementById("itemSelect");
-  if (!el) return;
-  el.addEventListener("change", () => {
-    state.itemKey = el.value;
-    renderProjectView();
-  });
-}
-
-// ---------- Items tab ----------
-function renderItemsTab(target, project) {
-  const items = Object.values(project.items);
-  const rows = items
-    .map((item) => {
-      const dates = uniq(item.rows.map((r) => r.date)).sort();
-      const latest = dates[dates.length - 1];
-      const latestRows = item.rows.filter((r) => r.date === latest);
-      const avgPos = mean(latestRows.map((r) => r.rank));
-      const visibility = latestRows.length
-        ? (latestRows.filter((r) => r.rank !== null).length / latestRows.length) * 100
-        : null;
-      const kwCount = uniq(item.rows.map((r) => r.keyword)).length;
-      return `
-        <tr onclick="selectItemAndGo('${item.item_key}')">
-          <td>${FLAGS[item.country] || item.country} ${MP_LABEL[item.marketplace] || item.marketplace}</td>
-          <td>${item.country}</td>
-          <td>${kwCount}</td>
-          <td>${avgPos !== null ? avgPos.toFixed(1) : "–"}</td>
-          <td>${visibility !== null ? visibility.toFixed(0) + "%" : "–"}</td>
-          <td>${latest || "–"}</td>
-        </tr>`;
-    })
-    .join("");
-
-  target.innerHTML = `
-    <table class="simple">
-      <thead><tr><th>Marketplace</th><th>Country</th><th>Keywords</th><th>Avg. position</th><th>Visibility</th><th>Last checked</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-
-window.selectItemAndGo = function (itemKey) {
-  state.itemKey = itemKey;
-  state.tab = "ranks";
-  renderProjectView();
-};
-
-// ---------- Keywords tab ----------
-function renderKeywordsTab(target, project) {
-  target.innerHTML = `<div class="controls-row">${itemSelectHTML(project)}</div><div id="kwTableWrap"></div>`;
-  bindItemSelect();
-
-  const item = project.items[state.itemKey];
-  const keywords = uniq(item.rows.map((r) => r.keyword));
-  const dates = uniq(item.rows.map((r) => r.date)).sort();
-  const latest = dates[dates.length - 1];
-  const weekAgoIdx = Math.max(0, dates.length - 8);
-  const weekAgoDate = dates[weekAgoIdx];
-
-  const rows = keywords
-    .map((kw) => {
-      const kwRows = item.rows.filter((r) => r.keyword === kw);
-      const latestRank = (kwRows.find((r) => r.date === latest) || {}).rank ?? null;
-      const weekAgoRank = (kwRows.find((r) => r.date === weekAgoDate) || {}).rank ?? null;
-      const best = mean(kwRows.map((r) => r.rank)) === null ? null : Math.min(...kwRows.map((r) => r.rank).filter((r) => r !== null));
-      let trendHTML = `<span class="trend-flat">–</span>`;
-      if (latestRank !== null && weekAgoRank !== null) {
-        const delta = weekAgoRank - latestRank; // positive = improved (rank number went down)
-        if (delta > 0) trendHTML = `<span class="trend-down">▲ ${delta}</span>`;
-        else if (delta < 0) trendHTML = `<span class="trend-up">▼ ${Math.abs(delta)}</span>`;
-        else trendHTML = `<span class="trend-flat">– 0</span>`;
-      }
-      return `
-        <tr>
-          <td>${kw}</td>
-          <td><span class="rank-cell ${tierClass(latestRank)}" style="padding:3px 8px;">${latestRank ?? "–"}</span></td>
-          <td>${best ?? "–"}</td>
-          <td>${trendHTML} <span style="color:var(--text-dim);font-size:0.75rem;">vs 7d</span></td>
-          <td>${kwRows.length} checks</td>
-        </tr>`;
-    })
-    .join("");
-
-  document.getElementById("kwTableWrap").innerHTML = `
-    <table class="simple">
-      <thead><tr><th>Keyword</th><th>Current rank</th><th>Best rank</th><th>Trend</th><th>History</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-
-// ---------- Ranks tab (the main heatmap grid) ----------
-function renderRanksTab(target, project) {
-  target.innerHTML = `
-    <div class="controls-row">
-      ${itemSelectHTML(project)}
-      <div class="range-group">
-        <div class="range-btn" data-range="daily">Daily</div>
-        <div class="range-btn" data-range="weekly">Weekly</div>
-        <div class="range-btn" data-range="monthly">Monthly</div>
-      </div>
-    </div>
-    <div class="summary-grid" id="summaryGrid"></div>
-    <div class="grid-wrap"><table class="rankgrid" id="rankGrid"></table></div>
-  `;
-  bindItemSelect();
-
-  target.querySelectorAll(".range-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.range === state.range);
-    btn.addEventListener("click", () => {
-      state.range = btn.dataset.range;
-      renderProjectView();
-    });
-  });
-
-  const item = project.items[state.itemKey];
-  renderSummaryCards(item);
-  renderGrid(item);
-}
-
-function renderSummaryCards(item) {
-  const dates = uniq(item.rows.map((r) => r.date)).sort();
-  const keywords = uniq(item.rows.map((r) => r.keyword));
-
+  const byDate = (d) => valid.filter((r) => r.date === d);
   const dailyVisibility = dates.map((d) => {
-    const rows = item.rows.filter((r) => r.date === d);
-    return rows.length ? (rows.filter((r) => r.rank !== null).length / rows.length) * 100 : null;
+    const r = byDate(d);
+    return (r.filter((x) => x.rank !== null).length / r.length) * 100;
   });
-  const dailyAvgPos = dates.map((d) => mean(item.rows.filter((r) => r.date === d).map((r) => r.rank)));
-  const dailyTop3 = dates.map((d) => item.rows.filter((r) => r.date === d && r.rank !== null && r.rank <= 3).length);
+  const dailyAvgPos = dates.map((d) => mean(byDate(d).map((r) => r.rank)));
+  const dailyTop3 = dates.map((d) => byDate(d).filter((r) => r.rank !== null && r.rank <= 3).length);
 
   const latestVis = dailyVisibility[dailyVisibility.length - 1];
   const latestAvg = dailyAvgPos[dailyAvgPos.length - 1];
   const latestTop3 = dailyTop3[dailyTop3.length - 1];
+  const totalKw = byDate(dates[dates.length - 1]).length;
 
-  const latestDate = dates[dates.length - 1];
-  const latestRanks = item.rows.filter((r) => r.date === latestDate).map((r) => r.rank);
+  const latestRanks = byDate(dates[dates.length - 1]).map((r) => r.rank);
   const buckets = [
     { label: "1-3", test: (r) => r !== null && r <= 3, color: "#1f9d55" },
     { label: "4-10", test: (r) => r !== null && r > 3 && r <= 10, color: "#7cc576" },
@@ -356,21 +252,20 @@ function renderSummaryCards(item) {
   const counts = buckets.map((b) => latestRanks.filter(b.test).length);
   const maxCount = Math.max(1, ...counts);
 
-  const wrap = document.getElementById("summaryGrid");
   wrap.innerHTML = `
-    <div class="card">
+    <div class="card" title="Share of tracked keywords where your product was found, on the latest day">
       <div class="label">Visibility</div>
-      <div class="value">${latestVis !== null ? latestVis.toFixed(1) + "%" : "–"}</div>
+      <div class="value">${latestVis.toFixed(1)}%</div>
       <canvas id="sparkVis" height="50"></canvas>
     </div>
-    <div class="card">
+    <div class="card" title="Average position across the keywords where your product was found">
       <div class="label">Average Position</div>
       <div class="value">${latestAvg !== null ? latestAvg.toFixed(1) : "–"}</div>
       <canvas id="sparkAvg" height="50"></canvas>
     </div>
     <div class="card">
       <div class="label">Top 3 Rankings</div>
-      <div class="value">${latestTop3}</div>
+      <div class="value">${latestTop3} <span class="of">of ${totalKw}</span></div>
       <canvas id="sparkTop3" height="50"></canvas>
     </div>
     <div class="card">
@@ -381,24 +276,22 @@ function renderSummaryCards(item) {
       <div class="dist-legend">
         ${buckets.map((b, i) => `<div><span class="dot" style="background:${b.color};"></span>${b.label}: ${counts[i]}</div>`).join("")}
       </div>
-    </div>
-  `;
+    </div>`;
 
-  makeSparkline("sparkVis", dates, dailyVisibility, "#5b5ff0");
-  makeSparkline("sparkAvg", dates, dailyAvgPos, "#5b5ff0", true);
-  makeSparkline("sparkTop3", dates, dailyTop3, "#5b5ff0");
+  makeSparkline("sparkVis", dates, dailyVisibility, false);
+  makeSparkline("sparkAvg", dates, dailyAvgPos, true);
+  makeSparkline("sparkTop3", dates, dailyTop3, false);
 }
 
-function makeSparkline(canvasId, labels, data, color, reverseY) {
+function makeSparkline(canvasId, labels, data, reverseY) {
   if (sparkCharts[canvasId]) sparkCharts[canvasId].destroy();
   const ctx = document.getElementById(canvasId);
   if (!ctx) return;
   sparkCharts[canvasId] = new Chart(ctx, {
     type: "line",
-    data: { labels, datasets: [{ data, borderColor: color, backgroundColor: color + "22", fill: true, tension: 0.3, pointRadius: 0, spanGaps: true }] },
+    data: { labels, datasets: [{ data, borderColor: "#5b5ff0", backgroundColor: "#5b5ff022", fill: true, tension: 0.3, pointRadius: 0, spanGaps: true }] },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       scales: { x: { display: false }, y: { display: false, reverse: !!reverseY } },
       plugins: { legend: { display: false }, tooltip: { enabled: false } },
       elements: { line: { borderWidth: 2 } },
@@ -406,124 +299,106 @@ function makeSparkline(canvasId, labels, data, color, reverseY) {
   });
 }
 
-function renderGrid(item) {
-  const keywords = uniq(item.rows.map((r) => r.keyword));
-  const rawDates = uniq(item.rows.map((r) => r.date)).sort(); // ascending
+// ---------- The rank grid ----------
+function renderGrid(rows) {
+  const allKeywords = uniq(rows.map((r) => r.keyword));
+  const rawDates = uniq(rows.map((r) => r.date)).sort(); // ascending
+  const latestDate = rawDates[rawDates.length - 1];
 
-  // Precompute keyword -> date -> row lookup once (carries rank AND the
-  // blocked flag, so a Temu block never silently reads the same as
-  // "not found" in the grid — see the getValue daily case below).
+  // keyword -> date -> row, so lookups below are instant
   const byKwDate = {};
-  item.rows.forEach((r) => {
-    byKwDate[r.keyword] = byKwDate[r.keyword] || {};
-    byKwDate[r.keyword][r.date] = r; // whole row, not just r.rank
+  rows.forEach((r) => {
+    (byKwDate[r.keyword] = byKwDate[r.keyword] || {})[r.date] = r;
   });
   const hasCell = (kw, d) => Object.prototype.hasOwnProperty.call(byKwDate[kw] || {}, d);
-  const cellRow = (kw, d) => byKwDate[kw][d];
-  const cellRank = (kw, d) => cellRow(kw, d).rank;
+  const cell = (kw, d) => byKwDate[kw][d];
 
-  let columns; // [{key, label}]
-  let getValue; // (keyword, columnKey) -> rank, null (not found), or undefined (no data)
+  // value for a keyword on a date: a rank, null (checked, not found),
+  // "BLOCKED" (marketplace refused the check) or undefined (no check that day)
+  const dayValue = (kw, d) => {
+    if (!hasCell(kw, d)) return undefined;
+    const r = cell(kw, d);
+    return r.blocked ? "BLOCKED" : r.rank;
+  };
+  const bucketValue = (kw, dates) => {
+    const present = dates.filter((d) => hasCell(kw, d) && !cell(kw, d).blocked);
+    if (!present.length) {
+      return dates.some((d) => hasCell(kw, d)) ? "BLOCKED" : undefined;
+    }
+    const m = mean(present.map((d) => cell(kw, d).rank));
+    return m === null ? null : Math.round(m);
+  };
 
+  let columns; // [{ key, label }]
+  let getValue;
   if (state.range === "daily") {
     columns = rawDates.slice().reverse().map((d) => ({ key: d, label: fmtDateShort(d) }));
-    getValue = (kw, colKey) => {
-      if (!hasCell(kw, colKey)) return undefined;
-      const row = cellRow(kw, colKey);
-      return row.blocked ? "BLOCKED" : row.rank;
-    };
-  } else if (state.range === "weekly") {
-    const weekMap = {};
-    rawDates.forEach((d) => {
-      const wk = isoWeekStart(d);
-      weekMap[wk] = weekMap[wk] || [];
-      weekMap[wk].push(d);
-    });
-    const weeks = Object.keys(weekMap).sort().reverse();
-    columns = weeks.map((wk) => ({ key: wk, label: "wk " + fmtDateShort(wk) }));
-    getValue = (kw, colKey) => {
-      const ds = weekMap[colKey].filter((d) => hasCell(kw, d));
-      if (!ds.length) return undefined;
-      const m = mean(ds.map((d) => cellRank(kw, d)));
-      return m === null ? null : Math.round(m);
-    };
+    getValue = dayValue;
   } else {
-    const monthMap = {};
-    rawDates.forEach((d) => {
-      const mk = monthKey(d);
-      monthMap[mk] = monthMap[mk] || [];
-      monthMap[mk].push(d);
-    });
-    const months = Object.keys(monthMap).sort().reverse();
-    columns = months.map((mk) => ({ key: mk, label: monthLabel(mk) }));
-    getValue = (kw, colKey) => {
-      const ds = monthMap[colKey].filter((d) => hasCell(kw, d));
-      if (!ds.length) return undefined;
-      const m = mean(ds.map((d) => cellRank(kw, d)));
-      return m === null ? null : Math.round(m);
-    };
+    const buckets = {};
+    const keyOf = state.range === "weekly" ? isoWeekStart : monthKey;
+    rawDates.forEach((d) => { (buckets[keyOf(d)] = buckets[keyOf(d)] || []).push(d); });
+    columns = Object.keys(buckets).sort().reverse().map((k) => ({
+      key: k,
+      label: state.range === "weekly" ? "wk " + fmtDateShort(k) : monthLabel(k),
+    }));
+    getValue = (kw, k) => bucketValue(kw, buckets[k]);
   }
 
-  const thead = `<thead><tr><th class="kwcol">Keyword (${keywords.length})</th>${columns.map((c) => `<th>${c.label}</th>`).join("")}</tr></thead>`;
+  // Most recent known rank decides the order (best first, unknown last)
+  const latestRank = (kw) => {
+    const v = latestDate && hasCell(kw, latestDate) && !cell(kw, latestDate).blocked ? cell(kw, latestDate).rank : null;
+    return v === null ? Infinity : v;
+  };
+  const q = state.q.trim().toLowerCase();
+  const keywords = allKeywords
+    .filter((k) => !q || k.toLowerCase().includes(q))
+    .sort((a, b) => latestRank(a) - latestRank(b) || a.localeCompare(b));
 
-  const bestRankByKw = {};
+  LAST_GRID = { columns, keywords, getValue };
+
+  const head = `<thead><tr><th class="kwcol">Keyword (${keywords.length})</th>${columns.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr></thead>`;
+  const body = keywords.map((kw) => {
+    const lr = latestRank(kw);
+    const tag = lr === 1 ? '<span class="kw-tag">#1</span>' : lr <= 3 ? '<span class="kw-tag">TOP 3</span>' : "";
+    const cells = columns.map((c) => {
+      const v = getValue(kw, c.key);
+      if (v === undefined) return `<td class="nodata">·</td>`;
+      if (v === "BLOCKED") return `<td class="rank-cell r-blocked" title="The marketplace blocked this check — that's not the same as falling out of the rankings">?</td>`;
+      return `<td class="rank-cell ${tierClass(v)}">${v === null ? "–" : v}</td>`;
+    }).join("");
+    return `<tr><td class="kwcol"><span class="kw-name">${esc(kw)}</span>${tag}</td>${cells}</tr>`;
+  }).join("");
+
+  document.getElementById("rankGrid").innerHTML =
+    head + `<tbody>${body || `<tr><td class="kwcol" colspan="${columns.length + 1}">No keywords match.</td></tr>`}</tbody>`;
+}
+
+// ---------- CSV export ----------
+function buildCsv() {
+  const { columns, keywords, getValue } = LAST_GRID;
+  const q = (s) => `"${String(s).replace(/"/g, '""')}"`;
+  const lines = [["Keyword", ...columns.map((c) => c.key)].map(q).join(",")];
   keywords.forEach((kw) => {
-    const ranks = item.rows.filter((r) => r.keyword === kw).map((r) => r.rank).filter((r) => r !== null);
-    bestRankByKw[kw] = ranks.length ? Math.min(...ranks) : Infinity;
+    const vals = columns.map((c) => {
+      const v = getValue(kw, c.key);
+      return v === undefined || v === null ? "" : v === "BLOCKED" ? "blocked" : v;
+    });
+    lines.push([q(kw), ...vals].join(","));
   });
-  const sortedKeywords = keywords.slice().sort((a, b) => bestRankByKw[a] - bestRankByKw[b]);
-
-  const body = sortedKeywords
-    .map((kw) => {
-      const tag = bestRankByKw[kw] === 1 ? '<span class="kw-tag">TOP 1</span>' : bestRankByKw[kw] <= 3 ? '<span class="kw-tag">TOP 3</span>' : "";
-      const cells = columns
-        .map((c) => {
-          const v = getValue(kw, c.key);
-          if (v === undefined) return `<td>·</td>`;
-          if (v === "BLOCKED") return `<td class="rank-cell ${tierClass(v)}" title="Temu blocked this check — not the same as falling out of rank">?</td>`;
-          return `<td class="rank-cell ${tierClass(v)}">${v === null ? "–" : v}</td>`;
-        })
-        .join("");
-      return `<tr><td class="kwcol"><span class="kw-name">${kw}</span>${tag}</td>${cells}</tr>`;
-    })
-    .join("");
-
-  document.getElementById("rankGrid").innerHTML = thead + `<tbody>${body}</tbody>`;
+  return lines.join("\n");
 }
 
-// ---------- Trends tab ----------
-function renderTrendsTab(target, project) {
-  target.innerHTML = `
-    <div class="controls-row">
-      ${itemSelectHTML(project)}
-      <select id="kwPick"></select>
-    </div>
-    <div class="card"><canvas id="trendChart" height="90"></canvas></div>
-  `;
-  bindItemSelect();
-
-  const item = project.items[state.itemKey];
-  const keywords = uniq(item.rows.map((r) => r.keyword));
-  const pick = document.getElementById("kwPick");
-  pick.innerHTML = keywords.map((k) => `<option value="${k}">${k}</option>`).join("");
-  pick.addEventListener("change", () => drawTrend(item, pick.value));
-  drawTrend(item, keywords[0]);
-}
-
-function drawTrend(item, keyword) {
-  const rows = item.rows.filter((r) => r.keyword === keyword).sort((a, b) => a.date.localeCompare(b.date));
-  const labels = rows.map((r) => r.date);
-  const data = rows.map((r) => r.rank);
-  if (trendChart) trendChart.destroy();
-  const ctx = document.getElementById("trendChart");
-  trendChart = new Chart(ctx, {
-    type: "line",
-    data: { labels, datasets: [{ label: `Rank for "${keyword}"`, data, borderColor: "#5b5ff0", backgroundColor: "#5b5ff022", fill: true, tension: 0.25, spanGaps: true }] },
-    options: {
-      scales: { y: { reverse: true, title: { display: true, text: "Position (lower = better)" } } },
-      plugins: { legend: { display: false } },
-    },
-  });
+function exportCSV() {
+  if (!LAST_GRID) return;
+  const item = currentItem();
+  const blob = new Blob(["\ufeff" + buildCsv()], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `ranks-${item.marketplace}-${item.country}-${item.product_id}-${state.range}.csv`.replace(/[^\w.-]+/g, "_");
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 boot();

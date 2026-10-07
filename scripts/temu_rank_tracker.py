@@ -27,8 +27,8 @@ Unlocker's plain HTML fetch doesn't give you), navigates to Temu's search
 page, waits for the product grid to render, then reads product IDs
 (goods_id) out of the rendered page in order.
 
-Config (config/projects.json), per Temu item:
-    "temu_goods_id": the numeric ID from your listing's URL, e.g. the
+Tracking table (sheet or config/tracked.csv), per Temu product:
+    product_id: the numeric ID from your listing's URL, e.g. the
     "601099512665876" in "temu.com/goods.html?goods_id=601099512665876"
 
 Requires (see README.md):
@@ -43,11 +43,11 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 import bright_data
+import config_loader
 from playwright.async_api import async_playwright
 import asyncio
 
 ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = ROOT / "config" / "projects.json"
 DATA_PATH = ROOT / "docs" / "data" / "ranks.json"
 
 SEARCH_URL = "https://www.temu.com/search_result.html?search_key={query}"
@@ -126,7 +126,7 @@ def save_json(path: Path, data):
 
 
 def main():
-    projects = load_json(CONFIG_PATH, [])
+    projects = config_loader.load_projects()
     history = load_json(DATA_PATH, [])
     today = date.today().isoformat()
     seen_today = {

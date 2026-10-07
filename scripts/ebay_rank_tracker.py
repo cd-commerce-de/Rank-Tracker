@@ -1,7 +1,7 @@
 """
 eBay keyword rank tracker (project-based).
 
-Reads config/projects.json — each project groups one or more "items"
+Reads the products & keywords table (see config_loader.py) — each project groups one or more "items"
 (a specific marketplace+country listing of that product). For every
 keyword under an eBay item, this searches eBay's Browse API (the same
 "Best Match" order shoppers see) and records your listing's position.
@@ -28,8 +28,9 @@ from pathlib import Path
 
 import requests
 
+import config_loader
+
 ROOT = Path(__file__).resolve().parent.parent
-CONFIG_PATH = ROOT / "config" / "projects.json"
 DATA_PATH = ROOT / "docs" / "data" / "ranks.json"
 
 TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
@@ -131,9 +132,9 @@ def main():
         print("ERROR: EBAY_CLIENT_ID / EBAY_CLIENT_SECRET not set.", file=sys.stderr)
         sys.exit(1)
 
-    projects = load_json(CONFIG_PATH, [])
+    projects = config_loader.load_projects()
     if not projects:
-        print("No projects configured in config/projects.json — nothing to do.")
+        print("No products configured yet (add rows to your tracking sheet or config/tracked.csv) — nothing to do.")
         return
 
     token = get_access_token(client_id, client_secret)
@@ -175,7 +176,7 @@ def main():
                     "country": country,
                     "keyword": keyword,
                     "rank": rank,
-                    "item_id": item_id,
+                    "item_id": item.get("ebay_item_id") or item_id,
                     "title": title,
                     "results_scanned": RESULTS_PER_PAGE * MAX_PAGES,
                 }
