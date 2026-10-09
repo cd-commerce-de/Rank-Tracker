@@ -4,7 +4,7 @@ Loads "what to track" for every marketplace tracker.
 THE SHEET HAS TWO TABS (the recommended setup):
 
   Keywords tab   -> columns:  project, keyword
-  Products tab   -> columns:  project, marketplace, country, product_id [, name]
+  Products tab   -> columns:  project, marketplace, country, product_id [, name] [, source]
 
   Every product in a project is checked against every keyword of that project.
   Add a keyword once and it is tracked for all of the project's products, on
@@ -118,6 +118,10 @@ class _Builder:
         label = row.get("name") or row.get("label") or ""
         if label and not item.get("label"):
             item["label"] = label
+        # eBay only: "web" reads the ebay.de page through Bright Data (what a shopper sees, with
+        # paid slots told apart); anything else (or blank) uses eBay's search API.
+        if marketplace == "ebay" and (row.get("source", "").lower() in ("web", "website", "page", "scrape")):
+            item["source"] = "web"
         if via_products_tab:
             project["from_products"].add(item_key)
         return item

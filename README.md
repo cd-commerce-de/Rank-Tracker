@@ -35,6 +35,49 @@ If `ranks.json` ever does get overwritten, GitHub still has the old version: ope
 "Update ranks …" from before the overwrite, click the file's **⋯ → View file** (or **Raw**),
 copy everything, then edit the current `ranks.json` (pencil icon), paste, and commit.
 
+## What it costs
+
+Almost everything is free. The only thing that can cost money is **Bright Data**, and only for the
+products that use it (eBay products with `source = web`, plus Otto, Kaufland and Temu).
+
+| Part | Cost |
+|---|---|
+| eBay search API (`source` blank) | free |
+| GitHub Pages, Actions (public repo), the Google Sheet, Cloudflare sync service, fonts | free |
+| GitHub Actions on a *private* repo | 2,000 minutes a month included (3,000 on a Team plan); the daily run plus the hourly check use roughly 1,000–2,000 — see below |
+| Bright Data **Web Unlocker** (eBay website mode, Otto, Kaufland) | 5,000 successful requests a month free, then **$1.50 per 1,000**; failed requests are not billed (rates seen in recent 2026 listings — confirm in your Bright Data account) |
+| Bright Data **Browser API** (Temu) | billed per GB (about $5–8/GB), not per request |
+
+**How many Web Unlocker requests?** One request per *results page*, and a search is shared by **every
+product** checked for that keyword. So adding products costs nothing extra; what costs is
+**keywords × pages × days**. The eBay website tracker reads **page 1 only** by default (up to 240
+listings if eBay honours the page size, otherwise fewer), so it is about **one request per keyword per
+day**. A listing that only appears further down is reported as "not found" with the number of
+listings that were actually looked at (the dashboard shows it as `>N`). To look deeper, change
+`EBAY_WEB_MAX_PAGES` (1–5) in `.github/workflows/track-ranks.yml`. Per month (30 days):
+
+| Keywords | Requests, page 1 only (default) | Cost | Requests, 3 pages | Cost |
+|--:|--:|--:|--:|--:|
+| 50 | 1,500 | $0.00 | 4,500 | $0.00 |
+| 100 | 3,000 | $0.00 | 9,000 | $6.00 |
+| 150 | 4,500 | $0.00 | 13,500 | $12.75 |
+| 200 | 6,000 | $1.50 | 18,000 | $19.50 |
+| 300 | 9,000 | $6.00 | 27,000 | $33.00 |
+
+(Cost = requests beyond the free 5,000 × $1.50 / 1,000. Up to about 165 keywords fit in the free
+allowance with page 1 only. New keywords found by the hourly check and "Check an eBay keyword" runs add a
+little. Bright Data says it bills more for some heavily protected websites; if eBay is on that list the
+rate is higher than $1.50 — check the **usage page** in Bright Data after the first day, and set a
+monthly spend limit there.)
+
+**Safety net:** if 3 keywords in a row return a page that can't be read (blocked, or eBay changed its
+layout), the eBay website tracker stops the run instead of paying for more empty pages.
+
+**GitHub Actions minutes (private repos only):** the daily run takes a few minutes for 50
+keywords on page 1 (the lookups run one after another) and the hourly check about a minute, so expect
+roughly 800–1,200 minutes a month. If you go over, change the hourly `cron` line in `track-ranks.yml` to a
+less frequent schedule, e.g. `"20 */3 * * *"`.
+
 ## Branding
 
 The dashboard follows the CD Commerce brand: Dark Slate `#0F172A` and Warm Ember `#D97757`
@@ -84,7 +127,7 @@ own marketplace — so a keyword is written once, and a product is written once.
 | WGH30 (3T Car Jacks) | wagenheber |
 | WGH30 (3T Car Jacks) | wagenheber 3t |
 
-**Tab named Products** — columns `project`, `marketplace`, `country`, `product_id`, and an optional `name`:
+**Tab named Products** — columns `project`, `marketplace`, `country`, `product_id`, and the optional `name` and `source`:
 
 | project | marketplace | country | product_id | name |
 |---|---|---|---|---|
@@ -97,6 +140,9 @@ Here, 4 products x the keywords above = every keyword checked for every product.
 
 - **`project`** must be spelled the same on both tabs (capital letters don't matter).
   It's what you pick in the dashboard's project dropdown.
+- **`source`** (eBay only, optional): leave blank to use eBay's search API (free), or write `web` to
+  read the real ebay.de results page through Bright Data (the position a shopper actually sees,
+  paid "Anzeige" slots told apart; costs Bright Data credit, needs the Bright Data secrets).
 - **Several product IDs per project** are fine, on the same marketplace or on
   different ones. Each appears separately in the dashboard's product dropdown;
   the optional `name` is shown there, e.g. "eBay · DE · 3T jack (184176192867)".
@@ -190,16 +236,23 @@ and GitHub may email you; fix the sharing and it recovers by itself.
 
 ## How much to trust each marketplace
 
-- **eBay** — official API, exact item-ID match. The position is where eBay's *search API* lists
-  the listing (its "Best Match" order). That is **not guaranteed to equal what a shopper sees on
-  ebay.de**: the website adds paid "Anzeige" slots, may personalise results, and also shows auctions
-  that the API leaves out by default. eBay flags paid Promoted Listings in the API, so each saved
-  row also has `organic_rank` (the position with paid results removed) and `promoted` (is your listing
-  itself a paid placement). If a number looks wrong, run **Actions → Check an eBay keyword** with the
-  keyword: it prints the API's results in order with sellers, paid flags and your listings
-  highlighted (★), so you can compare it with the website line by line. Also remember each tracked
-  row follows **one item ID**: if you have several listings for the same product, the one you see
-  first on ebay.de may be a different listing from the one you track.
+- **eBay** — two ways to read it, per product (the `source` column):
+  - **API (default, free):** eBay's search API, exact item-ID match. The position is where the *API*
+    lists the listing ("Best Match" order). That is **not guaranteed to equal what a shopper sees on
+    ebay.de**: the website adds paid "Anzeige" slots, can personalise results and also shows auctions.
+    The API flags paid Promoted Listings, so each row also stores `organic_rank` (position with paid
+    results removed) and `promoted`.
+  - **`web` (more faithful):** reads the real ebay.de page through Bright Data, like Otto and Kaufland.
+    It recognises the "Anzeige" label (eBay writes it backwards in the page text, `egieznA`), so it reports
+    both the position a shopper sees (`rank`) and the organic one (`organic_rank`). If your listing appears
+    both as an ad and organically, both are recorded. Not verified against live eBay pages while building
+    this, so check it with the tool below before relying on it.
+  - **If a number looks wrong:** run **Actions → Check an eBay keyword**. It prints eBay's API results
+    *and* the real ebay.de page for the keyword, in order, with your listings highlighted (★), so you can
+    compare them with your browser line by line. Remember each tracked row follows **one item ID**: if you
+    have several listings for the same product, the one you see first may be a different listing.
+  - **In the dashboard:** when a project has organic data, a *Count: all results / organic only* switch
+    appears next to the period picker; the table, the cards and the export all follow it.
 - **Otto** — fetched through Web Unlocker; your product is recognised by the ID
   in its URL, so layout changes don't break it. The matching logic was checked
   against a real otto.de page, but the **pagination page size is an unverified

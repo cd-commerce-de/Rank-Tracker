@@ -7,7 +7,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-let state = { projectId: null, itemKey: null, range: "daily", days: 30, q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
+let state = { projectId: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
 
 // ---------- Small helpers ----------
@@ -73,7 +73,17 @@ async function loadData() {
   PROJECTS = buildProjects(ALL_ROWS);
 }
 
+// Which position counts: every result (as listed), or "organic only" with paid placements removed.
+// Rows that have no organic position (other marketplaces, older checks) always use their normal rank.
+function applyBasis(rows) {
+  rows.forEach((r) => {
+    if (r.rank_all === undefined) r.rank_all = r.rank;
+    r.rank = state.basis === "organic" && r.organic_rank !== undefined ? r.organic_rank : r.rank_all;
+  });
+}
+
 function buildProjects(rows) {
+  applyBasis(rows);
   const map = {};
   rows.forEach((r) => {
     const p = (map[r.project_id] = map[r.project_id] || {
@@ -159,7 +169,7 @@ function helpPanelHTML() {
   return `
     <div class="help-panel">
       <b>Add or change what's tracked</b>
-      <p>Your sheet has two tabs. <b>Keywords:</b> <code>project</code>, <code>keyword</code>. <b>Products:</b> <code>project</code>, <code>marketplace</code> (ebay / otto / kaufland / temu), <code>country</code>, <code>product_id</code> (the ID from your own listing's URL) and an optional <code>name</code>.</p>
+      <p>Your sheet has two tabs. <b>Keywords:</b> <code>project</code>, <code>keyword</code>. <b>Products:</b> <code>project</code>, <code>marketplace</code> (ebay / otto / kaufland / temu), <code>country</code>, <code>product_id</code> (the ID from your own listing's URL), and optionally <code>name</code> and <code>source</code> (eBay only: <code>web</code> reads the real ebay.de page instead of eBay's search API).</p>
       <p>Every product in a project is checked against every keyword of that project, so each keyword is written once and each product is written once. A project can have several product IDs, on one marketplace or several.</p>
       ${link}
       <p>A new keyword's history starts the first day it's checked. To check right away, use <b>↻ Sync now</b>, or run the workflow from your repo's <b>Actions</b> tab.</p>
@@ -211,7 +221,11 @@ function renderPage() {
   const itemOptions = items.map((i) => opt(i.item_key, itemText(i), i.item_key === state.itemKey)).join("");
   const periods = [[14, "Last 14 days"], [30, "Last 30 days"], [60, "Last 60 days"], [90, "Last 90 days"], ["all", "All time"]]
     .map(([v, label]) => opt(v, label, String(v) === String(state.days))).join("");
-  const rangeGroup = `<div class="range-group">${["daily", "weekly", "monthly"].map((r) => `<div class="range-btn ${state.range === r ? "active" : ""}" data-range="${r}">${r[0].toUpperCase() + r.slice(1)}</div>`).join("")}</div>
+  const hasOrganic = project.rows.some((r) => r.organic_rank !== undefined);
+  const basisSelect = hasOrganic
+    ? `<select id="basisSelect" title="Which positions to count: every result, or only organic ones with paid placements removed"><option value="all" ${state.basis === "all" ? "selected" : ""}>Count: all results</option><option value="organic" ${state.basis === "organic" ? "selected" : ""}>Count: organic only</option></select>`
+    : "";
+  const rangeGroup = `${basisSelect}<div class="range-group">${["daily", "weekly", "monthly"].map((r) => `<div class="range-btn ${state.range === r ? "active" : ""}" data-range="${r}">${r[0].toUpperCase() + r.slice(1)}</div>`).join("")}</div>
       <select id="periodSelect">${periods}</select><span class="range-text">${esc(VIEW.rangeText)}</span>`;
 
   const controls = `<div class="ctrl-group"><select class="item-select" id="itemSelect">${itemOptions}</select><button class="btn" id="addKwBtn">+ Add keyword</button></div><div class="ctrl-group">${rangeGroup}</div>`;
@@ -241,6 +255,7 @@ function renderPage() {
   bindSyncControls();
   on("projectSelect", "change", (e) => { state.projectId = e.target.value; state.itemKey = null; renderPage(); });
   on("itemSelect", "change", (e) => { state.itemKey = e.target.value; renderPage(); });
+  on("basisSelect", "change", (e) => { state.basis = e.target.value; applyBasis(ALL_ROWS); renderPage(); });
   on("periodSelect", "change", (e) => { state.days = e.target.value === "all" ? "all" : Number(e.target.value); renderPage(); });
   on("helpBtn", "click", () => { state.helpOpen = !state.helpOpen; renderPage(); });
   on("addKwBtn", "click", () => { state.helpOpen = true; renderPage(); window.scrollTo(0, 0); });

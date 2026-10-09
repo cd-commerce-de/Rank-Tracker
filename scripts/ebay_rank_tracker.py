@@ -213,8 +213,8 @@ def main():
             project_name = project["project_name"]
 
             for item in project.get("items", []):
-                if item.get("marketplace") != "ebay":
-                    continue  # other marketplaces come in a later phase
+                if item.get("marketplace") != "ebay" or item.get("source") == "web":
+                    continue  # source=web products are read from the ebay.de page by ebay_web_tracker.py
 
                 item_key = item["item_key"]
                 country = item.get("country", "DE")

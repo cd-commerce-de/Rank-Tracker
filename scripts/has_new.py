@@ -36,12 +36,19 @@ def configured(marketplace: str) -> bool:
     return all(os.environ.get(v, "").strip() for v in NEEDS.get(marketplace, ["__missing__"]))
 
 
+def item_configured(item) -> bool:
+    """An eBay product read from the ebay.de page needs Bright Data, not the eBay API keys."""
+    if item.get("marketplace") == "ebay" and item.get("source") == "web":
+        return configured("otto")   # same two Bright Data Web Unlocker variables
+    return configured(item.get("marketplace", ""))
+
+
 def find_new(projects, history):
     known = {(r["project_id"], r["item_key"], r["keyword"]) for r in history}
     new = []
     for project in projects:
         for item in project.get("items", []):
-            if not configured(item.get("marketplace", "")):
+            if not item_configured(item):
                 continue
             for keyword in item.get("keywords", []):
                 if (project["project_id"], item["item_key"], keyword) not in known:
