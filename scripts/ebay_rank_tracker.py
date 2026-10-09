@@ -23,6 +23,7 @@ import base64
 import json
 import os
 import sys
+import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -46,20 +47,43 @@ RESULTS_PER_PAGE = 200
 MAX_PAGES = 3  # top 600 results scanned per keyword
 
 
+RETRY_STATUS = {429, 500, 502, 503, 504}
+
+
+def _with_retries(send, attempts=4):
+    """
+    Call send() (which returns a requests.Response). Timeouts, dropped
+    connections and temporary server errors (429/5xx) are retried a few times
+    with a growing pause, instead of failing the whole run on one slow reply.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = send()
+            if resp.status_code in RETRY_STATUS and attempt < attempts:
+                raise requests.ConnectionError(f"HTTP {resp.status_code}")
+            resp.raise_for_status()
+            return resp
+        except (requests.Timeout, requests.ConnectionError) as e:
+            if attempt == attempts:
+                raise
+            wait = 3 * 2 ** (attempt - 1)
+            print(f"  ... {type(e).__name__}; retrying in {wait}s (attempt {attempt}/{attempts})", file=sys.stderr)
+            time.sleep(wait)
+
+
 def get_access_token(client_id: str, client_secret: str) -> str:
     creds = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
-    resp = requests.post(
+    resp = _with_retries(lambda: requests.post(
         TOKEN_URL,
         headers={"Authorization": f"Basic {creds}", "Content-Type": "application/x-www-form-urlencoded"},
         data={"grant_type": "client_credentials", "scope": "https://api.ebay.com/oauth/api_scope"},
         timeout=30,
-    )
-    resp.raise_for_status()
+    ))
     return resp.json()["access_token"]
 
 
 def search_page(token, marketplace_id, keyword, offset):
-    resp = requests.get(
+    resp = _with_retries(lambda: requests.get(
         SEARCH_URL,
         headers={
             "Authorization": f"Bearer {token}",
@@ -67,9 +91,8 @@ def search_page(token, marketplace_id, keyword, offset):
             "Content-Type": "application/json",
         },
         params={"q": keyword, "limit": RESULTS_PER_PAGE, "offset": offset},
-        timeout=30,
-    )
-    resp.raise_for_status()
+        timeout=60,
+    ))
     return resp.json().get("itemSummaries", [])
 
 
@@ -145,45 +168,54 @@ def main():
         for r in history if r["date"] == today
     }
 
-    for project in projects:
-        project_id = project["project_id"]
-        project_name = project["project_name"]
+    # ONLY_NEW=1 (the hourly pick-up run): only check keywords that have never
+    # been checked before, i.e. products/keywords added since the last run.
+    only_new = os.environ.get("ONLY_NEW") == "1"
+    known_any = {(r["project_id"], r["item_key"], r["keyword"]) for r in history}
 
-        for item in project.get("items", []):
-            if item.get("marketplace") != "ebay":
-                continue  # other marketplaces come in a later phase
+    try:
+        for project in projects:
+            project_id = project["project_id"]
+            project_name = project["project_name"]
 
-            item_key = item["item_key"]
-            country = item.get("country", "DE")
-            marketplace_id = MARKETPLACE_IDS.get(country, "EBAY_DE")
+            for item in project.get("items", []):
+                if item.get("marketplace") != "ebay":
+                    continue  # other marketplaces come in a later phase
 
-            for keyword in item.get("keywords", []):
-                if (project_id, item_key, keyword) in seen_today:
-                    continue
-                try:
-                    rank, item_id, title = find_rank(token, marketplace_id, keyword, item)
-                except requests.HTTPError as e:
-                    print(f"  ! error searching '{keyword}': {e}", file=sys.stderr)
-                    continue
+                item_key = item["item_key"]
+                country = item.get("country", "DE")
+                marketplace_id = MARKETPLACE_IDS.get(country, "EBAY_DE")
 
-                row = {
-                    "date": today,
-                    "checked_at": datetime.now(timezone.utc).isoformat(),
-                    "project_id": project_id,
-                    "project_name": project_name,
-                    "item_key": item_key,
-                    "marketplace": "ebay",
-                    "country": country,
-                    "keyword": keyword,
-                    "rank": rank,
-                    "item_id": item.get("ebay_item_id") or item_id,
-                    "title": title,
-                    "results_scanned": RESULTS_PER_PAGE * MAX_PAGES,
-                }
-                history.append(row)
-                print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}")
+                for keyword in item.get("keywords", []):
+                    if (project_id, item_key, keyword) in seen_today or (
+                        only_new and (project_id, item_key, keyword) in known_any
+                    ):
+                        continue
+                    try:
+                        rank, item_id, title = find_rank(token, marketplace_id, keyword, item)
+                    except requests.RequestException as e:
+                        print(f"  ! error searching '{keyword}': {e}", file=sys.stderr)
+                        continue
 
-    save_json(DATA_PATH, history)
+                    row = {
+                        "date": today,
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                        "project_id": project_id,
+                        "project_name": project_name,
+                        "item_key": item_key,
+                        "marketplace": "ebay",
+                        "country": country,
+                        "keyword": keyword,
+                        "rank": rank,
+                        "item_id": item.get("ebay_item_id") or item_id,
+                        "title": title,
+                        "results_scanned": RESULTS_PER_PAGE * MAX_PAGES,
+                    }
+                    history.append(row)
+                    print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}")
+
+    finally:
+        save_json(DATA_PATH, history)
     print(f"Saved {len(history)} total rows to {DATA_PATH}")
 
 

@@ -1,7 +1,9 @@
 # Shared Sync service (one-time setup, ~10 minutes, by one admin)
 
-This makes the dashboard's **↻ Sync now** button work for **everyone** — no
-GitHub account, no token, nothing to install for the other users.
+**Optional.** New products and keywords you add to the sheet are already picked up
+automatically every hour, with no setup at all. This service adds an *instant* option:
+it makes the dashboard's **↻ Sync now** button work for **everyone** — no GitHub
+account, no token, nothing to install for the other users.
 
 **Why a separate service?** The dashboard is a public web page, so it can't
 contain the key that starts GitHub jobs. This little service keeps that key as

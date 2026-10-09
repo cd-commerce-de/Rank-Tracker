@@ -36,6 +36,7 @@ Requires (see README.md):
 """
 
 import json
+import os
 import re
 import sys
 import urllib.parse
@@ -134,50 +135,59 @@ def main():
         for r in history if r["date"] == today
     }
 
-    for project in projects:
-        project_id = project["project_id"]
-        project_name = project["project_name"]
+    # ONLY_NEW=1 (the hourly pick-up run): only check keywords that have never
+    # been checked before, i.e. products/keywords added since the last run.
+    only_new = os.environ.get("ONLY_NEW") == "1"
+    known_any = {(r["project_id"], r["item_key"], r["keyword"]) for r in history}
 
-        for item in project.get("items", []):
-            if item.get("marketplace") != "temu":
-                continue
+    try:
+        for project in projects:
+            project_id = project["project_id"]
+            project_name = project["project_name"]
 
-            item_key = item["item_key"]
-            country = item.get("country", "US")
-            target_id = item.get("temu_goods_id")
-            if not target_id:
-                print(f"  ! skipping {item_key}: no temu_goods_id set", file=sys.stderr)
-                continue
-
-            for keyword in item.get("keywords", []):
-                if (project_id, item_key, keyword) in seen_today:
-                    continue
-                try:
-                    rank, blocked = find_rank(keyword, target_id)
-                except Exception as e:
-                    print(f"  ! error searching '{keyword}': {e}", file=sys.stderr)
+            for item in project.get("items", []):
+                if item.get("marketplace") != "temu":
                     continue
 
-                row = {
-                    "date": today,
-                    "checked_at": datetime.now(timezone.utc).isoformat(),
-                    "project_id": project_id,
-                    "project_name": project_name,
-                    "item_key": item_key,
-                    "marketplace": "temu",
-                    "country": country,
-                    "keyword": keyword,
-                    "rank": rank,
-                    "blocked": blocked,
-                    "item_id": target_id,
-                    "title": None,
-                    "results_scanned": None if blocked else MAX_PRODUCTS_TO_SCAN,
-                }
-                history.append(row)
-                status = "BLOCKED" if blocked else f"rank {rank}"
-                print(f"  [{project_name} / {item_key}] {keyword!r} -> {status}")
+                item_key = item["item_key"]
+                country = item.get("country", "US")
+                target_id = item.get("temu_goods_id")
+                if not target_id:
+                    print(f"  ! skipping {item_key}: no temu_goods_id set", file=sys.stderr)
+                    continue
 
-    save_json(DATA_PATH, history)
+                for keyword in item.get("keywords", []):
+                    if (project_id, item_key, keyword) in seen_today or (
+                        only_new and (project_id, item_key, keyword) in known_any
+                    ):
+                        continue
+                    try:
+                        rank, blocked = find_rank(keyword, target_id)
+                    except Exception as e:
+                        print(f"  ! error searching '{keyword}': {e}", file=sys.stderr)
+                        continue
+
+                    row = {
+                        "date": today,
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                        "project_id": project_id,
+                        "project_name": project_name,
+                        "item_key": item_key,
+                        "marketplace": "temu",
+                        "country": country,
+                        "keyword": keyword,
+                        "rank": rank,
+                        "blocked": blocked,
+                        "item_id": target_id,
+                        "title": None,
+                        "results_scanned": None if blocked else MAX_PRODUCTS_TO_SCAN,
+                    }
+                    history.append(row)
+                    status = "BLOCKED" if blocked else f"rank {rank}"
+                    print(f"  [{project_name} / {item_key}] {keyword!r} -> {status}")
+
+    finally:
+        save_json(DATA_PATH, history)
     print(f"Saved {len(history)} total rows to {DATA_PATH}")
 
 

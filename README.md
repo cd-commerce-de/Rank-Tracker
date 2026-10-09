@@ -11,7 +11,7 @@ Runs free on GitHub: Actions does the daily checks, Pages hosts the dashboard.
 | What | Where |
 |---|---|
 | What to track (products + keywords) | a Google Sheet **or** `config/tracked.csv` |
-| Daily checks | `.github/workflows/track-ranks.yml` runs the scripts in `scripts/` |
+| Checks | `.github/workflows/track-ranks.yml` runs the scripts in `scripts/`: a full check every day, plus an hourly pick-up of anything newly added |
 | Results (history) | `docs/data/ranks.json`, saved back into the repo each day |
 | Dashboard | `docs/index.html` + `app.js` + `style.css` (published by GitHub Pages) |
 
@@ -90,31 +90,40 @@ backfilled. To check it immediately, run the workflow (step 6).
   Overview tab.
 
 ### 6. Run it once and check it
-Repo **Actions → Track marketplace ranks → Run workflow**. Expand each
+Repo **Actions → Track marketplace ranks → Run workflow** (or the dashboard's Sync button once the shared sync service is set up). Expand each
 marketplace's step to see what it found, then reload the dashboard.
 A green tick doesn't mean every marketplace worked — a marketplace you haven't
 set up fails its own step but doesn't stop the others. After that it runs by
 itself every day at 06:00 UTC (edit the `cron` line to change that).
 
-## The Sync button (run it now instead of waiting for 06:00 UTC)
+## Keeping it up to date (nobody ever enters a token)
 
-**↻ Sync now** at the top of the dashboard starts the same workflow as the daily
-run: it re-reads your sheet, checks the marketplaces, and reloads the dashboard
-when the new ranks are published (usually 2–5 minutes). A status line shows
-progress, with a link to the run on GitHub. If someone else has already started
-a sync, your click just follows that one. A keyword is only checked once per
-day, so syncing again the same day only adds keywords that haven't been
-checked yet.
+**Automatic — nothing to set up.** Every hour (at about 20 minutes past) the
+workflow looks at your sheet. If you've added a product or keyword that has never been
+checked, it checks just that and saves it; otherwise the run ends in seconds. So
+**a new row in the sheet starts tracking within about an hour** (GitHub can start
+scheduled runs a little late). Every product is then fully re-checked once a day at
+06:00 UTC. A new keyword's history starts when it is first checked; nothing is
+backfilled. A marketplace you haven't connected yet (no keys) is ignored by the
+hourly pick-up, so it doesn't trigger pointless runs.
 
-**For everyone, no setup per person:** one admin sets up the small shared sync
-service once (about 10 minutes, free) — see `sync-worker/README.md`. After that,
-anyone who can open the dashboard can press the button, with no GitHub account
-and no token.
+**Instant — the ↻ Sync now button.** It runs the full check right now, for anyone who
+can open the dashboard, with no token and no GitHub login. Because the dashboard is a
+public web page, it can't hold the key that starts GitHub jobs; so an admin sets up a
+small shared service **once** (about 10 minutes, free): see `sync-worker/README.md`.
+Until that's done, the button just explains the automatic pick-up above, and
+there's a link to GitHub's own **Run workflow** page. If someone has already started a
+sync, a second click joins it rather than starting another. A keyword is checked
+once per day, so syncing again the same day only adds keywords not yet checked.
 
-**Until that's done**, the button still works for people who create their own
-GitHub token (click **⚙** for the steps; the token stays only in that person's
-browser). Without either, **⚙** offers a link that opens the workflow on GitHub,
-where **Run workflow** does the same thing.
+**GitHub Actions minutes.** Hourly idle runs are short but each is billed as at
+least a minute, roughly 700 minutes a month on top of the daily check. Public repos
+have no limit; private repos on GitHub's free plan get 2,000 minutes a month
+(paid plans get more). To make the pick-up less frequent, just change the `cron:
+"20 * * * *"` line in `track-ranks.yml` — e.g. `"20 */3 * * *"` for every three hours.
+(If you change the daily `"0 6 * * *"` time instead, change it in the `ONLY_NEW:` line too.) If the sheet
+can't be read (not shared as *Anyone with the link: Viewer*), the hourly run fails
+and GitHub may email you; fix the sharing and it recovers by itself.
 
 ## How much to trust each marketplace
 
@@ -138,6 +147,10 @@ tracker disagrees, tell whoever maintains this — it usually means a pagination
 or matching detail needs adjusting.
 
 ## Troubleshooting
+- **I added a keyword and it isn't showing:** it's picked up within about an hour
+  (scheduled runs can be late). To check right away, use Sync now or Actions → Run
+  workflow. If it still doesn't appear, open the latest run and expand
+  *Check whether there is anything to do*: it says how many new keywords it found.
 - **Dashboard shows this README / a 404:** Pages folder isn't `/docs` (step 2),
   or the files were uploaded one folder too deep.
 - **Dashboard still shows demo data after a run:** open the Actions run and
@@ -145,6 +158,10 @@ or matching detail needs adjusting.
 - **"not found" for every eBay keyword:** check `product_id` is the exact item
   number from the listing URL and that the listing is live on the `country`
   site you chose.
+- **A keyword is missing from the dashboard but the run was green:** if eBay (or Otto/Kaufland)
+  is slow or drops a request, the tracker retries a few times, then skips that keyword for
+  this run without saving a row (so it never shows a false "not found") and tries it again
+  on the next run. Look for `! error searching '…'` lines in the step's log.
 - **eBay auth error:** secrets must be named exactly `EBAY_CLIENT_ID` /
   `EBAY_CLIENT_SECRET` and be the *Production* keys.
 - **"Could not download the tracking sheet" / "returned a web page":** the sheet

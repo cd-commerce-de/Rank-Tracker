@@ -379,25 +379,24 @@ function renderGrid(rows) {
     head + `<tbody>${body || `<tr><td class="kwcol" colspan="${columns.length + 1}">No keywords match.</td></tr>`}</tbody>`;
 }
 
-// ---------- Sync button ----------
-// Starts the GitHub workflow from the dashboard. Two ways, chosen by docs/settings.json:
-//   * "sync_url" set  -> a small relay service (sync-worker/) holds the GitHub
-//     key, so EVERYONE can press the button with no setup. Recommended.
-//   * otherwise       -> each person pastes their own GitHub token once; it is
-//     kept only in that person's browser (localStorage).
-const TOKEN_KEY = "rank_tracker_github_token";
+// ---------- Sync ----------
+// Two things keep the data fresh, and neither asks anyone for a token:
+//  1. AUTOMATIC: every hour GitHub checks the sheet and starts tracking any
+//     product/keyword that was added (see .github/workflows/track-ranks.yml).
+//  2. INSTANT: the "Sync now" button asks the shared sync service
+//     (sync-worker/, set up once by an admin; its address is "sync_url" in
+//     docs/settings.json) to run the check right now, for anyone.
 const PASSCODE_KEY = "rank_tracker_sync_passcode";
-let SYNC_TIMING = { findRunMs: 3000, findRunTries: 10, runPollMs: 8000, runMaxMs: 20 * 60000, dataPollMs: 15000, dataMaxMs: 4 * 60000 };
+let SYNC_TIMING = { runPollMs: 8000, runMaxMs: 20 * 60000, dataPollMs: 15000, dataMaxMs: 4 * 60000 };
 let syncState = { busy: false, msg: "", kind: "", runUrl: "", panelOpen: false };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-function store(key, val) { try { val === undefined ? null : (val ? localStorage.setItem(key, val) : localStorage.removeItem(key)); } catch (e) {} }
 function stored(key) { try { return localStorage.getItem(key) || ""; } catch (e) { return ""; } }
-const getToken = () => stored(TOKEN_KEY);
-const setToken = (t) => store(TOKEN_KEY, t || "");
+function store(key, val) { try { val ? localStorage.setItem(key, val) : localStorage.removeItem(key); } catch (e) {} }
 const getPasscode = () => stored(PASSCODE_KEY);
 const setPasscode = (p) => store(PASSCODE_KEY, p || "");
 
+// Only used to build the "open on GitHub" link in the sync panel.
 function repoInfo() {
   let repo = SETTINGS.repo;
   if (!repo && location.hostname.endsWith(".github.io")) {
@@ -406,7 +405,7 @@ function repoInfo() {
     if (owner && name) repo = owner + "/" + name;
   }
   if (!repo) return null;
-  return { repo, workflow: SETTINGS.workflow_file || "track-ranks.yml", branch: SETTINGS.branch || "main" };
+  return { repo, workflow: SETTINGS.workflow_file || "track-ranks.yml" };
 }
 
 function dataStamp(rows) {
@@ -446,50 +445,8 @@ function proxyBackend(url) {
   };
 }
 
-// --- backend 2: this person's own GitHub token (fallback) ---
-async function gh(path, opts = {}) {
-  return fetch("https://api.github.com" + path, {
-    ...opts,
-    headers: { Authorization: "Bearer " + getToken(), Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
-  });
-}
-function tokenBackend(info) {
-  return {
-    start: async () => {
-      let afterId = 0;
-      try {
-        const r = await gh(`/repos/${info.repo}/actions/workflows/${info.workflow}/runs?per_page=1`);
-        if (r.ok) afterId = ((await r.json()).workflow_runs || [])[0]?.id || 0;
-      } catch (e) {}
-      const res = await gh(`/repos/${info.repo}/actions/workflows/${info.workflow}/dispatches`, { method: "POST", body: JSON.stringify({ ref: info.branch }) });
-      if (res.status === 401) { setToken(""); syncState.panelOpen = true; throw new Error("GitHub rejected the saved token (expired or revoked). Enter a new one."); }
-      if (res.status === 403 || res.status === 404) throw new Error(`The token can't run workflows on ${info.repo}. It needs access to that repository with “Actions: Read and write”.`);
-      if (res.status === 422) throw new Error(`GitHub can't find workflow “${info.workflow}” on branch “${info.branch}”. Check docs/settings.json.`);
-      if (res.status !== 204) throw new Error("GitHub answered with status " + res.status + ".");
-      setSync("Sync started — waiting for GitHub to pick it up…", "busy");
-      for (let i = 0; i < SYNC_TIMING.findRunTries; i++) {
-        await sleep(SYNC_TIMING.findRunMs);
-        const r = await gh(`/repos/${info.repo}/actions/workflows/${info.workflow}/runs?event=workflow_dispatch&per_page=5`);
-        if (r.ok) {
-          const run = ((await r.json()).workflow_runs || []).find((x) => x.id > afterId);
-          if (run) return { state: "started", run: { id: run.id, html_url: run.html_url } };
-        }
-      }
-      return { state: "started", run: null };
-    },
-    status: async (run) => {
-      const r = await gh(`/repos/${info.repo}/actions/runs/${run.id}`);
-      if (!r.ok) throw new Error("status " + r.status);
-      return r.json();
-    },
-  };
-}
-
 function getBackend() {
-  if (SETTINGS.sync_url) return proxyBackend(SETTINGS.sync_url);
-  const info = repoInfo();
-  if (info && getToken()) return tokenBackend(info);
-  return null; // needs setup -> the panel opens
+  return SETTINGS.sync_url ? proxyBackend(SETTINGS.sync_url) : null; // null -> explain the automatic pick-up
 }
 
 // --- status line, buttons, panel ---
@@ -516,44 +473,24 @@ function syncPanelHTML() {
   if (!syncState.panelOpen) return "";
   const info = repoInfo();
   const ghLink = info
-    ? `<p>You can also <a href="https://github.com/${esc(info.repo)}/actions/workflows/${esc(info.workflow)}" target="_blank" rel="noopener">open the workflow on GitHub</a> and click <b>Run workflow</b>.</p>`
-    : "";
-  const intro = `<p>Sync re-reads your products &amp; keywords sheet and checks the marketplaces now, instead of waiting for the daily 06:00 UTC run. It takes a few minutes.</p>`;
-
+    ? `<a href="https://github.com/${esc(info.repo)}/actions/workflows/${esc(info.workflow)}" target="_blank" rel="noopener">open the workflow on GitHub</a> and click <b>Run workflow</b>`
+    : "open the workflow on GitHub and click <b>Run workflow</b>";
+  const auto = `<p><b>New products and keywords you add to the sheet are picked up automatically</b>, about once an hour — nobody has to press anything or enter a token. Every product is then re-checked once a day (06:00 UTC).</p>`;
   if (SETTINGS.sync_url) {
-    return `<div class="help-panel"><b>Sync</b>${intro}
-      <p>One-click sync is connected for everyone on your team — no token or GitHub login needed.</p>
+    return `<div class="help-panel"><b>Sync</b>${auto}
+      <p><b>↻ Sync now</b> runs the check immediately, for anyone, with no token or GitHub login. It takes a few minutes.</p>
       ${getPasscode() ? `<p>A team passcode is saved on this computer. <button class="linkbtn" id="syncForgetPass">Forget it</button></p>` : ""}
-      ${ghLink}</div>`;
+      <p>You can also ${ghLink}.</p></div>`;
   }
-  const noRepo = info ? "" : `<p><b>The dashboard can't tell which GitHub repository it belongs to.</b> Add <code>"repo": "owner/repo-name"</code> to <code>docs/settings.json</code>.</p>`;
-  const tokenPart = getToken()
-    ? `<p>A GitHub token is saved in this browser, so <b>Sync now</b> starts the run directly. <button class="linkbtn" id="syncForget">Remove the saved token</button></p>`
-    : `<p>To enable sync on this computer, create a GitHub token once and paste it below. (Your admin can instead set up the shared sync service so nobody needs a token — see the README.)</p>
-       <ol>
-         <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → Settings → Developer settings → Fine-grained tokens → Generate new token</a>.</li>
-         <li><b>Resource owner:</b> the account/organization that owns this repository. <b>Repository access:</b> only this repository.</li>
-         <li><b>Permissions → Repository → Actions: Read and write.</b> Nothing else is needed.</li>
-         <li>Paste the token here. It is kept <b>only in this browser</b> — never in the repository or the sheet.</li>
-       </ol>
-       <p><input class="search-input" type="password" id="syncToken" placeholder="github_pat_…" autocomplete="off" /> <button class="btn primary" id="syncSave">Save token</button></p>`;
-  return `<div class="help-panel"><b>Sync</b>${intro}${noRepo}${info ? tokenPart : ""}${ghLink}</div>`;
+  return `<div class="help-panel"><b>Sync</b>${auto}
+    <p>Want an instant check as well? Your admin can switch on the shared sync service once (about 10 minutes, free — see <code>sync-worker/README.md</code>); after that <b>↻ Sync now</b> works for everyone. Until then you can ${ghLink}.</p></div>`;
 }
 
 function bindSyncControls() {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on("syncBtn", "click", startSync);
   on("syncCfgBtn", "click", () => { syncState.panelOpen = !syncState.panelOpen; renderPage(); });
-  on("syncForget", "click", () => { setToken(""); setSync("Saved token removed.", ""); renderPage(); });
   on("syncForgetPass", "click", () => { setPasscode(""); setSync("Saved passcode removed.", ""); renderPage(); });
-  on("syncSave", "click", () => {
-    const t = document.getElementById("syncToken").value.trim();
-    if (!t) return;
-    setToken(t);
-    syncState.panelOpen = false;
-    setSync("Token saved. Click “Sync now”.", "ok");
-    renderPage();
-  });
 }
 
 // --- the sync itself ---

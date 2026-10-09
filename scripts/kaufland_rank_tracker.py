@@ -27,6 +27,7 @@ Requires (see README.md):
 """
 
 import json
+import os
 import re
 import sys
 import urllib.parse
@@ -107,48 +108,57 @@ def main():
         for r in history if r["date"] == today
     }
 
-    for project in projects:
-        project_id = project["project_id"]
-        project_name = project["project_name"]
+    # ONLY_NEW=1 (the hourly pick-up run): only check keywords that have never
+    # been checked before, i.e. products/keywords added since the last run.
+    only_new = os.environ.get("ONLY_NEW") == "1"
+    known_any = {(r["project_id"], r["item_key"], r["keyword"]) for r in history}
 
-        for item in project.get("items", []):
-            if item.get("marketplace") != "kaufland":
-                continue
+    try:
+        for project in projects:
+            project_id = project["project_id"]
+            project_name = project["project_name"]
 
-            item_key = item["item_key"]
-            country = item.get("country", "DE")
-            target_id = item.get("kaufland_product_id")
-            if not target_id:
-                print(f"  ! skipping {item_key}: no kaufland_product_id set", file=sys.stderr)
-                continue
-
-            for keyword in item.get("keywords", []):
-                if (project_id, item_key, keyword) in seen_today:
-                    continue
-                try:
-                    rank = find_rank(keyword, target_id, country)
-                except requests.HTTPError as e:
-                    print(f"  ! error searching '{keyword}': {e}", file=sys.stderr)
+            for item in project.get("items", []):
+                if item.get("marketplace") != "kaufland":
                     continue
 
-                row = {
-                    "date": today,
-                    "checked_at": datetime.now(timezone.utc).isoformat(),
-                    "project_id": project_id,
-                    "project_name": project_name,
-                    "item_key": item_key,
-                    "marketplace": "kaufland",
-                    "country": country,
-                    "keyword": keyword,
-                    "rank": rank,
-                    "item_id": target_id,
-                    "title": None,
-                    "results_scanned": None,
-                }
-                history.append(row)
-                print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}")
+                item_key = item["item_key"]
+                country = item.get("country", "DE")
+                target_id = item.get("kaufland_product_id")
+                if not target_id:
+                    print(f"  ! skipping {item_key}: no kaufland_product_id set", file=sys.stderr)
+                    continue
 
-    save_json(DATA_PATH, history)
+                for keyword in item.get("keywords", []):
+                    if (project_id, item_key, keyword) in seen_today or (
+                        only_new and (project_id, item_key, keyword) in known_any
+                    ):
+                        continue
+                    try:
+                        rank = find_rank(keyword, target_id, country)
+                    except requests.RequestException as e:
+                        print(f"  ! error searching '{keyword}': {e}", file=sys.stderr)
+                        continue
+
+                    row = {
+                        "date": today,
+                        "checked_at": datetime.now(timezone.utc).isoformat(),
+                        "project_id": project_id,
+                        "project_name": project_name,
+                        "item_key": item_key,
+                        "marketplace": "kaufland",
+                        "country": country,
+                        "keyword": keyword,
+                        "rank": rank,
+                        "item_id": target_id,
+                        "title": None,
+                        "results_scanned": None,
+                    }
+                    history.append(row)
+                    print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}")
+
+    finally:
+        save_json(DATA_PATH, history)
     print(f"Saved {len(history)} total rows to {DATA_PATH}")
 
 
