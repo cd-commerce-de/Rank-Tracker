@@ -13,6 +13,28 @@ on **eBay, Otto, Kaufland and Temu** — and shows the history in a DataRova-sty
 Runs free on GitHub: Actions does the daily checks, Pages hosts the dashboard.
 The dashboard draws its own charts, so it needs nothing from outside websites.
 
+## Updating the tool without losing your data
+
+Your data and settings live in files that are **not** in the zip, so uploading a new version
+never touches them:
+
+| Yours (never in the zip) | What it is |
+|---|---|
+| `docs/data/ranks.json` | every rank saved so far — your history |
+| `docs/settings.json` | your sheet link, repo name, sync address |
+| the repo secrets | eBay / Bright Data keys, `TRACKING_SHEET_CSV_URL` |
+| `config/keywords.csv`, `config/products.csv` | only if you use files instead of a sheet |
+
+Everything in the zip is code and design (`docs/app.js`, `docs/style.css`, `docs/index.html`,
+the icons, `scripts/`, `.github/`, the README), so it is always safe to upload it over the
+repo. Two rules: **never upload `docs/data/ranks.json`** (or anything from an *older* zip's
+`docs/data` folder, which held an empty one), and keep your own `docs/settings.json`.
+
+If `ranks.json` ever does get overwritten, GitHub still has the old version: open
+`docs/data/ranks.json` in the repo, click **History**, open the last commit named
+"Update ranks …" from before the overwrite, click the file's **⋯ → View file** (or **Raw**),
+copy everything, then edit the current `ranks.json` (pencil icon), paste, and commit.
+
 ## Branding
 
 The dashboard follows the CD Commerce brand: Dark Slate `#0F172A` and Warm Ember `#D97757`
@@ -101,14 +123,15 @@ Here, 4 products x the keywords above = every keyword checked for every product.
    secret**, name `TRACKING_SHEET_CSV_URL`. Paste **both links into the value,
    one per line.** (Which link is which is worked out from the column headings.)
    Updating an existing secret works the same way: replace its value.
-4. Put one of the links (or the first) in `docs/settings.json` as `"sheet_url"`,
+4. Put one of the links (or the first) in `docs/settings.json` as `"sheet_url"` (the first time, copy
+   `docs/settings.example.json` to `docs/settings.json`),
    so the dashboard's **+ Add products & keywords** panel links to the sheet.
 
 A published sheet or any sheet link is readable by anyone who has the link (it only
 contains product IDs and keywords, but it isn't private).
 
-**Or use files in the repo instead of a sheet:** edit `config/keywords.csv` and
-`config/products.csv` (same columns). They're used whenever the secret isn't set.
+**Or use files in the repo instead of a sheet:** copy the examples in `config/examples/` to
+`config/keywords.csv` and `config/products.csv`, and edit them (same columns). They're used whenever the secret isn't set.
 The older single table (`project,marketplace,country,product_id,keyword`, one
 row per product + keyword) also still works, in a sheet or as `config/tracked.csv`.
 

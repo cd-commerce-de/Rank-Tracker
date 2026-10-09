@@ -155,7 +155,7 @@ async function boot() {
 function helpPanelHTML() {
   const link = SETTINGS.sheet_url
     ? `<p><a href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener"><b>Open the tracking sheet</b></a> and add your rows there. They're picked up on the next hourly check.</p>`
-    : `<p>No Google Sheet is linked yet. Until you link one, edit <code>config/keywords.csv</code> and <code>config/products.csv</code> in your GitHub repo (see the README for linking a Google Sheet, which is easier to edit).</p>`;
+    : `<p>No Google Sheet is linked yet. Until you link one, copy the examples in <code>config/examples</code> to <code>config/keywords.csv</code> and <code>config/products.csv</code> in your GitHub repo and edit them (see the README for linking a Google Sheet, which is easier to edit).</p>`;
   return `
     <div class="help-panel">
       <b>Add or change what's tracked</b>
