@@ -259,3 +259,49 @@ table.rankgrid td.metric:not(.rank-cell):not(.nodata) { font-weight: 600; }
 table.rankgrid th.metric-last, table.rankgrid td.metric-last { border-right: 2px solid var(--border); }
 table.rankgrid td.rank-cell { min-width: 46px; }
 table.rankgrid tbody tr:hover td:not(.rank-cell) { background: #fafafa; }
+
+/* ================= DataRova-style Ranks view ================= */
+.subtabs-bar { display: flex; gap: 4px; background: #eceef3; border-radius: 10px; padding: 4px; width: fit-content; margin: 0 0 16px; }
+.subtabs-bar .subtab { padding: 7px 16px; border-radius: 7px; font-weight: 600; font-size: 0.85rem; color: var(--text-dim); cursor: pointer; background: transparent; }
+.subtabs-bar .subtab.active { background: var(--card); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+.range-text { color: var(--text-dim); font-size: 0.8rem; white-space: nowrap; }
+.hint { color: var(--text-dim); font-size: 0.8rem; }
+
+/* cards + SVG charts */
+.card.wide { grid-column: 1 / -1; }
+.card .delta { display: block; font-size: 0.74rem; margin-top: 2px; }
+.card .delta.good { color: #1f9d55; } .card .delta.bad { color: #c2255c; } .card .delta.flat { color: var(--text-dim); }
+.chart { width: 100%; height: auto; display: block; margin-top: 8px; overflow: visible; }
+.chart .grid { stroke: #e9ebf0; stroke-dasharray: 3 3; stroke-width: 1; }
+.chart .ax { font-size: 9px; fill: #9aa0a8; }
+.chart .hit { fill: transparent; }
+.dist-wrap { display: flex; gap: 10px; align-items: flex-start; }
+.dist-chart { flex: 1; min-width: 0; }
+.dist-wrap .dist-legend { display: flex; flex-direction: column; gap: 5px; font-size: 0.74rem; color: var(--text-dim); margin-top: 10px; min-width: 116px; }
+.dist-wrap .dist-legend > div { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.dist-wrap .dist-legend b { margin-left: auto; color: var(--text); padding-left: 8px; }
+.dist-wrap .dist-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 0; }
+
+/* table toolbar + movement chips */
+.table-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.movers { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1; justify-content: center; font-size: 0.8rem; }
+.mv-label { color: var(--text-dim); }
+.mv { border: 1px solid var(--border); background: var(--card); border-radius: 999px; padding: 4px 11px; font-size: 0.78rem; cursor: pointer; color: var(--text); }
+.mv b { margin-left: 3px; }
+.mv.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mv[disabled] { opacity: 0.45; cursor: default; }
+.grid-legend { margin: 0 0 10px; }
+
+/* heatmap table */
+table.rankgrid th.day { padding: 6px 4px; min-width: 40px; line-height: 1.15; }
+table.rankgrid th.day .d { font-size: 0.82rem; font-weight: 700; color: var(--text); }
+table.rankgrid th.day .mon { font-size: 0.68rem; font-weight: 500; color: var(--text-dim); }
+table.rankgrid th.sortable { cursor: pointer; user-select: none; }
+table.rankgrid th.sortable:hover { color: var(--text); }
+table.rankgrid td.rank-cell { border-bottom: 1px solid #fff; border-right: 1px solid #fff; border-radius: 0; font-weight: 700; padding: 9px 4px; min-width: 40px; }
+td.rank-cell.r-nf, .chip.r-nf { background: #f3f4f6; color: #9aa0a8; font-weight: 600; }
+table.rankgrid th.prod { min-width: 150px; font-weight: 500; line-height: 1.5; white-space: normal; }
+table.rankgrid tr.foot td { font-weight: 700; background: #fafbfc; border-top: 2px solid var(--border); }
+.mp-badge { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 1px 7px; border-radius: 6px; margin-right: 4px; }
+.sub { color: var(--text-dim); font-size: 0.72rem; margin-left: 4px; }
+table.rankgrid td.kwcol { min-width: 230px; }

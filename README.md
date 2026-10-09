@@ -1,10 +1,19 @@
 # Marketplace Rank Tracker
 
 Tracks where your products rank in search results, per keyword, once a day —
-on **eBay, Otto, Kaufland and Temu** — and shows the history in a
-DataRova-style **Ranks** dashboard (daily heatmap grid, Visibility %, Average
-Position, Top-3 count, Daily/Weekly/Monthly view, CSV export).
+on **eBay, Otto, Kaufland and Temu** — and shows the history in a DataRova-style
+**Ranks** dashboard:
+
+- **Ranks by Product** — pick a product; every keyword as a row, every day as a column,
+  colour-coded from green (top of the results) to red, with Now / Best / Avg / Found /
+  Change columns, sortable, with filters ("in the top 10", "moved up", "lost"…).
+- **Ranks by Keyword** — pick a keyword; every product's position for it over time.
+- **Ranks Matrix** — every product × every keyword on one chosen day.
+- Cards on top: Visibility, Average Position, Top-3 count and a Distribution chart,
+  each with a trend chart. Daily / Weekly / Monthly view, period picker, CSV export.
+
 Runs free on GitHub: Actions does the daily checks, Pages hosts the dashboard.
+The dashboard draws its own charts, so it needs nothing from outside websites.
 
 ## How it fits together
 
