@@ -196,6 +196,11 @@ function renderPage() {
         </div>
       </div>
       <div class="summary-grid" id="summaryGrid"></div>
+      <div class="grid-legend">
+        Each column is a day; the number is where your product appears in that marketplace's search results for the keyword (1 = first).
+        <span class="chip r-1">1–3</span><span class="chip r-2">4–10</span><span class="chip r-3">11–50</span><span class="chip r-4">51–100</span><span class="chip r-5">&gt;100 / not found</span>
+        <span class="chip r-blocked">?</span> blocked by the marketplace &nbsp;·&nbsp; <b>·</b> not checked that day
+      </div>
       <div class="grid-wrap"><table class="rankgrid" id="rankGrid"></table></div>
     </div>`;
 
@@ -305,9 +310,13 @@ function makeSparkline(canvasId, labels, data, reverseY) {
 }
 
 // ---------- The rank grid ----------
+function daysBetween(a, b) { return Math.round((utcDate(b) - utcDate(a)) / 86400000); }
+const MIN_DAILY_COLUMNS = 14; // keep the table's full shape even in the first days of tracking
+
 function renderGrid(rows) {
   const allKeywords = uniq(rows.map((r) => r.keyword));
   const rawDates = uniq(rows.map((r) => r.date)).sort(); // ascending
+  const firstDate = rawDates[0];
   const latestDate = rawDates[rawDates.length - 1];
 
   // keyword -> date -> row, so lookups below are instant
@@ -337,7 +346,17 @@ function renderGrid(rows) {
   let columns; // [{ key, label }]
   let getValue;
   if (state.range === "daily") {
-    columns = rawDates.slice().reverse().map((d) => ({ key: d, label: fmtDateShort(d) }));
+    // A continuous run of days ending at the latest check, newest first. Days
+    // that haven't been tracked yet show "·", so the table already looks like
+    // its finished self on day one and simply fills in as days go by.
+    let span = latestDate ? daysBetween(firstDate, latestDate) + 1 : 0;
+    if (latestDate) span = Math.max(span, MIN_DAILY_COLUMNS);
+    if (state.days !== "all") span = Math.min(span, state.days);
+    columns = [];
+    for (let i = 0; i < span; i++) {
+      const d = shiftDate(latestDate, -i);
+      columns.push({ key: d, label: fmtDateShort(d) });
+    }
     getValue = dayValue;
   } else {
     const buckets = {};
@@ -350,33 +369,73 @@ function renderGrid(rows) {
     getValue = (kw, k) => bucketValue(kw, buckets[k]);
   }
 
-  // Most recent known rank decides the order (best first, unknown last)
-  const latestRank = (kw) => {
-    const v = latestDate && hasCell(kw, latestDate) && !cell(kw, latestDate).blocked ? cell(kw, latestDate).rank : null;
-    return v === null ? Infinity : v;
+  // Per-keyword summary: latest usable check, best rank in the period, and the
+  // change since the check before that. (A blocked check isn't a usable check.)
+  const stats = (kw) => {
+    const ds = rawDates.filter((d) => hasCell(kw, d) && !cell(kw, d).blocked);
+    if (!ds.length) return { now: undefined, best: null, prev: undefined, scanned: null };
+    const ranks = ds.map((d) => cell(kw, d).rank);
+    const found = ranks.filter((r) => r !== null);
+    return {
+      now: ranks[ranks.length - 1],
+      best: found.length ? Math.min(...found) : null,
+      prev: ranks.length > 1 ? ranks[ranks.length - 2] : undefined,
+      scanned: cell(kw, ds[ds.length - 1]).results_scanned,
+    };
   };
+  const notFound = (scanned) => (scanned ? `&gt;${scanned}` : "–");
+  const changeHTML = (st) => {
+    if (st.prev === undefined || st.now === undefined) return `<span class="trend-flat">–</span>`;
+    if (st.prev === null && st.now !== null) return `<span class="trend-down">new</span>`;       // found again / first time
+    if (st.prev !== null && st.now === null) return `<span class="trend-up">lost</span>`;
+    if (st.now === null) return `<span class="trend-flat">–</span>`;
+    const d = st.prev - st.now; // positive = moved up the results
+    return d > 0 ? `<span class="trend-down">▲ ${d}</span>` : d < 0 ? `<span class="trend-up">▼ ${-d}</span>` : `<span class="trend-flat">=</span>`;
+  };
+
   const q = state.q.trim().toLowerCase();
+  const statsByKw = {};
+  allKeywords.forEach((k) => { statsByKw[k] = stats(k); });
+  const sortKey = (kw) => { const n = statsByKw[kw].now; return n === null || n === undefined ? Infinity : n; };
   const keywords = allKeywords
     .filter((k) => !q || k.toLowerCase().includes(q))
-    .sort((a, b) => latestRank(a) - latestRank(b) || a.localeCompare(b));
+    .sort((a, b) => sortKey(a) - sortKey(b) || a.localeCompare(b));
 
   LAST_GRID = { columns, keywords, getValue };
 
-  const head = `<thead><tr><th class="kwcol">Keyword (${keywords.length})</th>${columns.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr></thead>`;
+  const head = `<thead><tr>
+    <th class="kwcol">Keyword (${keywords.length})</th>
+    <th class="metric" title="Position at the most recent check">Now</th>
+    <th class="metric" title="Best position in the selected period">Best</th>
+    <th class="metric metric-last" title="Change since the check before the latest one">Change</th>
+    ${columns.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr></thead>`;
+
   const body = keywords.map((kw) => {
-    const lr = latestRank(kw);
+    const st = statsByKw[kw];
+    const lr = sortKey(kw);
     const tag = lr === 1 ? '<span class="kw-tag">#1</span>' : lr <= 3 ? '<span class="kw-tag">TOP 3</span>' : "";
+    const nowCell = st.now === undefined
+      ? `<td class="metric nodata">·</td>`
+      : `<td class="metric rank-cell ${tierClass(st.now)}" title="${esc(kw)} · position at the most recent check">${st.now === null ? notFound(st.scanned) : st.now}</td>`;
     const cells = columns.map((c) => {
       const v = getValue(kw, c.key);
-      if (v === undefined) return `<td class="nodata">·</td>`;
-      if (v === "BLOCKED") return `<td class="rank-cell r-blocked" title="The marketplace blocked this check — that's not the same as falling out of the rankings">?</td>`;
-      return `<td class="rank-cell ${tierClass(v)}">${v === null ? "–" : v}</td>`;
+      const tip = esc(kw + " · " + c.key);
+      if (v === undefined) return `<td class="nodata" title="${tip} — not checked">·</td>`;
+      if (v === "BLOCKED") return `<td class="rank-cell r-blocked" title="${tip} — the marketplace blocked this check, which is not the same as falling out of the rankings">?</td>`;
+      let label = v;
+      if (v === null) label = state.range === "daily" ? notFound(cell(kw, c.key).results_scanned) : "–";
+      return `<td class="rank-cell ${tierClass(v)}" title="${tip}">${label}</td>`;
     }).join("");
-    return `<tr><td class="kwcol"><span class="kw-name">${esc(kw)}</span>${tag}</td>${cells}</tr>`;
+    return `<tr>
+      <td class="kwcol"><span class="kw-name">${esc(kw)}</span>${tag}</td>
+      ${nowCell}
+      <td class="metric">${st.best === null ? "–" : st.best}</td>
+      <td class="metric metric-last">${changeHTML(st)}</td>
+      ${cells}</tr>`;
   }).join("");
 
   document.getElementById("rankGrid").innerHTML =
-    head + `<tbody>${body || `<tr><td class="kwcol" colspan="${columns.length + 1}">No keywords match.</td></tr>`}</tbody>`;
+    head + `<tbody>${body || `<tr><td class="kwcol" colspan="${columns.length + 4}">No keywords match.</td></tr>`}</tbody>`;
 }
 
 // ---------- Sync ----------

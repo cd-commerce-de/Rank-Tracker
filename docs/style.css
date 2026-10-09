@@ -250,3 +250,12 @@ td.nodata { color: var(--gray); }
 .linkbtn { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; font: inherit; text-decoration: underline; }
 .help-panel ol { margin: 6px 0 6px 18px; padding: 0; }
 .help-panel li { margin: 3px 0; }
+
+/* ---------- Richer rank table ---------- */
+.grid-legend { font-size: 0.78rem; color: var(--text-dim); margin: 0 0 10px; line-height: 2; }
+.grid-legend .chip { display: inline-block; padding: 1px 8px; border-radius: 6px; font-weight: 700; margin: 0 3px 0 8px; }
+table.rankgrid th.metric, table.rankgrid td.metric { min-width: 62px; background-clip: padding-box; }
+table.rankgrid td.metric:not(.rank-cell):not(.nodata) { font-weight: 600; }
+table.rankgrid th.metric-last, table.rankgrid td.metric-last { border-right: 2px solid var(--border); }
+table.rankgrid td.rank-cell { min-width: 46px; }
+table.rankgrid tbody tr:hover td:not(.rank-cell) { background: #fafafa; }
