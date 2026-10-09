@@ -1,24 +1,36 @@
 """
-Loads "what to track" for every marketplace tracker, from a simple table:
+Loads "what to track" for every marketplace tracker.
 
-    project,marketplace,country,product_id,keyword
+THE SHEET HAS TWO TABS (the recommended setup):
 
-One row per product + keyword. Example:
+  Keywords tab   -> columns:  project, keyword
+  Products tab   -> columns:  project, marketplace, country, product_id [, name]
 
-    WGH30 (3T Car Jacks),ebay,DE,123456789012,wagenheber
-    WGH30 (3T Car Jacks),ebay,DE,123456789012,wagenheber 3t
-    WGH30 (3T Car Jacks),otto,DE,S0HH60QI,wagenheber 3t
+  Every product in a project is checked against every keyword of that project.
+  Add a keyword once and it is tracked for all of the project's products, on
+  every marketplace; add a product once and it is tracked for all of the
+  project's keywords. Example:
 
-Where the table comes from, in order:
-  1. A Google Sheet published as CSV, if the TRACKING_SHEET_CSV_URL
-     environment variable (a GitHub secret) is set — this is the
-     "edit a spreadsheet, no code" route.
-  2. config/tracked.csv in the repo — the "upload a file" route.
-  3. config/projects.json — the original JSON format, kept so older
-     setups keep working.
+    Keywords:   WGH30 (3T Car Jacks) | wagenheber
+                WGH30 (3T Car Jacks) | wagenheber 3t
+    Products:   WGH30 (3T Car Jacks) | ebay | DE | 184176192867 | 3T jack
+                WGH30 (3T Car Jacks) | otto | DE | S0VCI0CR     | 3T jack
+                WGH30 (3T Car Jacks) | ebay | DE | 297129125625 | 5T jack
+    => 3 products x 2 keywords = 6 rank checks per day.
 
-The result is the same project -> items -> keywords structure the trackers
-have always used, so nothing else about them had to change.
+  (The older single table  project,marketplace,country,product_id,keyword
+  with one row per product+keyword still works too.)
+
+WHERE THE TABLES COME FROM, in order:
+  1. TRACKING_SHEET_CSV_URL (a GitHub secret): the link(s) to your Google Sheet
+     tab(s). Put the link of EACH tab in the secret, separated by spaces, commas
+     or new lines. Which tab is which is worked out from its column headings.
+  2. config/products.csv + config/keywords.csv in the repo.
+  3. config/tracked.csv (the older single table).
+  4. config/projects.json (the original JSON format).
+
+The result is the same project -> items -> keywords structure the trackers have
+always used, so the trackers themselves did not need to change.
 """
 
 import csv
@@ -32,8 +44,11 @@ from pathlib import Path
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent
-CSV_PATH = ROOT / "config" / "tracked.csv"
-JSON_PATH = ROOT / "config" / "projects.json"
+CONFIG_DIR = ROOT / "config"
+PRODUCTS_PATH = CONFIG_DIR / "products.csv"
+KEYWORDS_PATH = CONFIG_DIR / "keywords.csv"
+CSV_PATH = CONFIG_DIR / "tracked.csv"
+JSON_PATH = CONFIG_DIR / "projects.json"
 
 # Which config field each marketplace's tracker expects the product ID in.
 ID_FIELD = {
@@ -49,72 +64,143 @@ def slugify(text: str) -> str:
     return slug or "project"
 
 
-def rows_to_projects(rows):
-    """Turn flat table rows into the project -> items -> keywords structure."""
-    projects = {}
-    skipped = 0
+def _clean(raw):
+    """Tolerate any header capitalisation/spacing, e.g. 'Product ID'."""
+    return {
+        (k or "").strip().lower().replace(" ", "_"): (v or "").strip()
+        for k, v in raw.items() if k is not None
+    }
 
-    for raw in rows:
-        # Tolerate any header capitalisation/spacing, e.g. "Product ID"
-        row = {
-            (k or "").strip().lower().replace(" ", "_"): (v or "").strip()
-            for k, v in raw.items()
-        }
-        project_name = row.get("project", "")
-        marketplace = row.get("marketplace", "").lower()
+
+def classify(fieldnames):
+    """Which kind of table is this? Decided by its column headings."""
+    cols = {(c or "").strip().lower().replace(" ", "_") for c in (fieldnames or [])}
+    if "product_id" in cols and "keyword" in cols:
+        return "table"      # older single table: one row per product + keyword
+    if "product_id" in cols:
+        return "products"
+    if "keyword" in cols:
+        return "keywords"
+    return None
+
+
+class _Builder:
+    def __init__(self):
+        self.projects = {}   # project_id -> {project_id, project_name, items{}, keywords[]}
+        self.skipped = 0
+
+    def project(self, name):
+        pid = slugify(name)
+        return self.projects.setdefault(
+            pid, {"project_id": pid, "project_name": name, "items": {}, "keywords": [], "from_products": set()}
+        )
+
+    def add_item(self, row, via_products_tab):
+        name, marketplace = row.get("project", ""), row.get("marketplace", "").lower()
         country = (row.get("country", "") or "DE").upper()
         product_id = row.get("product_id", "")
-        keyword = row.get("keyword", "")
-
-        if not (project_name and marketplace and product_id and keyword):
-            skipped += 1
-            continue
+        if not (name and marketplace and product_id):
+            self.skipped += 1
+            return None
         if product_id.upper().startswith("REPLACE"):
-            skipped += 1  # untouched example row
-            continue
+            self.skipped += 1   # untouched example row
+            return None
         if marketplace not in ID_FIELD:
             print(f"  ! ignoring row with unknown marketplace '{marketplace}'", file=sys.stderr)
-            skipped += 1
-            continue
-
-        project_id = slugify(project_name)
-        project = projects.setdefault(
-            project_id,
-            {"project_id": project_id, "project_name": project_name, "items": {}},
-        )
+            self.skipped += 1
+            return None
+        project = self.project(name)
         item_key = f"{marketplace}-{country}-{product_id}"
-        item = project["items"].setdefault(
-            item_key,
-            {
-                "item_key": item_key,
-                "marketplace": marketplace,
-                "country": country,
-                ID_FIELD[marketplace]: product_id,
-                "keywords": [],
-            },
-        )
-        if keyword not in item["keywords"]:
-            item["keywords"].append(keyword)
+        item = project["items"].setdefault(item_key, {
+            "item_key": item_key, "marketplace": marketplace, "country": country,
+            ID_FIELD[marketplace]: product_id, "keywords": [],
+        })
+        label = row.get("name") or row.get("label") or ""
+        if label and not item.get("label"):
+            item["label"] = label
+        if via_products_tab:
+            project["from_products"].add(item_key)
+        return item
 
-    result = []
-    for project in projects.values():
-        project["items"] = list(project["items"].values())
-        result.append(project)
+    def add_keyword(self, project_name, keyword):
+        if not (project_name and keyword):
+            self.skipped += 1
+            return
+        kws = self.project(project_name)["keywords"]
+        if keyword not in kws:
+            kws.append(keyword)
 
-    if skipped:
-        print(f"  (skipped {skipped} incomplete/example row(s) in the tracking table)")
-    return result
+    def result(self):
+        out = []
+        for project in self.projects.values():
+            shared = project["keywords"]
+            if shared and not project["from_products"]:
+                print(f"  ! keywords for project '{project['project_name']}' have no products yet "
+                      f"(add its product IDs on the Products tab)", file=sys.stderr)
+            for key in project["from_products"]:
+                item = project["items"][key]
+                for kw in shared:
+                    if kw not in item["keywords"]:
+                        item["keywords"].append(kw)
+            items = [i for i in project["items"].values() if i["keywords"]]
+            for i in project["items"].values():
+                if not i["keywords"]:
+                    print(f"  ! product {i['item_key']} in project '{project['project_name']}' has no "
+                          f"keywords yet (add some on the Keywords tab)", file=sys.stderr)
+            if items:
+                out.append({"project_id": project["project_id"], "project_name": project["project_name"], "items": items})
+        if self.skipped:
+            print(f"  (skipped {self.skipped} incomplete/example row(s) in the tracking tables)")
+        return out
 
 
-def parse_csv_text(text: str):
-    return rows_to_projects(csv.DictReader(io.StringIO(text)))
+def build_projects(tables):
+    """tables: list of (kind, [row dicts]) where kind is table/products/keywords."""
+    b = _Builder()
+    for kind, rows in tables:
+        for raw in rows:
+            row = _clean(raw)
+            if kind == "keywords":
+                b.add_keyword(row.get("project", ""), row.get("keyword", ""))
+            elif kind == "products":
+                b.add_item(row, via_products_tab=True)
+            else:  # older single table
+                item = b.add_item(row, via_products_tab=False)
+                kw = row.get("keyword", "")
+                if item is not None and kw:
+                    if kw not in item["keywords"]:
+                        item["keywords"].append(kw)
+                elif item is not None:
+                    b.skipped += 1
+    return b.result()
+
+
+def parse_csv_texts(texts):
+    """Parse one or more CSV texts (each may be a different tab) into projects."""
+    tables = []
+    for i, text in enumerate(texts, 1):
+        reader = csv.DictReader(io.StringIO(text))
+        kind = classify(reader.fieldnames)
+        if kind is None:
+            raise RuntimeError(
+                f"Table {i} has none of the expected columns. A Keywords tab needs the columns "
+                f"'project, keyword'; a Products tab needs 'project, marketplace, country, product_id'. "
+                f"Found: {', '.join(c for c in (reader.fieldnames or []) if c) or '(no headings)'}"
+            )
+        tables.append((kind, list(reader)))
+    return build_projects(tables)
+
+
+def parse_csv_text(text):
+    return parse_csv_texts([text])
 
 
 def normalize_sheet_url(url: str) -> str:
     """
     Accept the normal Google Sheets link you copy from the address bar or the
-    Share button (.../d/<id>/edit?usp=sharing) and turn it into the CSV
-    download link. Links that are already CSV/published links are left alone.
+    Share button (.../d/<id>/edit?...#gid=123) and turn it into the CSV
+    download link for that tab. Links that are already CSV/published links are
+    left alone.
     """
     if "/pub" in url or "/export" in url or "output=csv" in url or "format=csv" in url:
         return url
@@ -149,11 +235,19 @@ def fetch_sheet_csv(url: str) -> str:
     return text
 
 
+def split_urls(value: str):
+    return [u for u in re.split(r"[\s,]+", (value or "").strip()) if u]
+
+
 def load_projects():
-    url = os.environ.get("TRACKING_SHEET_CSV_URL", "").strip()
-    if url:
-        print("Reading products & keywords from the Google Sheet")
-        return parse_csv_text(fetch_sheet_csv(url))
+    urls = split_urls(os.environ.get("TRACKING_SHEET_CSV_URL", ""))
+    if urls:
+        print(f"Reading products & keywords from the Google Sheet ({len(urls)} tab link{'s' if len(urls) != 1 else ''})")
+        return parse_csv_texts([fetch_sheet_csv(u) for u in urls])
+
+    if PRODUCTS_PATH.exists() and KEYWORDS_PATH.exists():
+        print("Reading products & keywords from config/products.csv + config/keywords.csv")
+        return parse_csv_texts([PRODUCTS_PATH.read_text(encoding="utf-8-sig"), KEYWORDS_PATH.read_text(encoding="utf-8-sig")])
 
     if CSV_PATH.exists():
         print(f"Reading products & keywords from {CSV_PATH.relative_to(ROOT)}")

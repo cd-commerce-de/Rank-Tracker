@@ -82,18 +82,34 @@ def get_access_token(client_id: str, client_secret: str) -> str:
     return resp.json()["access_token"]
 
 
+# One search per keyword per run, shared by every product that is checked for
+# that keyword. Only the few fields we need are kept, so memory stays small.
+_PAGE_CACHE = {}
+
+
 def search_page(token, marketplace_id, keyword, offset):
-    resp = _with_retries(lambda: requests.get(
-        SEARCH_URL,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "X-EBAY-C-MARKETPLACE-ID": marketplace_id,
-            "Content-Type": "application/json",
-        },
-        params={"q": keyword, "limit": RESULTS_PER_PAGE, "offset": offset},
-        timeout=60,
-    ))
-    return resp.json().get("itemSummaries", [])
+    key = (marketplace_id, keyword, offset)
+    if key not in _PAGE_CACHE:
+        resp = _with_retries(lambda: requests.get(
+            SEARCH_URL,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "X-EBAY-C-MARKETPLACE-ID": marketplace_id,
+                "Content-Type": "application/json",
+            },
+            params={"q": keyword, "limit": RESULTS_PER_PAGE, "offset": offset},
+            timeout=60,
+        ))
+        _PAGE_CACHE[key] = [
+            {
+                "legacyItemId": i.get("legacyItemId"),
+                "itemId": i.get("itemId"),
+                "title": i.get("title", ""),
+                "seller": {"username": (i.get("seller") or {}).get("username", "")},
+            }
+            for i in resp.json().get("itemSummaries", [])
+        ]
+    return _PAGE_CACHE[key]
 
 
 def find_rank(token, marketplace_id, keyword, item_config):
@@ -157,7 +173,7 @@ def main():
 
     projects = config_loader.load_projects()
     if not projects:
-        print("No products configured yet (add rows to your tracking sheet or config/tracked.csv) — nothing to do.")
+        print("No products configured yet (add products and keywords to your tracking sheet) — nothing to do.")
         return
 
     token = get_access_token(client_id, client_secret)
@@ -208,6 +224,7 @@ def main():
                         "keyword": keyword,
                         "rank": rank,
                         "item_id": item.get("ebay_item_id") or item_id,
+                    "item_label": item.get("label"),
                         "title": title,
                         "results_scanned": RESULTS_PER_PAGE * MAX_PAGES,
                     }

@@ -18,7 +18,7 @@ trusting it — run scripts/kaufland_rank_tracker.py by hand once, for a
 keyword you know your product ranks for, and check the number it reports
 against what you see searching on kaufland.de yourself.
 
-Tracking table (sheet or config/tracked.csv), per Kaufland product:
+Products tab of the tracking sheet, per Kaufland product:
     product_id: the numeric ID from your listing's own URL,
     e.g. "123456789" from "kaufland.de/product/123456789/"
 
@@ -61,13 +61,24 @@ def extract_ordered_product_ids(html: str) -> list[str]:
     return ordered
 
 
+# One fetch per results page per run, shared by every product checked for the
+# same keyword (a page costs a Bright Data request, so never fetch it twice).
+_PAGE_CACHE = {}
+
+
+def _page_ids(url: str, country: str) -> list[str]:
+    key = (url, country)
+    if key not in _PAGE_CACHE:
+        _PAGE_CACHE[key] = extract_ordered_product_ids(bright_data.fetch_html(url, country=country))
+    return _PAGE_CACHE[key]
+
+
 def find_rank(keyword: str, target_product_id: str, country: str):
     query = urllib.parse.quote(keyword)
     all_ids: list[str] = []
     for page in range(1, MAX_PAGES + 1):
         url = SEARCH_URL.format(query=query, page=page)
-        html = bright_data.fetch_html(url, country=country)
-        ids = extract_ordered_product_ids(html)
+        ids = _page_ids(url, country)
         if not ids:
             break
         all_ids.extend(ids)
@@ -151,6 +162,7 @@ def main():
                         "keyword": keyword,
                         "rank": rank,
                         "item_id": target_id,
+                    "item_label": item.get("label"),
                         "title": None,
                         "results_scanned": None,
                     }

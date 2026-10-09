@@ -10,7 +10,7 @@ Runs free on GitHub: Actions does the daily checks, Pages hosts the dashboard.
 
 | What | Where |
 |---|---|
-| What to track (products + keywords) | a Google Sheet **or** `config/tracked.csv` |
+| What to track (keywords + products) | a Google Sheet with two tabs **or** `config/keywords.csv` + `config/products.csv` |
 | Checks | `.github/workflows/track-ranks.yml` runs the scripts in `scripts/`: a full check every day, plus an hourly pick-up of anything newly added |
 | Results (history) | `docs/data/ranks.json`, saved back into the repo each day |
 | Dashboard | `docs/index.html` + `app.js` + `style.css` (published by GitHub Pages) |
@@ -30,47 +30,67 @@ the folder is set to `/ (root)`.) Pages on a private repo needs a paid GitHub
 plan. Your dashboard is at `https://<user>.github.io/<repo>/`.
 It shows demo data (with a yellow banner) until the first real run.
 
-### 3. Say what to track — one row per product + keyword
-The table has five columns:
+### 3. Say what to track — two tabs: Keywords and Products
+Keep your keywords and your product IDs on two tabs of one Google Sheet. **Every
+product in a project is checked against every keyword of that project**, on its
+own marketplace — so a keyword is written once, and a product is written once.
 
-| project | marketplace | country | product_id | keyword |
+**Tab named Keywords** — columns `project`, `keyword`:
+
+| project | keyword |
+|---|---|
+| WGH30 (3T Car Jacks) | wagenheber |
+| WGH30 (3T Car Jacks) | wagenheber 3t |
+
+**Tab named Products** — columns `project`, `marketplace`, `country`, `product_id`, and an optional `name`:
+
+| project | marketplace | country | product_id | name |
 |---|---|---|---|---|
-| WGH30 (3T Car Jacks) | ebay | DE | 123456789012 | wagenheber |
-| WGH30 (3T Car Jacks) | ebay | DE | 123456789012 | wagenheber 3t |
-| WGH30 (3T Car Jacks) | otto | DE | S0HH60QI | wagenheber 3t |
+| WGH30 (3T Car Jacks) | ebay | DE | 184176192867 | 3T jack |
+| WGH30 (3T Car Jacks) | ebay | DE | 297129125625 | 5T jack |
+| WGH30 (3T Car Jacks) | otto | DE | S0VCI0CR | 3T jack |
+| WGH30 (3T Car Jacks) | kaufland | DE | 428244256 | 3T jack |
 
-- `project` groups products in the dashboard's project dropdown. Several
-  products (and several marketplaces) can share a project.
-- `marketplace`: `ebay`, `otto`, `kaufland` or `temu`.
-- `country`: `DE`, `US`, … (eBay: DE, US, GB, FR, IT, ES, AT, NL, PL).
-- `product_id` — the ID from **your own listing's URL**:
+Here, 4 products x the keywords above = every keyword checked for every product.
+
+- **`project`** must be spelled the same on both tabs (capital letters don't matter).
+  It's what you pick in the dashboard's project dropdown.
+- **Several product IDs per project** are fine, on the same marketplace or on
+  different ones. Each appears separately in the dashboard's product dropdown;
+  the optional `name` is shown there, e.g. "eBay · DE · 3T jack (184176192867)".
+- **`marketplace`**: `ebay`, `otto`, `kaufland` or `temu`. **`country`**: `DE`, `US`, …
+- **`product_id`** — the ID from **your own listing's URL**:
   - eBay: `ebay.de/itm/`**`123456789012`**
   - Otto: `otto.de/p/some-title-`**`S0HH60QI`**`/`
   - Kaufland: `kaufland.de/product/`**`428244256`**`/`
   - Temu: `temu.com/goods.html?goods_id=`**`601099512665876`**
-- `keyword`: the search term to check.
+- Keywords are shared by all marketplaces in the project, so use words that work
+  on each of them.
+- Rows still containing `REPLACE_…` are ignored.
+- **Cost:** checks per day = products x keywords. 50 keywords for 3 products is
+  150 checks, but each keyword is *searched* only once per marketplace and shared
+  by all products in it, so requests stay low. Otto/Kaufland searches use your
+  Bright Data balance (about 1 request per results page); eBay's are free.
+- Renaming a project later starts a new history for it — pick names you'll keep.
 
-Rows still containing `REPLACE_…` are ignored, so the shipped example tracks
-nothing until you fill it in.
-
-**Option A — Google Sheet (easiest to edit):**
-1. Make a sheet with those five column headings in row 1, and your rows below.
-2. Click **Share → General access → Anyone with the link → Viewer** (people you
-   don't invite can read it but not change it).
+**Connect the sheet:**
+1. Share the sheet: **Share → General access → Anyone with the link → Viewer.**
+2. Click the **Keywords** tab and copy the link from your browser's address bar
+   (it ends with `#gid=` and a number). Do the same on the **Products** tab.
 3. In GitHub: **Settings → Secrets and variables → Actions → New repository
-   secret**, name `TRACKING_SHEET_CSV_URL`, value = the sheet's normal link
-   (the one ending in `/edit?usp=sharing`). The tracker converts it for you.
-   (A *File → Share → Publish to web → CSV* link works too.)
-4. Edit `docs/settings.json` and set `"sheet_url"` to the same link, so the
-   dashboard's **+ Add products & keywords** panel links to the sheet.
+   secret**, name `TRACKING_SHEET_CSV_URL`. Paste **both links into the value,
+   one per line.** (Which link is which is worked out from the column headings.)
+   Updating an existing secret works the same way: replace its value.
+4. Put one of the links (or the first) in `docs/settings.json` as `"sheet_url"`,
+   so the dashboard's **+ Add products & keywords** panel links to the sheet.
 
-Edits reach the tracker on the next run. Note: with "Anyone with the link", the
-sheet is readable by anyone who has the link (it only contains product IDs and
-keywords, but it isn't private).
+A published sheet or any sheet link is readable by anyone who has the link (it only
+contains product IDs and keywords, but it isn't private).
 
-**Option B — a file in the repo:** edit `config/tracked.csv` on GitHub (open
-it, click the pencil, edit, commit). Nothing to publish; stays as private as
-your repo. Used automatically whenever `TRACKING_SHEET_CSV_URL` isn't set.
+**Or use files in the repo instead of a sheet:** edit `config/keywords.csv` and
+`config/products.csv` (same columns). They're used whenever the secret isn't set.
+The older single table (`project,marketplace,country,product_id,keyword`, one
+row per product + keyword) also still works, in a sheet or as `config/tracked.csv`.
 
 A new keyword's history starts the first day it is checked — nothing is
 backfilled. To check it immediately, run the workflow (step 6).

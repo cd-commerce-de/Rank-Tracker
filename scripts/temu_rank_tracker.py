@@ -27,7 +27,7 @@ Unlocker's plain HTML fetch doesn't give you), navigates to Temu's search
 page, waits for the product grid to render, then reads product IDs
 (goods_id) out of the rendered page in order.
 
-Tracking table (sheet or config/tracked.csv), per Temu product:
+Products tab of the tracking sheet, per Temu product:
     product_id: the numeric ID from your listing's URL, e.g. the
     "601099512665876" in "temu.com/goods.html?goods_id=601099512665876"
 
@@ -80,8 +80,8 @@ def looks_blocked(html: str) -> bool:
     return any(marker in lowered for marker in BLOCK_MARKERS)
 
 
-async def find_rank_async(keyword: str, target_goods_id: str):
-    """Returns (rank_or_None, blocked_bool)."""
+async def fetch_ordered_async(keyword: str):
+    """Visit Temu's search page for one keyword. Returns (goods IDs in order, blocked?)."""
     query = urllib.parse.quote(keyword)
     url = SEARCH_URL.format(query=query)
     ws_url = bright_data.scraping_browser_ws_url()
@@ -101,16 +101,24 @@ async def find_rank_async(keyword: str, target_goods_id: str):
             await browser.close()
 
     if looks_blocked(html):
-        return None, True
+        return [], True
+    return extract_ordered_goods_ids(html)[:MAX_PRODUCTS_TO_SCAN], False
 
-    ordered = extract_ordered_goods_ids(html)[:MAX_PRODUCTS_TO_SCAN]
-    if target_goods_id in ordered:
-        return ordered.index(target_goods_id) + 1, False
-    return None, False
+
+# One browser visit per keyword per run, shared by every product checked for it.
+_ORDERED_CACHE = {}
 
 
 def find_rank(keyword: str, target_goods_id: str):
-    return asyncio.run(find_rank_async(keyword, target_goods_id))
+    """Returns (rank_or_None, blocked_bool)."""
+    if keyword not in _ORDERED_CACHE:
+        _ORDERED_CACHE[keyword] = asyncio.run(fetch_ordered_async(keyword))
+    ordered, blocked = _ORDERED_CACHE[keyword]
+    if blocked:
+        return None, True
+    if target_goods_id in ordered:
+        return ordered.index(target_goods_id) + 1, False
+    return None, False
 
 
 def load_json(path: Path, default):
@@ -179,6 +187,7 @@ def main():
                         "rank": rank,
                         "blocked": blocked,
                         "item_id": target_id,
+                    "item_label": item.get("label"),
                         "title": None,
                         "results_scanned": None if blocked else MAX_PRODUCTS_TO_SCAN,
                     }

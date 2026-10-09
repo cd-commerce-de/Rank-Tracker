@@ -82,9 +82,10 @@ function buildProjects(rows) {
     });
     p.rows.push(r);
     const it = (p.items[r.item_key] = p.items[r.item_key] || {
-      item_key: r.item_key, marketplace: r.marketplace, country: r.country, product_id: r.item_id || r.item_key, rows: [],
+      item_key: r.item_key, marketplace: r.marketplace, country: r.country, product_id: r.item_id || r.item_key, label: null, rows: [],
     });
     it.rows.push(r);
+    if (r.item_label) it.label = r.item_label; // optional product name from the sheet's Products tab
   });
   return map;
 }
@@ -122,14 +123,15 @@ async function boot() {
 
 function helpPanelHTML() {
   const link = SETTINGS.sheet_url
-    ? `<p><a href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener"><b>Open the tracking sheet</b></a> and add one row per product + keyword. They're picked up on the next daily run.</p>`
-    : `<p>No Google Sheet is linked yet. Until you link one, add rows to <code>config/tracked.csv</code> in your GitHub repo (see the README for linking a Google Sheet, which is easier to edit).</p>`;
+    ? `<p><a href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener"><b>Open the tracking sheet</b></a> and add your rows there. They're picked up on the next hourly check.</p>`
+    : `<p>No Google Sheet is linked yet. Until you link one, edit <code>config/keywords.csv</code> and <code>config/products.csv</code> in your GitHub repo (see the README for linking a Google Sheet, which is easier to edit).</p>`;
   return `
     <div class="help-panel">
       <b>Add or change what's tracked</b>
-      <p>Products and keywords live in one table with five columns: <code>project</code>, <code>marketplace</code> (ebay / otto / kaufland / temu), <code>country</code>, <code>product_id</code> (the ID from your own listing's URL) and <code>keyword</code>. One row per keyword.</p>
+      <p>Your sheet has two tabs. <b>Keywords:</b> <code>project</code>, <code>keyword</code>. <b>Products:</b> <code>project</code>, <code>marketplace</code> (ebay / otto / kaufland / temu), <code>country</code>, <code>product_id</code> (the ID from your own listing's URL) and an optional <code>name</code>.</p>
+      <p>Every product in a project is checked against every keyword of that project, so each keyword is written once and each product is written once. A project can have several product IDs, on one marketplace or several.</p>
       ${link}
-      <p>A new keyword's history starts the first day it's checked. To check it right away, run the workflow from your repo's <b>Actions</b> tab instead of waiting for the next scheduled run.</p>
+      <p>A new keyword's history starts the first day it's checked. To check right away, use <b>↻ Sync now</b>, or run the workflow from your repo's <b>Actions</b> tab.</p>
     </div>`;
 }
 
@@ -163,7 +165,7 @@ function renderPage() {
     .map((p) => `<option value="${esc(p.project_id)}" ${p.project_id === state.projectId ? "selected" : ""}>${esc(p.project_name)}</option>`)
     .join("");
   const itemOptions = items
-    .map((i) => `<option value="${esc(i.item_key)}" ${i.item_key === state.itemKey ? "selected" : ""}>${FLAGS[i.country] || ""} ${esc(MP_LABEL[i.marketplace] || i.marketplace)} · ${esc(i.country)} · ${esc(i.product_id)}</option>`)
+    .map((i) => `<option value="${esc(i.item_key)}" ${i.item_key === state.itemKey ? "selected" : ""}>${FLAGS[i.country] || ""} ${esc(MP_LABEL[i.marketplace] || i.marketplace)} · ${esc(i.country)} · ${esc(i.label ? `${i.label} (${i.product_id})` : i.product_id)}</option>`)
     .join("");
   const periods = [[14, "Last 14 days"], [30, "Last 30 days"], [60, "Last 60 days"], [90, "Last 90 days"], ["all", "All time"]]
     .map(([v, label]) => `<option value="${v}" ${String(v) === String(state.days) ? "selected" : ""}>${label}</option>`)

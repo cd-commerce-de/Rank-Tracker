@@ -16,7 +16,7 @@ HTML, in the order it appears, and counts position from there. It's a
 deliberately low-maintenance approach: Otto can redesign its result tiles
 completely and this still works, as long as product URLs keep this shape.
 
-Tracking table (sheet or config/tracked.csv), per Otto product:
+Products tab of the tracking sheet, per Otto product:
     product_id: the ID from your listing's own URL, e.g. "S0ECP02L"
 
 Caveat: pagination uses Otto's "?o=" offset parameter (confirmed from
@@ -69,14 +69,25 @@ def extract_ordered_product_ids(html: str) -> list[str]:
     return ordered
 
 
+# One fetch per results page per run, shared by every product checked for the
+# same keyword (a page costs a Bright Data request, so never fetch it twice).
+_PAGE_CACHE = {}
+
+
+def _page_ids(url: str, country: str) -> list[str]:
+    key = (url, country)
+    if key not in _PAGE_CACHE:
+        _PAGE_CACHE[key] = extract_ordered_product_ids(bright_data.fetch_html(url, country=country))
+    return _PAGE_CACHE[key]
+
+
 def find_rank(keyword: str, target_product_id: str, country: str):
     query = urllib.parse.quote(keyword)
     all_ids: list[str] = []
     for page in range(MAX_PAGES):
         offset = page * OFFSET_STEP
         url = SEARCH_URL.format(query=query, offset=offset)
-        html = bright_data.fetch_html(url, country=country)
-        ids = extract_ordered_product_ids(html)
+        ids = _page_ids(url, country)
         if not ids:
             break
         all_ids.extend(ids)
@@ -161,6 +172,7 @@ def main():
                         "keyword": keyword,
                         "rank": rank,
                         "item_id": target_id,
+                    "item_label": item.get("label"),
                         "title": None,
                         "results_scanned": OFFSET_STEP * MAX_PAGES,
                     }
