@@ -103,10 +103,21 @@ def save_json(path: Path, data):
 
 
 def main():
+    if not os.environ.get("BRIGHTDATA_API_KEY") or not os.environ.get("BRIGHTDATA_ZONE"):
+        projects_with_web = any(i.get("source") == "web" and i.get("marketplace") == "ebay"
+                                for p in config_loader.load_projects() for i in p.get("items", []))
+        if projects_with_web:
+            print("ERROR: some eBay products are set to source=web, which needs the Bright Data secrets "
+                  "BRIGHTDATA_API_KEY and BRIGHTDATA_ZONE (a Web Unlocker zone) in the repo's "
+                  "Settings -> Secrets -> Actions. They are not set, so nothing was checked.", file=sys.stderr)
+            sys.exit(1)
+        return
     projects = config_loader.load_projects()
     history = load_json(DATA_PATH, [])
     today = date.today().isoformat()
-    seen_today = {(r["project_id"], r["item_key"], r["keyword"]) for r in history if r["date"] == today}
+    # Only rows already made by THIS tracker count as "checked today". A row made earlier today by the
+    # eBay API (before the product was switched to source=web) is replaced by the website result.
+    seen_today = {(r["project_id"], r["item_key"], r["keyword"]) for r in history if r["date"] == today and r.get("source") == "web"}
     only_new = os.environ.get("ONLY_NEW") == "1"
     known_any = {(r["project_id"], r["item_key"], r["keyword"]) for r in history}
 
@@ -137,6 +148,8 @@ def main():
                         print(f"  ! error searching '{keyword}': {e}", file=sys.stderr)
                         continue
                     unreadable_in_a_row = 0
+                    history = [r for r in history if not (r["date"] == today and r.get("source") != "web"
+                               and (r["project_id"], r["item_key"], r["keyword"]) == key)]
                     history.append({
                         "date": today,
                         "checked_at": datetime.now(timezone.utc).isoformat(),

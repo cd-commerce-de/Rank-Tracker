@@ -197,9 +197,11 @@ def main():
     token = get_access_token(client_id, client_secret)
     history = load_json(DATA_PATH, [])
     today = date.today().isoformat()
+    # Rows already made today by the website tracker (source=web) don't count here: if a product was
+    # switched back to the API, the API result replaces them.
     seen_today = {
         (r["project_id"], r["item_key"], r["keyword"])
-        for r in history if r["date"] == today
+        for r in history if r["date"] == today and r.get("source") != "web"
     }
 
     # ONLY_NEW=1 (the hourly pick-up run): only check keywords that have never
@@ -249,6 +251,8 @@ def main():
                         "title": title,
                         "results_scanned": RESULTS_PER_PAGE * MAX_PAGES,
                     }
+                    history = [r for r in history if not (r["date"] == today and r.get("source") == "web"
+                               and (r["project_id"], r["item_key"], r["keyword"]) == (project_id, item_key, keyword))]
                     history.append(row)
                     extra = (f" (organic {found['organic_rank']})" if rank is not None else "") + (" [promoted]" if found["promoted"] else "")
                     print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}{extra}")
