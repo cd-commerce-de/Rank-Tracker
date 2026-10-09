@@ -7,13 +7,24 @@ on **eBay, Otto, Kaufland and Temu** — and shows the history in a DataRova-sty
 - **Ranks by Product** — pick a product; every keyword as a row, every day as a column,
   colour-coded from green (top of the results) to red, with Now / Best / Avg / Found /
   Change columns, sortable, with filters ("in the top 10", "moved up", "lost"…).
-- **Ranks by Keyword** — pick a keyword; every product's position for it over time.
-- **Ranks Matrix** — every product × every keyword on one chosen day.
-- Cards on top: Visibility, Average Position, Top-3 count and a Distribution chart,
-  each with a trend chart. Daily / Weekly / Monthly view, period picker, CSV export.
+- Cards on top: Visibility, Average Position, **Keywords in Top 10** and a Distribution
+  chart, each with a trend chart. Daily / Weekly / Monthly view, period picker, CSV export.
 
 Runs free on GitHub: Actions does the daily checks, Pages hosts the dashboard.
 The dashboard draws its own charts, so it needs nothing from outside websites.
+
+## Branding
+
+The dashboard follows the CD Commerce brand: Dark Slate `#0F172A` and Warm Ember `#D97757`
+(used sparingly), the neutral scale, Poppins for headlines/buttons and Inter for body text,
+10px/16px rounded corners, and no text under 12px. Rank colours run from the brand's
+Success green through Warning amber to Error red. The colours and fonts are defined once at
+the top of `docs/style.css`.
+
+The logo icon (never the wordmark) is in the header (`docs/logo-icon.svg`, brand-dark) and is
+the tab icon (`favicon.svg` / `.ico` / `.png`, white icon on a Dark Slate square, so it reads on
+light and dark browser tabs). All were traced as vectors from the supplied logo file so they
+stay sharp at any size. To change the logo, replace those files with the same names.
 
 ## How it fits together
 

@@ -188,6 +188,14 @@ def parse_csv_texts(texts):
                 f"Found: {', '.join(c for c in (reader.fieldnames or []) if c) or '(no headings)'}"
             )
         tables.append((kind, list(reader)))
+    kinds = {k for k, _ in tables}
+    if "table" not in kinds:
+        if "keywords" in kinds and "products" not in kinds:
+            print("  ! Only a KEYWORDS tab was found. The TRACKING_SHEET_CSV_URL secret must also contain the "
+                  "link of the PRODUCTS tab: put both links in the secret, one per line.", file=sys.stderr)
+        elif "products" in kinds and "keywords" not in kinds:
+            print("  ! Only a PRODUCTS tab was found. The TRACKING_SHEET_CSV_URL secret must also contain the "
+                  "link of the KEYWORDS tab: put both links in the secret, one per line.", file=sys.stderr)
     return build_projects(tables)
 
 

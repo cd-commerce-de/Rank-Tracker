@@ -7,7 +7,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-let state = { projectId: null, itemKey: null, view: "product", keyword: null, matrixDate: null, range: "daily", days: 30, q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
+let state = { projectId: null, itemKey: null, range: "daily", days: 30, q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
 
 // ---------- Small helpers ----------
@@ -116,18 +116,21 @@ const MIN_DAILY_COLUMNS = 14; // keep the table's full shape even in the first d
 function itemText(i) {
   return `${FLAGS[i.country] || ""} ${MP_LABEL[i.marketplace] || i.marketplace} · ${i.country} · ${i.label ? `${i.label} (${i.product_id})` : i.product_id}`.trim();
 }
-function itemHTML(i) {
-  return `<span class="mp-badge mp-${esc(i.marketplace)}">${esc(MP_LABEL[i.marketplace] || i.marketplace)} · ${esc(i.country)}</span> ` +
-    `<span class="kw-name">${esc(i.label || i.product_id)}</span>${i.label ? ` <span class="sub">${esc(i.product_id)}</span>` : ""}`;
-}
-
-// Heatmap colour: rank 1 = green, fading through yellow and orange to red at ~150+.
-function heat(rank) {
+// Heatmap colours come from the brand's own Success -> Warning -> Error colours
+// (#10B981, #F59E0B, #EF4444), blended by rank: 1 = success, ~30 = warning, 150+ = error.
+// Plain #rrggbb values, so they render identically in every browser and export.
+const BRAND_HEAT = [[16, 185, 129], [245, 158, 11], [239, 68, 68]];
+function heatRGB(rank) {
   const t = Math.min(1, Math.log(Math.max(rank, 1)) / Math.log(150));
-  const hue = Math.round(135 * (1 - t));
-  return { bg: `hsl(${hue} 62% 82%)`, fg: `hsl(${hue} 65% 24%)` };
+  const [a, b, u] = t < 0.7 ? [BRAND_HEAT[0], BRAND_HEAT[1], t / 0.7] : [BRAND_HEAT[1], BRAND_HEAT[2], (t - 0.7) / 0.3];
+  return a.map((v, i) => v + (b[i] - v) * u);
 }
-const DIST_COLORS = ["#2e9e5b", "#9bd48f", "#f3df8a", "#f6b88c", "#ec8f8a"];
+const toHex = (c) => "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
+function heat(rank) {                       // pastel cell background + dark readable number
+  const c = heatRGB(rank);
+  return { bg: toHex(c.map((v) => v + (255 - v) * 0.78)), fg: toHex(c.map((v) => v * 0.42)) };
+}
+const DIST_COLORS = [1, 7, 28, 75, 150].map((r) => toHex(heatRGB(r)));   // solid bar colours
 const DIST_LABELS = ["1-3", "4-10", "11-50", "51-100", "100+ / not found"];
 const bucketOf = (rank) => (rank === null ? 4 : rank <= 3 ? 0 : rank <= 10 ? 1 : rank <= 50 ? 2 : rank <= 100 ? 3 : 4);
 
@@ -163,14 +166,10 @@ function helpPanelHTML() {
     </div>`;
 }
 
-let VIEW = { rows: [], mode: "product", rangeText: "" };
+let VIEW = { rows: [], rangeText: "" };
 
 function computeView() {
-  const project = currentProject();
-  let rows, mode;
-  if (state.view === "keyword") { rows = inPeriod(project.rows.filter((r) => r.keyword === state.keyword)); mode = "keyword"; }
-  else if (state.view === "matrix") { rows = inPeriod(project.rows); mode = "matrix"; }
-  else { rows = inPeriod(currentItem().rows); mode = "product"; }
+  const rows = inPeriod(currentItem().rows);
   const dates = rows.map((r) => r.date).sort();
   let rangeText = "";
   if (dates.length) {
@@ -178,7 +177,7 @@ function computeView() {
     const start = state.days === "all" ? dates[0] : shiftDate(latest, -(state.days - 1));
     rangeText = `${state.days === "all" ? "ALL" : "L" + state.days + "D"}  ${fmtFull(start)} – ${fmtFull(latest)}`;
   }
-  VIEW = { rows, mode, rangeText };
+  VIEW = { rows, rangeText };
 }
 
 function renderPage() {
@@ -192,7 +191,7 @@ function renderPage() {
   if (!projects.length) {
     app.innerHTML = `
       ${demoBanner}
-      <div class="topbar"><h1>Rank Tracker</h1><div class="spacer"></div>${syncControlsHTML()}</div>
+      <div class="topbar"><img class="brand-icon" src="logo-icon.svg" alt="CD Commerce" /><h1>Rank Tracker</h1><div class="spacer"></div>${syncControlsHTML()}</div>
       ${syncPanelHTML()}
       ${helpPanelHTML()}
       <div class="content"><div class="empty-state">Nothing is being tracked yet.</div></div>`;
@@ -204,37 +203,23 @@ function renderPage() {
   const project = currentProject();
   const items = sortedItems(project);
   if (!state.itemKey || !project.items[state.itemKey]) state.itemKey = items[0].item_key;
-  const allKeywords = uniq(project.rows.map((r) => r.keyword)).sort((a, b) => a.localeCompare(b));
-  const allDates = uniq(project.rows.map((r) => r.date)).sort();
-  if (!state.keyword || !allKeywords.includes(state.keyword)) state.keyword = allKeywords[0];
-  if (!state.matrixDate || !allDates.includes(state.matrixDate)) state.matrixDate = allDates[allDates.length - 1];
   computeView();
 
   const lastChecked = project.rows.map((r) => r.checked_at || r.date).sort().pop();
   const opt = (v, text, sel) => `<option value="${esc(v)}" ${sel ? "selected" : ""}>${esc(text)}</option>`;
   const projectOptions = projects.map((p) => opt(p.project_id, p.project_name, p.project_id === state.projectId)).join("");
   const itemOptions = items.map((i) => opt(i.item_key, itemText(i), i.item_key === state.itemKey)).join("");
-  const keywordOptions = allKeywords.map((k) => opt(k, k, k === state.keyword)).join("");
-  const dateOptions = allDates.slice().reverse().map((d) => opt(d, fmtFull(d), d === state.matrixDate)).join("");
   const periods = [[14, "Last 14 days"], [30, "Last 30 days"], [60, "Last 60 days"], [90, "Last 90 days"], ["all", "All time"]]
     .map(([v, label]) => opt(v, label, String(v) === String(state.days))).join("");
   const rangeGroup = `<div class="range-group">${["daily", "weekly", "monthly"].map((r) => `<div class="range-btn ${state.range === r ? "active" : ""}" data-range="${r}">${r[0].toUpperCase() + r.slice(1)}</div>`).join("")}</div>
       <select id="periodSelect">${periods}</select><span class="range-text">${esc(VIEW.rangeText)}</span>`;
 
-  let controls;
-  if (state.view === "keyword") {
-    controls = `<div class="ctrl-group"><select class="item-select" id="keywordSelect">${keywordOptions}</select><span class="hint">every product, for this keyword</span></div><div class="ctrl-group">${rangeGroup}</div>`;
-  } else if (state.view === "matrix") {
-    controls = `<div class="ctrl-group"><select class="item-select" id="dateSelect">${dateOptions}</select><span class="hint">every product × every keyword on this day</span></div><div class="ctrl-group"></div>`;
-  } else {
-    controls = `<div class="ctrl-group"><select class="item-select" id="itemSelect">${itemOptions}</select><button class="btn primary" id="addKwBtn">+ Add keyword</button></div><div class="ctrl-group">${rangeGroup}</div>`;
-  }
-  const subtabs = [["product", "Ranks by Product"], ["keyword", "Ranks by Keyword"], ["matrix", "Ranks Matrix"]]
-    .map(([v, l]) => `<div class="subtab ${state.view === v ? "active" : ""}" data-view="${v}">${l}</div>`).join("");
+  const controls = `<div class="ctrl-group"><select class="item-select" id="itemSelect">${itemOptions}</select><button class="btn" id="addKwBtn">+ Add keyword</button></div><div class="ctrl-group">${rangeGroup}</div>`;
 
   app.innerHTML = `
     ${demoBanner}
     <div class="topbar">
+      <img class="brand-icon" src="logo-icon.svg" alt="CD Commerce" />
       <h1>Rank Tracker</h1>
       <select class="project-select" id="projectSelect">${projectOptions}</select>
       <div class="spacer"></div>
@@ -245,7 +230,6 @@ function renderPage() {
     ${syncPanelHTML()}
     ${state.helpOpen ? helpPanelHTML() : ""}
     <div class="content">
-      <div class="subtabs-bar">${subtabs}</div>
       <div class="controls-row">${controls}</div>
       <div class="summary-grid" id="summaryGrid"></div>
       <div class="table-toolbar" id="tableToolbar"></div>
@@ -255,15 +239,12 @@ function renderPage() {
 
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   bindSyncControls();
-  on("projectSelect", "change", (e) => { state.projectId = e.target.value; state.itemKey = null; state.keyword = null; state.matrixDate = null; renderPage(); });
+  on("projectSelect", "change", (e) => { state.projectId = e.target.value; state.itemKey = null; renderPage(); });
   on("itemSelect", "change", (e) => { state.itemKey = e.target.value; renderPage(); });
-  on("keywordSelect", "change", (e) => { state.keyword = e.target.value; renderPage(); });
-  on("dateSelect", "change", (e) => { state.matrixDate = e.target.value; renderPage(); });
   on("periodSelect", "change", (e) => { state.days = e.target.value === "all" ? "all" : Number(e.target.value); renderPage(); });
   on("helpBtn", "click", () => { state.helpOpen = !state.helpOpen; renderPage(); });
   on("addKwBtn", "click", () => { state.helpOpen = true; renderPage(); window.scrollTo(0, 0); });
   document.querySelectorAll(".range-btn").forEach((b) => b.addEventListener("click", () => { state.range = b.dataset.range; renderPage(); }));
-  document.querySelectorAll(".subtab").forEach((b) => b.addEventListener("click", () => { state.view = b.dataset.view; renderPage(); }));
 
   safely("summaryGrid", () => renderSummaryCards(VIEW.rows));
   safely("rankGrid", renderTable);
@@ -276,12 +257,12 @@ function computeSeries(rows) {
   const dates = uniq(valid.map((r) => r.date)).sort();
   const by = {};
   valid.forEach((r) => (by[r.date] = by[r.date] || []).push(r));
-  const out = { dates, vis: [], avg: [], top3: [], dist: [] };
+  const out = { dates, vis: [], avg: [], top10: [], dist: [] };
   dates.forEach((d) => {
     const rs = by[d];
     out.vis.push((rs.filter((r) => r.rank !== null).length / rs.length) * 100);
     out.avg.push(mean(rs.map((r) => r.rank)));
-    out.top3.push(rs.filter((r) => r.rank !== null && r.rank <= 3).length);
+    out.top10.push(rs.filter((r) => r.rank !== null && r.rank <= 10).length);
     const c = [0, 0, 0, 0, 0];
     rs.forEach((r) => c[bucketOf(r.rank)]++);
     out.dist.push(c);
@@ -289,11 +270,11 @@ function computeSeries(rows) {
   return out;
 }
 
-const CW = 320, CH = 118, CL = 6, CT = 10, CB = 18;
+const CW = 320, CH = 126, CL = 6, CT = 10, CB = 24;
 function fmtTick(v) { return Math.abs(v) >= 10 || Number.isInteger(v) ? String(Math.round(v)) : v.toFixed(1); }
 
 function lineSVG(dates, values, o = {}) {
-  const R = 36, pw = CW - CL - R, ph = CH - CT - CB;
+  const R = 44, pw = CW - CL - R, ph = CH - CT - CB;
   const nums = values.filter((v) => v !== null && v !== undefined);
   if (!nums.length) return `<svg viewBox="0 0 ${CW} ${CH}" class="chart"><text x="${CW / 2}" y="${CH / 2}" text-anchor="middle" class="ax">no data</text></svg>`;
   let lo = o.min ?? Math.min(...nums), hi = o.max ?? Math.max(...nums);
@@ -316,7 +297,7 @@ function lineSVG(dates, values, o = {}) {
     }
   });
   const ticks = [lo, (lo + hi) / 2, hi].map((t) => `<line x1="${CL}" x2="${CW - R}" y1="${y(t).toFixed(1)}" y2="${y(t).toFixed(1)}" class="grid"/><text x="${CW - R + 5}" y="${(y(t) + 3).toFixed(1)}" class="ax">${(o.fmt || fmtTick)(t)}</text>`).join("");
-  const color = o.color || "#5b5ff0";
+  const color = o.color || "#D97757";
   const lastIdx = (() => { for (let i = n - 1; i >= 0; i--) if (values[i] !== null && values[i] !== undefined) return i; return -1; })();
   const hover = values.map((v, i) => (v === null || v === undefined ? "" : `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="5" class="hit"><title>${esc(fmtDateShort(dates[i]))}: ${(o.fmt || fmtTick)(v)}</title></circle>`)).join("");
   return `<svg viewBox="0 0 ${CW} ${CH}" class="chart" role="img">${ticks}
@@ -354,7 +335,7 @@ function renderSummaryCards(rows) {
     const d = cur - prev;
     if (Math.abs(d) < 0.05) return `<span class="delta flat">no change</span>`;
     const good = goodWhenUp ? d > 0 : d < 0;
-    return `<span class="delta ${good ? "good" : "bad"}">${d > 0 ? "▲" : "▼"} ${Math.abs(d).toFixed(dec)}${unit} vs previous check</span>`;
+    return `<span class="delta ${good ? "good" : "bad"}"><i>${d > 0 ? "▲" : "▼"}</i> ${Math.abs(d).toFixed(dec)}${unit} vs previous check</span>`;
   };
   wrap.innerHTML = `
     <div class="card" title="Share of tracked keywords where your product was found, on the latest day">
@@ -369,11 +350,11 @@ function renderSummaryCards(rows) {
       ${delta(S.avg[last], S.avg[last - 1], false, "", 1)}
       ${lineSVG(S.dates, S.avg, { reverse: true })}
     </div>
-    <div class="card">
-      <div class="label">Top 3 Rankings</div>
-      <div class="value">${S.top3[last]} <span class="of">of ${total}</span></div>
-      ${delta(S.top3[last], S.top3[last - 1], true, "")}
-      ${lineSVG(S.dates, S.top3, { min: 0, max: Math.max(2, Math.ceil(Math.max(...S.top3) / 2) * 2), fmt: (v) => Math.round(v) })}
+    <div class="card" title="How many tracked keywords have your product in the top 10 results, on the latest day">
+      <div class="label">Keywords in Top 10</div>
+      <div class="value">${S.top10[last]} <span class="of">of ${total}</span></div>
+      ${delta(S.top10[last], S.top10[last - 1], true, "")}
+      ${lineSVG(S.dates, S.top10, { min: 0, max: Math.max(2, Math.ceil(Math.max(...S.top10) / 2) * 2), fmt: (v) => Math.round(v) })}
     </div>
     <div class="card">
       <div class="label">Distribution</div>
@@ -400,10 +381,9 @@ function dayHeaderHTML(label) {
 const SORT_DEFAULT_DIR = { name: 1, now: 1, best: 1, avg: 1, change: -1, found: -1 };
 
 function renderTable() {
-  if (VIEW.mode === "matrix") return renderMatrix();
   const project = currentProject();
   const rows = VIEW.rows;
-  const byKw = VIEW.mode === "keyword" ? "item_key" : "keyword";
+  const byKw = "keyword";
   const entityIds = uniq(rows.map((r) => r[byKw]));
   const rawDates = uniq(rows.map((r) => r.date)).sort();
   const firstDate = rawDates[0], latestDate = rawDates[rawDates.length - 1];
@@ -412,8 +392,8 @@ function renderTable() {
   rows.forEach((r) => { (byEnt[r[byKw]] = byEnt[r[byKw]] || {})[r.date] = r; });
   const hasCell = (id, d) => Object.prototype.hasOwnProperty.call(byEnt[id] || {}, d);
   const cell = (id, d) => byEnt[id][d];
-  const labelText = (id) => (byKw === "item_key" ? itemText(project.items[id]) : id);
-  const labelHTML = (id) => (byKw === "item_key" ? itemHTML(project.items[id]) : `<span class="kw-name">${esc(id)}</span>`);
+  const labelText = (id) => id;
+  const labelHTML = (id) => `<span class="kw-name">${esc(id)}</span>`;
 
   const dayValue = (id, d) => { if (!hasCell(id, d)) return undefined; const r = cell(id, d); return r.blocked ? "BLOCKED" : r.rank; };
   const bucketValue = (id, dates) => {
@@ -492,7 +472,7 @@ function renderTable() {
       return c * state.sort.dir || labelText(a).localeCompare(labelText(b));
     });
 
-  LAST_GRID = { firstHeader: byKw === "item_key" ? "Product" : "Keyword", columns, entities: ids.map((id) => ({ id, label: labelText(id) })), getValue };
+  LAST_GRID = { firstHeader: "Keyword", columns, entities: ids.map((id) => ({ id, label: labelText(id) })), getValue };
 
   // toolbar: filter + search on the left, movement chips in the middle, export on the right
   const chip = (f, text, n) => `<button class="mv ${state.filter === f ? "on" : ""}" data-f="${f}"${n ? "" : " disabled"}>${text} <b>${n}</b></button>`;
@@ -500,7 +480,7 @@ function renderTable() {
     .map(([v, l]) => `<option value="${v}" ${state.filter === v ? "selected" : ""}>${l}</option>`).join("");
   document.getElementById("tableToolbar").innerHTML = `
     <div class="ctrl-group"><select id="filterSelect" title="Filter rows">${fopts}</select>
-      <input class="search-input" id="kwSearch" placeholder="${byKw === "item_key" ? "Filter products…" : "Filter keywords…"}" value="${esc(state.q)}" /></div>
+      <input class="search-input" id="kwSearch" placeholder="Filter keywords…" value="${esc(state.q)}" /></div>
     <div class="movers">${anyPrev
       ? `<span class="mv-label">Since the previous check:</span>${chip("improved", "▲ moved up", kinds.improved)}${chip("dropped", "▼ moved down", kinds.dropped)}${chip("new", "● newly found", kinds.new)}${chip("lost", "✕ lost", kinds.lost)}`
       : `<span class="mv-label">Movement (▲ ▼) appears after the second daily check.</span>`}</div>
@@ -515,7 +495,7 @@ function renderTable() {
   const arrow = (k) => (state.sort.key === k ? (state.sort.dir === 1 ? " ▲" : " ▼") : "");
   const th = (k, text, tip, extra = "") => `<th class="metric sortable ${extra}" data-sort="${k}" title="${tip}">${text}${arrow(k)}</th>`;
   const head = `<thead><tr>
-    <th class="kwcol sortable" data-sort="name">${byKw === "item_key" ? "Product" : "Keyword"} (${ids.length})${arrow("name")}</th>
+    <th class="kwcol sortable" data-sort="name">Keyword (${ids.length})${arrow("name")}</th>
     ${th("now", "Now", "Position at the most recent check")}${th("best", "Best", "Best position in the selected period")}
     ${th("avg", "Avg", "Average position over the checks where it was found")}${th("found", "Found", "Share of checks where it was found at all")}
     ${th("change", "Change", "Change since the check before the latest one", "metric-last")}
@@ -526,8 +506,8 @@ function renderTable() {
     const nowN = s.now === undefined ? 9999 : s.now === null ? 9999 : s.now;
     const tag = nowN === 1 ? '<span class="kw-tag">#1</span>' : nowN <= 3 ? '<span class="kw-tag">TOP 3</span>' : "";
     const nowCell = s.now === undefined ? `<td class="metric nodata">·</td>` : cellHTML(s.now, `${esc(labelText(id))} · position at the most recent check`, s.scanned).replace("<td ", '<td data-m="now" ').replace('class="rank-cell', 'class="metric rank-cell');
-    const change = s.kind === "new" ? `<span class="trend-down">new</span>` : s.kind === "lost" ? `<span class="trend-up">lost</span>`
-      : s.kind === "improved" ? `<span class="trend-down">▲ ${s.delta}</span>` : s.kind === "dropped" ? `<span class="trend-up">▼ ${-s.delta}</span>`
+    const change = s.kind === "new" ? `<span class="trend-down"><i>●</i> new</span>` : s.kind === "lost" ? `<span class="trend-up"><i>✕</i> lost</span>`
+      : s.kind === "improved" ? `<span class="trend-down"><i>▲</i> ${s.delta}</span>` : s.kind === "dropped" ? `<span class="trend-up"><i>▼</i> ${-s.delta}</span>`
       : s.kind === "same" ? `<span class="trend-flat">=</span>` : `<span class="trend-flat">–</span>`;
     const cells = columns.map((c) => {
       const v = getValue(id, c.key);
@@ -551,37 +531,6 @@ function legendHTML() {
   const chips = [2, 7, 25, 70, 200].map((r, i) => { const h = heat(r); return `<span class="chip" style="background:${h.bg};color:${h.fg}">${["1–3", "4–10", "11–50", "51–100", ">100"][i]}</span>`; }).join("");
   return `Each column is a day; the number is where the product appears in that marketplace's search results for the keyword (1 = first). ${chips}
     <span class="chip r-nf">&gt;N not found in the top N checked</span><span class="chip r-blocked">?</span> blocked by the marketplace &nbsp;·&nbsp; <b>·</b> not checked that day`;
-}
-
-// Ranks Matrix: every product x every keyword on one day, like DataRova's matrix.
-function renderMatrix() {
-  const project = currentProject();
-  const items = sortedItems(project);
-  const day = state.matrixDate;
-  const dayRows = project.rows.filter((r) => r.date === day);
-  const by = {};
-  dayRows.forEach((r) => { (by[r.keyword] = by[r.keyword] || {})[r.item_key] = r; });
-  const val = (kw, ik) => { const r = (by[kw] || {})[ik]; return r === undefined ? undefined : r.blocked ? "BLOCKED" : r.rank; };
-  const keywords = uniq(project.rows.map((r) => r.keyword));
-  const bestOf = (kw) => { const nums = items.map((i) => val(kw, i.item_key)).filter((v) => typeof v === "number"); return nums.length ? Math.min(...nums) : null; };
-  keywords.sort((a, b) => { const x = bestOf(a), y = bestOf(b); return (x === null ? 9e9 : x) - (y === null ? 9e9 : y) || a.localeCompare(b); });
-
-  LAST_GRID = { firstHeader: "Keyword", columns: items.map((i) => ({ key: i.item_key, label: itemText(i) })), entities: keywords.map((k) => ({ id: k, label: k })), getValue: val };
-
-  document.getElementById("tableToolbar").innerHTML = `<div class="ctrl-group"><span class="mv-label">${esc(fmtFull(day))} · ${keywords.length} keywords × ${items.length} products</span></div><div class="movers"></div><div class="ctrl-group"><button class="btn" id="exportBtn">Export CSV</button></div>`;
-  document.getElementById("exportBtn").addEventListener("click", exportCSV);
-  document.getElementById("gridLegend").innerHTML = legendHTML();
-
-  const foundIn = (kw) => items.filter((i) => typeof val(kw, i.item_key) === "number").length;
-  const head = `<thead><tr><th class="kwcol">Keyword (${keywords.length})</th><th class="metric">Best</th><th class="metric metric-last">Found in</th>${items.map((i) => `<th class="prod">${itemHTML(i)}</th>`).join("")}</tr></thead>`;
-  const body = keywords.map((kw) => {
-    const b = bestOf(kw);
-    return `<tr><td class="kwcol"><span class="kw-name">${esc(kw)}</span></td><td class="metric">${b === null ? "–" : b}</td><td class="metric metric-last">${foundIn(kw)}/${items.length}</td>` +
-      items.map((i) => { const r = (by[kw] || {})[i.item_key]; return cellHTML(val(kw, i.item_key), esc(kw + " · " + itemText(i)), r && r.results_scanned); }).join("") + `</tr>`;
-  }).join("");
-  const avgRow = `<tr class="foot"><td class="kwcol">Average position</td><td class="metric"></td><td class="metric metric-last"></td>${items.map((i) => { const nums = keywords.map((k) => val(k, i.item_key)).filter((v) => typeof v === "number"); return `<td class="metric">${nums.length ? mean(nums).toFixed(1) : "–"}</td>`; }).join("")}</tr>
-    <tr class="foot"><td class="kwcol">Visibility</td><td class="metric"></td><td class="metric metric-last"></td>${items.map((i) => { const all = keywords.map((k) => val(k, i.item_key)).filter((v) => v !== undefined && v !== "BLOCKED"); const f = all.filter((v) => typeof v === "number").length; return `<td class="metric">${all.length ? Math.round((f / all.length) * 100) + "%" : "–"}</td>`; }).join("")}</tr>`;
-  document.getElementById("rankGrid").innerHTML = head + `<tbody>${body}${avgRow}</tbody>`;
 }
 
 // ---------- Sync ----------
@@ -670,7 +619,7 @@ function setSync(msg, kind, runUrl) {
 
 function syncControlsHTML() {
   return `<span id="syncStatus">${syncStatusHTML()}</span>
-    <button class="btn" id="syncBtn" ${syncState.busy ? "disabled" : ""}>↻ Sync now</button>
+    <button class="btn secondary" id="syncBtn" ${syncState.busy ? "disabled" : ""}>↻ Sync now</button>
     <button class="btn" id="syncCfgBtn" title="Sync settings">⚙</button>`;
 }
 
@@ -772,7 +721,7 @@ function exportCSV() {
   const blob = new Blob(["\ufeff" + buildCsv()], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `ranks-${state.view}-${state.range}.csv`.replace(/[^\w.-]+/g, "_");
+  a.download = `ranks-${state.range}.csv`.replace(/[^\w.-]+/g, "_");
   document.body.appendChild(a);
   a.click();
   a.remove();
