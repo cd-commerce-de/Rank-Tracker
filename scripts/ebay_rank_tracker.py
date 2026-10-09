@@ -106,49 +106,67 @@ def search_page(token, marketplace_id, keyword, offset):
                 "itemId": i.get("itemId"),
                 "title": i.get("title", ""),
                 "seller": {"username": (i.get("seller") or {}).get("username", "")},
+                "priorityListing": bool(i.get("priorityListing")),   # true = part of a Promoted Listings campaign (paid)
+                "price": i.get("price"),
             }
             for i in resp.json().get("itemSummaries", [])
         ]
     return _PAGE_CACHE[key]
 
 
-def find_rank(token, marketplace_id, keyword, item_config):
+def find_rank_detail(token, marketplace_id, keyword, item_config):
     """
-    Search up to MAX_PAGES pages and return (rank, item_id, title) for the
-    first result that is "your" listing.
+    Search up to MAX_PAGES pages and report where "your" listing is.
 
-    If item_config has an ebay_item_id, that's used as an exact match
-    against each result's legacyItemId — precise, and immune to title
-    changes. Otherwise falls back to matching on seller username + the
-    title_contains words (less precise, kept for cases where you haven't
-    filled in the item ID yet).
+    Returns a dict:
+      rank          position in eBay's result list (what we have always recorded)
+      organic_rank  the same position after removing paid placements of OTHER results
+                    (listings eBay flags "priorityListing" = part of a Promoted Listings
+                    campaign). The closest thing to an "organic" position the API allows.
+      promoted      True/False: is YOUR listing itself flagged as a paid placement?
+      item_id, title
+    or the same keys all None when the listing is not in the results scanned.
+
+    If item_config has an ebay_item_id it is matched exactly against each result's
+    legacyItemId (immune to title changes). Otherwise it falls back to seller
+    username + title words.
     """
     target_item_id = item_config.get("ebay_item_id")
     seller_username = item_config.get("ebay_seller_username", "")
     title_contains = item_config.get("title_contains", [])
 
     position = 0
+    organic = 0
     for page in range(MAX_PAGES):
         items = search_page(token, marketplace_id, keyword, page * RESULTS_PER_PAGE)
         if not items:
             break
         for item in items:
             position += 1
+            promoted = bool(item.get("priorityListing"))
             title = item.get("title", "")
 
             if target_item_id:
-                legacy_id = str(item.get("legacyItemId") or "")
-                if legacy_id != str(target_item_id):
-                    continue
-                return position, item.get("itemId"), title
+                is_mine = str(item.get("legacyItemId") or "") == str(target_item_id)
+            else:
+                seller = (item.get("seller") or {}).get("username", "")
+                is_mine = seller.lower() == seller_username.lower() and (
+                    not title_contains or all(t.lower() in title.lower() for t in title_contains))
 
-            seller = (item.get("seller") or {}).get("username", "")
-            if seller.lower() != seller_username.lower():
-                continue
-            if title_contains and not all(t.lower() in title.lower() for t in title_contains):
-                continue
-            return position, item.get("itemId"), title
-    return None, None, None
+            if is_mine:
+                # counted among the organic positions even if it is itself flagged, so a
+                # promoted listing is never reported as "not ranking organically"
+                return {"rank": position, "organic_rank": organic + 1, "promoted": promoted,
+                        "item_id": item.get("itemId"), "title": title}
+            if not promoted:
+                organic += 1
+    return {"rank": None, "organic_rank": None, "promoted": None, "item_id": None, "title": None}
+
+
+def find_rank(token, marketplace_id, keyword, item_config):
+    """Older 3-value form: (rank, item_id, title)."""
+    d = find_rank_detail(token, marketplace_id, keyword, item_config)
+    return d["rank"], d["item_id"], d["title"]
 
 
 def load_json(path: Path, default):
@@ -208,7 +226,8 @@ def main():
                     ):
                         continue
                     try:
-                        rank, item_id, title = find_rank(token, marketplace_id, keyword, item)
+                        found = find_rank_detail(token, marketplace_id, keyword, item)
+                        rank, item_id, title = found["rank"], found["item_id"], found["title"]
                     except requests.RequestException as e:
                         print(f"  ! error searching '{keyword}': {e}", file=sys.stderr)
                         continue
@@ -223,13 +242,16 @@ def main():
                         "country": country,
                         "keyword": keyword,
                         "rank": rank,
+                        "organic_rank": found["organic_rank"],   # position with paid (Promoted Listings) results removed
+                        "promoted": found["promoted"],           # is this listing itself flagged as a paid placement?
                         "item_id": item.get("ebay_item_id") or item_id,
-                    "item_label": item.get("label"),
+                        "item_label": item.get("label"),
                         "title": title,
                         "results_scanned": RESULTS_PER_PAGE * MAX_PAGES,
                     }
                     history.append(row)
-                    print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}")
+                    extra = (f" (organic {found['organic_rank']})" if rank is not None else "") + (" [promoted]" if found["promoted"] else "")
+                    print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}{extra}")
 
     finally:
         save_json(DATA_PATH, history)

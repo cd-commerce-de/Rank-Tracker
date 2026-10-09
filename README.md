@@ -190,7 +190,16 @@ and GitHub may email you; fix the sharing and it recovers by itself.
 
 ## How much to trust each marketplace
 
-- **eBay** — official API, exact item-ID match. Solid.
+- **eBay** — official API, exact item-ID match. The position is where eBay's *search API* lists
+  the listing (its "Best Match" order). That is **not guaranteed to equal what a shopper sees on
+  ebay.de**: the website adds paid "Anzeige" slots, may personalise results, and also shows auctions
+  that the API leaves out by default. eBay flags paid Promoted Listings in the API, so each saved
+  row also has `organic_rank` (the position with paid results removed) and `promoted` (is your listing
+  itself a paid placement). If a number looks wrong, run **Actions → Check an eBay keyword** with the
+  keyword: it prints the API's results in order with sellers, paid flags and your listings
+  highlighted (★), so you can compare it with the website line by line. Also remember each tracked
+  row follows **one item ID**: if you have several listings for the same product, the one you see
+  first on ebay.de may be a different listing from the one you track.
 - **Otto** — fetched through Web Unlocker; your product is recognised by the ID
   in its URL, so layout changes don't break it. The matching logic was checked
   against a real otto.de page, but the **pagination page size is an unverified
