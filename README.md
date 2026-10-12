@@ -247,6 +247,7 @@ and GitHub may email you; fix the sharing and it recovers by itself.
     both the position a shopper sees (`rank`) and the organic one (`organic_rank`). If your listing appears
     both as an ad and organically, both are recorded. Not verified against live eBay pages while building
     this, so check it with the tool below before relying on it.
+  - **To test your Bright Data key and zone** (one request, changes nothing): run **Actions → Test Bright Data**.
   - **If a number looks wrong:** run **Actions → Check an eBay keyword**. It prints eBay's API results
     *and* the real ebay.de page for the keyword, in order, with your listings highlighted (★), so you can
     compare them with your browser line by line. Remember each tracked row follows **one item ID**: if you
