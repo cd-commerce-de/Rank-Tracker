@@ -195,6 +195,13 @@ def main():
         return
 
     token = get_access_token(client_id, client_secret)
+    skipped_web = [i["item_key"] for p in projects for i in p.get("items", []) if i.get("marketplace") == "ebay" and i.get("source") == "web"]
+    api_items = [i for p in projects for i in p.get("items", []) if i.get("marketplace") == "ebay" and i.get("source") != "web"]
+    print(f"eBay API tracker: {len(api_items)} product(s) to check; {len(skipped_web)} product(s) are set to source=web "
+          f"and are left to the website tracker (a separate workflow step).")
+    if skipped_web and not api_items:
+        print("  NOTE: every eBay product is set to source=web, so this API step checks nothing. If the website "
+              "step is missing from the workflow or the Bright Data secrets are not set, nothing is saved at all.", file=sys.stderr)
     history = load_json(DATA_PATH, [])
     today = date.today().isoformat()
     # Rows already made today by the website tracker (source=web) don't count here: if a product was
