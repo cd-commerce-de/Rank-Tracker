@@ -24,9 +24,14 @@ jobs:
   track:
     runs-on: ubuntu-latest
     env:
-      # Your products & keywords: a Google Sheet link (repo secret), or, if that
-      # isn't set, config/tracked.csv in the repo.
+      # Your products & keywords: the link(s) to your Google Sheet tab(s) (repo secret,
+      # one link per line), or, if that isn't set, config/keywords.csv + config/products.csv.
       TRACKING_SHEET_CSV_URL: ${{ secrets.TRACKING_SHEET_CSV_URL }}
+      # How eBay products are read when their "source" cell in the Products tab is blank:
+      #   web = the real ebay.de page through Bright Data (what a German shopper sees; uses Bright Data credit)
+      #   api = eBay's free search API (less faithful)
+      # Write api or web in a product's source cell to override this for that product.
+      EBAY_DEFAULT_SOURCE: "web"
       # "1" for any scheduled run EXCEPT the daily one => the hourly pick-up checks only
       # what's new. (Manual/Sync runs and the daily run check everything.)
       # If you change the daily time above ("0 6 * * *"), change it here too.
@@ -66,6 +71,21 @@ jobs:
           EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
         run: python scripts/ebay_rank_tracker.py
 
+      - name: Run eBay rank tracker (website mode)
+        if: steps.check.outputs.run == 'true'
+        continue-on-error: true
+        env:
+          BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+          BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+          # Results pages read per keyword. Each page is one paid Bright Data request.
+          # 1 = first page only (about 60 listings with the page size below). Raise to 2 or 3 to look deeper (costs more).
+          EBAY_WEB_MAX_PAGES: "1"
+          # Listings requested per results page: 60 (default, most reliable), 120 or 240. One request either way.
+          EBAY_WEB_PAGE_SIZE: "60"
+          # Country setting sent to Bright Data: none (default) or country. eBay rejects German-country requests (HTTP 403).
+          EBAY_WEB_GEO: "none"
+        run: python scripts/ebay_web_tracker.py
+
       - name: Run Otto rank tracker
         if: steps.check.outputs.run == 'true'
         continue-on-error: true
@@ -99,7 +119,11 @@ jobs:
         run: |
           git config user.name "rank-tracker-bot"
           git config user.email "actions@users.noreply.github.com"
+          if [ ! -f docs/data/ranks.json ]; then echo "No data was saved in this run (nothing to commit)."; exit 0; fi
           git add docs/data/ranks.json
+          if git diff --staged --quiet && [ -z "$ONLY_NEW" ]; then
+            echo "::warning title=Nothing was saved::This full run did not save any new ranks. If it is the first run of the day, check that your products have the right source (blank = the EBAY_DEFAULT_SOURCE setting above; web = ebay.de page via Bright Data; api = eBay API), that the matching secrets exist, and read each tracker step's log. A second run on the same day saves nothing because everything was already checked."
+          fi
           git diff --staged --quiet || {
             git commit -m "Update ranks $(date -u +%Y-%m-%d)"
             git pull --rebase
