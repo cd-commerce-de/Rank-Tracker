@@ -165,6 +165,12 @@ def main():
                         continue
                     except (requests.RequestException, RuntimeError) as e:
                         print(f"  ! error searching '{keyword}': {e}", file=sys.stderr)
+                        if isinstance(e, (requests.Timeout, requests.ConnectionError)):
+                            # Bright Data is not answering: count it like an unreadable page, so a slow or
+                            # unavailable service stops the run quickly instead of waiting out every keyword.
+                            unreadable_in_a_row += 1
+                            if unreadable_in_a_row >= MAX_UNREADABLE_IN_A_ROW:
+                                raise StopRun()
                         continue
                     unreadable_in_a_row = 0
                     history = [r for r in history if not (r["date"] == today and r.get("source") != "web"
@@ -195,7 +201,7 @@ def main():
                             extra += f" [also an ad at {found['ad_rank']}]"
                     print(f"  [{project['project_name']} / {item_key}] {keyword!r} -> rank {found['rank']}{extra}  [website]")
     except StopRun:
-        print(f"  !! Stopping the eBay website run: {MAX_UNREADABLE_IN_A_ROW} keywords in a row could not be read. "
+        print(f"  !! Stopping the eBay website run: {MAX_UNREADABLE_IN_A_ROW} keywords in a row could not be read or timed out. "
               "Stopping here so a blocked page or a changed eBay layout cannot keep spending Bright Data credit. "
               "Run 'Check an eBay keyword' to see what the page looks like, then tell whoever maintains this.", file=sys.stderr)
     finally:
@@ -204,6 +210,10 @@ def main():
     if s["pages"]:
         print(f"Page reading summary: {s['pages']} page(s), {s['cards']} listings read, {s['flagged']} flagged as paid ads "
               f"(\"Anzeige\"), {s['cards'] - s['flagged']} organic; ad-label elements found: {s['ad_elements']}.")
+        st = bright_data.STATS
+        if st["requests"] or st["timeouts"]:
+            avg = st["seconds"] / max(1, st["requests"] + st["timeouts"])
+            print(f"Bright Data timing: {st['requests']} answer(s), {st['timeouts']} timeout(s), about {avg:.0f} s per request.")
         if s["scheme_pages"] and s["cards"] >= 10 and s["labelled"] < 0.5 * s["cards"]:
             print(f"  !! Only {s['labelled']} of {s['cards']} listings had a readable ad label, so eBay may have changed its "
                   "page layout and organic ranks may be wrong. Run 'Check an eBay keyword' and tell whoever maintains this.", file=sys.stderr)

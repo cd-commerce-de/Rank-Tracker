@@ -16,10 +16,22 @@ Reference: https://docs.brightdata.com/scraping-automation/web-unlocker/send-you
 """
 
 import os
+import time
 
 import requests
 
 UNLOCKER_URL = "https://api.brightdata.com/request"
+
+# Web Unlocker works through eBay-style anti-bot defences before it answers, which can take well over a
+# minute for a hard page. 150 s is generous; change it with BRIGHTDATA_TIMEOUT (seconds).
+STATS = {"requests": 0, "seconds": 0.0, "timeouts": 0}   # filled in by fetch_html, printed in run logs
+
+
+def _timeout() -> int:
+    try:
+        return max(30, min(300, int(os.environ.get("BRIGHTDATA_TIMEOUT", "150"))))
+    except ValueError:
+        return 150
 
 
 def scraping_browser_ws_url() -> str:
@@ -62,11 +74,25 @@ def fetch_html(url: str, country: str | None = None) -> str:
     if country:
         payload["country"] = country.lower()
 
-    resp = requests.post(
-        UNLOCKER_URL,
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=60,
-    )
-    resp.raise_for_status()
-    return resp.text
+    # One retry if Bright Data does not answer in time: a second attempt usually goes out through a
+    # different exit address. (Bright Data bills successful requests only.)
+    for attempt in (1, 2):
+        started = time.monotonic()
+        try:
+            resp = requests.post(
+                UNLOCKER_URL,
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json=payload,
+                timeout=_timeout(),
+            )
+        except (requests.Timeout, requests.ConnectionError):
+            STATS["timeouts"] += 1
+            STATS["seconds"] += time.monotonic() - started
+            if attempt == 2:
+                raise
+            time.sleep(3)
+            continue
+        STATS["requests"] += 1
+        STATS["seconds"] += time.monotonic() - started
+        resp.raise_for_status()
+        return resp.text

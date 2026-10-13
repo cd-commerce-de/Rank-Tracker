@@ -175,9 +175,23 @@ def main():
     seller = args.seller.strip().lower()
     lines = []
     if args.source in ("api", "both"):
-        lines += api_section(args.keyword, args.country, seller, args.show, args.pages or 2, tracked) + [""]
+        try:
+            lines += api_section(args.keyword, args.country, seller, args.show, args.pages or 2, tracked) + [""]
+        except requests.RequestException as ex:
+            lines += ["## 1) eBay search API", "", f"**The eBay API request failed:** {type(ex).__name__}: {ex}", ""]
     if args.source in ("web", "both"):
-        lines += web_section(args.keyword, args.country, seller, args.show, args.pages or 1, tracked) + [""]
+        try:
+            lines += web_section(args.keyword, args.country, seller, args.show, args.pages or 1, tracked) + [""]
+        except requests.RequestException as ex:
+            lines += ["## 2) The ebay.de results page", "",
+                      f"**The Bright Data request failed:** {type(ex).__name__}: {ex}", "",
+                      "Bright Data did not return the page in time (it can take over a minute for eBay). The wait is now "
+                      "150 seconds with one retry; if this keeps happening, tell whoever maintains this, and look at "
+                      "Web Access > Dashboard in your Bright Data account.", ""]
+        t = bright_data.STATS
+        if t["requests"] or t["timeouts"]:
+            lines += [f"Bright Data timing: {t['requests']} answer(s), {t['timeouts']} timeout(s), "
+                      f"{t['seconds']:.0f} s in total.", ""]
     text = "\n".join(lines)
     print(text)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
