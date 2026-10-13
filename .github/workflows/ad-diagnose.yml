@@ -1,0 +1,136 @@
+name: Diagnose eBay ads
+
+# Shows what Bright Data's eBay page really contains around the "Anzeige" ad labels, with and
+# without a German delivery postcode, so we can check the ad detection against your browser.
+# Costs 2 Bright Data requests. Nothing is saved or changed.
+on:
+  workflow_dispatch:
+    inputs:
+      keyword:
+        description: "Keyword, exactly as typed on ebay.de"
+        required: false
+        default: "anhängerplane 211x116"
+      postcode:
+        description: "German postcode your browser uses for Versand nach"
+        required: false
+        default: "36179"
+      ids:
+        description: "eBay item numbers to look at (comma separated)"
+        required: false
+        default: "185351217006,186458143724,184137378691"
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Look at the eBay page
+        env:
+          BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+          BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+          KEYWORD: ${{ inputs.keyword }}
+          POSTCODE: ${{ inputs.postcode }}
+          IDS: ${{ inputs.ids }}
+        run: |
+          cat > ad_diagnose.py <<'PYEOF'
+          import html as H, json, os, re, sys, urllib.error, urllib.request, urllib.parse
+
+          KEY = os.environ.get("BRIGHTDATA_API_KEY", "").strip()
+          ZONE = os.environ.get("BRIGHTDATA_ZONE", "").strip()
+          KEYWORD = os.environ.get("KEYWORD", "").strip() or "anhängerplane 211x116"
+          POST = os.environ.get("POSTCODE", "").strip() or "36179"
+          IDS = [i.strip() for i in (os.environ.get("IDS", "") or "185351217006,186458143724,184137378691").split(",") if i.strip()]
+          lines = []
+
+          def say(s=""):
+              print(s)
+              lines.append(s)
+
+          def code(s, n=600):
+              s = re.sub(r"\s+", " ", s).replace("`", "'")
+              return "`" + (s if len(s) <= n else s[:n] + " ...") + "`"
+
+          def finish(c):
+              p = os.environ.get("GITHUB_STEP_SUMMARY")
+              if p:
+                  with open(p, "a", encoding="utf-8") as f:
+                      f.write("\n".join(lines) + "\n")
+              sys.exit(c)
+
+          if not KEY or not ZONE:
+              say("**FAILED: BRIGHTDATA_API_KEY / BRIGHTDATA_ZONE secrets missing.**")
+              finish(1)
+
+          def fetch(url):
+              body = json.dumps({"zone": ZONE, "url": url, "format": "raw", "country": "de"}).encode()
+              req = urllib.request.Request("https://api.brightdata.com/request", data=body, method="POST",
+                                           headers={"Authorization": "Bearer " + KEY, "Content-Type": "application/json"})
+              try:
+                  with urllib.request.urlopen(req, timeout=120) as r:
+                      return r.status, r.read().decode("utf-8", "replace")
+              except urllib.error.HTTPError as e:
+                  return e.code, e.read().decode("utf-8", "replace")
+
+          ITEM = re.compile(r"/itm/(?:[^\"'\s?#<>/]*/)?(\d{10,13})")
+          AD = re.compile(r"egieznA|>\s*(?:Anzeige|Gesponsert|Sponsored)\s*<")
+
+          def analyse(title, url):
+              say(f"## {title}")
+              say(f"URL: {code(url, 300)}")
+              status, page = fetch(url)
+              say(f"HTTP **{status}**, {len(page):,} characters")
+              if status != 200:
+                  say("**This request failed:** " + code(page, 300))
+                  return
+              clean = re.sub(r"<(script|style|noscript|template)\b.*?</\1\s*>", " ", page, flags=re.S | re.I)
+              clean = re.sub(r"<!--.*?-->", " ", clean, flags=re.S)
+              vis = re.sub(r"\s+", " ", H.unescape(re.sub(r"<[^>]+>", " ", clean)))
+              m = re.search(r"(\d[\d.,]*)\s+Ergebnisse?\s+für", vis)
+              say(f"Result count shown on the page: **{m.group(1) if m else 'not found'}**  (your browser said 22)")
+              marks = {"egieznA (backwards Anzeige)": len(re.findall("egieznA", clean)),
+                       "Anzeige (not 'Anzeigen')": len(re.findall(r"Anzeige(?!n)", clean)),
+                       "Gesponsert": clean.count("Gesponsert"), "Sponsored (any case)": len(re.findall("(?i)sponsored", clean)),
+                       "promoted (any case)": len(re.findall("(?i)promoted", clean))}
+              say("Ad-label markers in the page: " + ", ".join(f"{k}: **{v}**" for k, v in marks.items()))
+
+              runs = []
+              for mm in ITEM.finditer(clean):
+                  if not runs or runs[-1][0] != mm.group(1):
+                      runs.append([mm.group(1), mm.start()])
+              starts = [max(clean.rfind("<", 0, s), 0) for _, s in runs]
+              cards = []
+              for i, (iid, _) in enumerate(runs):
+                  seg = clean[starts[i]: starts[i + 1] if i + 1 < len(runs) else len(clean)]
+                  txt = re.sub(r"\s+", " ", H.unescape(re.sub(r"<[^>]+>", " ", seg))).replace("egieznA", "").strip()
+                  cards.append((iid, bool(AD.search(seg)), txt, seg))
+              say(f"{len(cards)} listings read; {sum(1 for c in cards if c[1])} flagged as ads by the tracker's detector.")
+              say("")
+              say("| # | Item ID | flagged ad | Text |")
+              say("|--:|---|:-:|---|")
+              for pos, (iid, ad, txt, _) in enumerate(cards[:8], 1):
+                  say(f"| {pos} | {iid} | {'yes' if ad else ''} | {txt[:70].replace('|', '/')} |")
+              say("")
+              for target in IDS:
+                  hits = [i for i, c in enumerate(cards) if c[0] == target]
+                  if not hits:
+                      say(f"- **{target}**: not among the listings read.")
+                      continue
+                  say(f"- **{target}**: appears at card position(s) {', '.join(str(h + 1) for h in hits[:4])}.")
+                  seg = cards[hits[0]][3]
+                  say("  - end of its card, raw HTML: " + code(re.sub(r"<img[^>]*>", "<img>", seg[-420:]), 420))
+              ctx = [mm.start() for mm in re.finditer(r"egieznA|Anzeige(?!n)", clean)][:4]
+              say("")
+              say(f"First {len(ctx)} places in the page where the ad word appears (raw HTML around it):")
+              for c in ctx:
+                  say("- " + code(clean[max(0, c - 130): c + 90], 240))
+              say("")
+
+          base = "https://www.ebay.de/sch/i.html?_nkw=" + urllib.parse.quote_plus(KEYWORD) + "&_sacat=0&_ipg=240&_pgn=1"
+          say(f"# Ad diagnostic for “{KEYWORD}”")
+          analyse("A) The page exactly as the tracker requests it", base)
+          analyse(f"B) The same page with a German delivery postcode ({POST})", base + f"&_stpos={POST}&_fcid=77")
+          finish(0)
+          PYEOF
+          python3 ad_diagnose.py
