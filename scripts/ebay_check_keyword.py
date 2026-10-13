@@ -15,7 +15,9 @@ written to the run's summary page.
 """
 
 import argparse
+import html as htmllib
 import os
+import re
 import sys
 
 import requests
@@ -132,10 +134,27 @@ def api_section(keyword, country, seller, show, pages, tracked):
 def web_section(keyword, country, seller, show, pages, tracked):
     if not os.environ.get("BRIGHTDATA_API_KEY") or not os.environ.get("BRIGHTDATA_ZONE"):
         return ["## ebay.de page", "", "BRIGHTDATA_API_KEY / BRIGHTDATA_ZONE are not set, so the website view was skipped."]
-    cards, ad_elems, decoys = [], 0, 0
+    cards, ad_elems, decoys, notes = [], 0, 0, []
+    ctry = country        # the country setting sent to Bright Data; dropped if it gets no listings (see below)
+    attempts = [("country=" + country.lower(), country), ("no country setting", None)] if country else [("no country setting", None)]
     for page in range(1, pages + 1):
-        html = bright_data.fetch_html(ebay_web.search_url(keyword, country, page), country=country)
-        got = ebay_web.parse_cards(html)
+        url = ebay_web.search_url(keyword, country, page)
+        got, html = [], ""
+        for label, c_try in ([(a_label, a_c) for a_label, a_c in attempts if a_c == ctry] if page > 1 else attempts):
+            resp = bright_data.fetch_response(url, country=c_try)
+            html = resp.text
+            got = ebay_web.parse_cards(html)
+            hdr = "; ".join(f"{k}: {str(v)[:100]}" for k, v in resp.headers.items() if k.lower().startswith(("x-brd", "x-luminati")))
+            notes.append(f"- page {page}, request with {label}: HTTP {resp.status_code}, {len(html):,} characters, **{len(got)} listings read**"
+                         + (f"; Bright Data headers: `{hdr}`" if hdr and not got else ""))
+            if got:
+                ctry = c_try
+                break
+            if html.strip():
+                vis = re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", " ", re.sub(r"<(script|style)\b.*?</\1>", " ", html, flags=re.S | re.I))))
+                title = re.search(r"<title[^>]*>(.*?)</title>", html, re.S | re.I)
+                notes.append("  - page title: `" + (re.sub(r"\s+", " ", title.group(1)).strip()[:120].replace("`", "'") if title else "none") + "`")
+                notes.append("  - start of the visible text: `" + vis.strip()[:300].replace("`", "'") + "`")
         sig = ebay_web.ad_signals(html)
         ad_elems += sig["ad_elements"]
         decoys += sig["decoys"]
@@ -155,9 +174,17 @@ def web_section(keyword, country, seller, show, pages, tracked):
             mine.append((pos, None if c["sponsored"] else organic, c["sponsored"], c["id"], c["text"], tag)); found.add(c["id"])
         if pos <= show or tag:
             lines.append(f"| {pos} | {'—' if c['sponsored'] else organic} | {c['id']} | {'yes' if c['sponsored'] else ''} | {c['text'][:90].replace('|', '/')} | {tag} |")
+    lines.append("")
+    lines.append("What Bright Data returned:")
+    lines += notes
     if not cards:
         lines.append("")
-        lines.append("**No listings could be read from the page** (blocked by eBay, or its layout changed).")
+        lines.append("**No listings could be read from the page.** The lines above show whether the page was empty, "
+                     "a block or captcha page, or a different layout.")
+    elif ctry != country:
+        lines.append("")
+        lines.append("**Note:** the page only came back without the country setting. Tell whoever maintains this, so the tracker "
+                     "can be set to send requests that way too (EBAY_WEB_GEO=none).")
     return lines + summarize(mine, tracked, found, len(cards), "listings")
 
 

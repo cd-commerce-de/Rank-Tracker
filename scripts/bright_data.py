@@ -54,9 +54,9 @@ def scraping_browser_ws_url() -> str:
     return f"wss://{auth}@brd.superproxy.io:9222"
 
 
-def fetch_html(url: str, country: str | None = None) -> str:
+def fetch_response(url: str, country: str | None = None) -> requests.Response:
     """
-    Fetch a URL through Bright Data's Web Unlocker and return its raw HTML.
+    Fetch a URL through Bright Data's Web Unlocker and return the full response (status, headers, body).
 
     Raises RuntimeError with a clear message if BRIGHTDATA_API_KEY /
     BRIGHTDATA_ZONE aren't set, so a misconfigured workflow fails loudly
@@ -95,4 +95,9 @@ def fetch_html(url: str, country: str | None = None) -> str:
         STATS["requests"] += 1
         STATS["seconds"] += time.monotonic() - started
         resp.raise_for_status()
-        return resp.text
+        return resp
+
+
+def fetch_html(url: str, country: str | None = None) -> str:
+    """Fetch a URL through Bright Data's Web Unlocker and return its raw HTML (see fetch_response)."""
+    return fetch_response(url, country).text

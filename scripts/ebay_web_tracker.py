@@ -63,11 +63,12 @@ def page_cards(keyword: str, country: str, page: int):
     key = (keyword, country, page)
     if key not in _PAGE_CACHE:
         url = ebay_web.search_url(keyword, country, page)
-        html = bright_data.fetch_html(url, country=country)
+        geo = None if os.environ.get("EBAY_WEB_GEO", "country").strip().lower() == "none" else country
+        html = bright_data.fetch_html(url, country=geo)
         if not html.strip():
             # An empty answer is often a one-off (a different Bright Data exit address usually works): try once more.
             time.sleep(5)
-            html = bright_data.fetch_html(url, country=country)
+            html = bright_data.fetch_html(url, country=geo)
         if not html.strip():
             raise UnreadablePage(f"Bright Data answered but the page was EMPTY for {keyword!r}. See the reason under Web Access > "
                                  "Event log in your Bright Data account (it lists every request and any error code).")

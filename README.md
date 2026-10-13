@@ -275,6 +275,11 @@ and GitHub may email you; fix the sharing and it recovers by itself.
     returned a page reliably through Bright Data, and it is still one request. In your data your best product was inside
     the first 60 for every keyword where you appear at all; positions deeper than that are reported as "not found in the
     top N".
+  - **If Bright Data returns an empty page or no listings:** the website check shows exactly what came back (size,
+    page title, start of the text, Bright Data's error headers) and also tries the request without the country
+    setting. If only that works, set `EBAY_WEB_GEO: "none"` in the website step of `track-ranks.yml` and the
+    tracker will send requests that way too. Requests wait up to 150 s (`BRIGHTDATA_TIMEOUT`) with one retry,
+    and a run stops after 3 keywords in a row that time out or can't be read.
   - **If a number looks wrong:** run **Actions → Check an eBay keyword**. It prints eBay's API results
     *and* the real ebay.de page for the keyword, in order, with your listings highlighted (★), so you can
     compare them with your browser line by line. Remember each tracked row follows **one item ID**: if you
