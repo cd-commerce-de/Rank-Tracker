@@ -19,6 +19,7 @@ checked for a keyword.
 import json
 import os
 import sys
+import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -42,6 +43,7 @@ def _pages_setting() -> int:
 
 
 MAX_PAGES = _pages_setting()
+
 MAX_UNREADABLE_IN_A_ROW = 3   # cost safety: stop the run after this many keywords in a row whose page could not be read
 
 
@@ -54,13 +56,30 @@ class StopRun(Exception):
 
 # One fetch per results page per run, shared by every product checked for the same keyword.
 _PAGE_CACHE = {}
+_AD_STATS = {"pages": 0, "cards": 0, "flagged": 0, "labelled": 0, "ad_elements": 0, "scheme_pages": 0}   # shows whether paid slots are being recognised
 
 
 def page_cards(keyword: str, country: str, page: int):
     key = (keyword, country, page)
     if key not in _PAGE_CACHE:
-        html = bright_data.fetch_html(ebay_web.search_url(keyword, country, page), country=country)
-        _PAGE_CACHE[key] = ebay_web.parse_cards(html)
+        url = ebay_web.search_url(keyword, country, page)
+        html = bright_data.fetch_html(url, country=country)
+        if not html.strip():
+            # An empty answer is often a one-off (a different Bright Data exit address usually works): try once more.
+            time.sleep(5)
+            html = bright_data.fetch_html(url, country=country)
+        if not html.strip():
+            raise UnreadablePage(f"Bright Data answered but the page was EMPTY for {keyword!r}. See the reason under Web Access > "
+                                 "Event log in your Bright Data account (it lists every request and any error code).")
+        cards = ebay_web.parse_cards(html)
+        _PAGE_CACHE[key] = cards
+        sig = ebay_web.ad_signals(html)
+        _AD_STATS["pages"] += 1
+        _AD_STATS["cards"] += len(cards)
+        _AD_STATS["flagged"] += sum(1 for c in cards if c["sponsored"])
+        _AD_STATS["labelled"] += sum(1 for c in cards if c["labelled"])
+        _AD_STATS["ad_elements"] += sig["ad_elements"]
+        _AD_STATS["scheme_pages"] += 1 if sig["scheme"] else 0
     return _PAGE_CACHE[key]
 
 
@@ -181,6 +200,13 @@ def main():
               "Run 'Check an eBay keyword' to see what the page looks like, then tell whoever maintains this.", file=sys.stderr)
     finally:
         save_json(DATA_PATH, history)
+    s = _AD_STATS
+    if s["pages"]:
+        print(f"Page reading summary: {s['pages']} page(s), {s['cards']} listings read, {s['flagged']} flagged as paid ads "
+              f"(\"Anzeige\"), {s['cards'] - s['flagged']} organic; ad-label elements found: {s['ad_elements']}.")
+        if s["scheme_pages"] and s["cards"] >= 10 and s["labelled"] < 0.5 * s["cards"]:
+            print(f"  !! Only {s['labelled']} of {s['cards']} listings had a readable ad label, so eBay may have changed its "
+                  "page layout and organic ranks may be wrong. Run 'Check an eBay keyword' and tell whoever maintains this.", file=sys.stderr)
     print(f"Saved {len(history)} total rows to {DATA_PATH}")
 
 

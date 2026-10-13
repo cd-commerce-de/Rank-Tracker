@@ -132,15 +132,20 @@ def api_section(keyword, country, seller, show, pages, tracked):
 def web_section(keyword, country, seller, show, pages, tracked):
     if not os.environ.get("BRIGHTDATA_API_KEY") or not os.environ.get("BRIGHTDATA_ZONE"):
         return ["## ebay.de page", "", "BRIGHTDATA_API_KEY / BRIGHTDATA_ZONE are not set, so the website view was skipped."]
-    cards = []
+    cards, ad_elems, decoys = [], 0, 0
     for page in range(1, pages + 1):
         html = bright_data.fetch_html(ebay_web.search_url(keyword, country, page), country=country)
         got = ebay_web.parse_cards(html)
+        sig = ebay_web.ad_signals(html)
+        ad_elems += sig["ad_elements"]
+        decoys += sig["decoys"]
         if not got:
             break
         cards.extend(got)
     lines = [f"## 2) The ebay.de results page — “{keyword}” ({country.upper()})", "",
-             f"{len(cards)} listings read from the page, in page order (as a shopper sees them). `Ad` = labelled “Anzeige”. `Organic #` skips ads.", "",
+             f"{len(cards)} listings read from the page, in page order (as a shopper sees them). `Ad` = paid placement (“Anzeige”). `Organic #` skips ads. "
+             f"{sum(1 for x in cards if x['sponsored'])} flagged as ads; ad-label elements found in the page: {ad_elems} "
+             f"(eBay also hides {decoys} decoy labels, one per card, which are ignored).", "",
              "| # | Organic # | Item ID | Ad | Text on the card | |", "|--:|--:|---|:-:|---|---|"]
     organic, mine, found = 0, [], set()
     for pos, c in enumerate(cards, 1):

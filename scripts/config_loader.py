@@ -5,6 +5,8 @@ THE SHEET HAS TWO TABS (the recommended setup):
 
   Keywords tab   -> columns:  project, keyword
   Products tab   -> columns:  project, marketplace, country, product_id [, name] [, source]
+                 source (eBay only): blank = the workflow's EBAY_DEFAULT_SOURCE, "web" = ebay.de page via
+                 Bright Data, "api" = eBay's free search API
 
   Every product in a project is checked against every keyword of that project.
   Add a keyword once and it is tracked for all of the project's products, on
@@ -120,7 +122,10 @@ class _Builder:
             item["label"] = label
         # eBay only: "web" reads the ebay.de page through Bright Data (what a shopper sees, with
         # paid slots told apart); anything else (or blank) uses eBay's search API.
-        if marketplace == "ebay" and (row.get("source", "").lower() in ("web", "website", "page", "scrape")):
+        # A blank cell uses EBAY_DEFAULT_SOURCE (set in the workflow; "api" if unset). Write "api" in the cell
+        # to keep one product on the free API even when the default is "web".
+        effective = (row.get("source", "").strip().lower()) or os.environ.get("EBAY_DEFAULT_SOURCE", "api").strip().lower()
+        if marketplace == "ebay" and effective in ("web", "website", "page", "scrape"):
             item["source"] = "web"
         if via_products_tab:
             project["from_products"].add(item_key)

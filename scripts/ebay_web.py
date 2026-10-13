@@ -10,14 +10,22 @@ How a page is read (deliberately not dependent on eBay's CSS class names, which
 change often):
   * every listing on the page is a link containing /itm/<item number>; the links of
     one card run together, so each run of identical item numbers is one card, in page order;
-  * a card is a paid placement if the label "Anzeige" is inside it. eBay writes that
-    label BACKWARDS in the page text ("egieznA") and flips it with CSS, so both
-    spellings are recognised.
+  * paid placements ("Anzeige"). eBay disguises the label on purpose. EVERY card carries a
+    decoy label (the word written backwards, "egieznA", in transparent text over an image of
+    scrambled lettering), so the mere presence of that text means nothing. The real marker is
+    an accessibility reference: each card's label points (aria-labelledby) at one or two
+    elements by id. Only on paid cards does one of those ids belong to an element whose text
+    really is "Anzeige"; on organic cards they point at empty or missing elements. The ids are
+    different on every page load, so they are looked up fresh each time. (Verified on a real
+    ebay.de results page saved from Bright Data's Playground, Oct 2026: 7 of 73 cards were ads,
+    which matched the ad and the organic listing seen in a browser.)
 A listing can appear twice (once as an ad, once organically); both are kept.
 """
 
 import html as htmllib
+import os
 import re
+import unicodedata
 import urllib.parse
 
 SITES = {
@@ -27,15 +35,44 @@ SITES = {
 
 # /itm/184137378691  or the older  /itm/Some-Title-/184137378691
 ITEM_RE = re.compile(r"/itm/(?:[^\"'\s?#<>/]*/)?(\d{10,13})")
-# the paid-placement label, written backwards by eBay ("egieznA" = "Anzeige"), plus the normal
-# spelling in the languages of the sites above
-AD_RE = re.compile(r"egieznA|>\s*(?:Anzeige|Gesponsert|Sponsored|Publicit[eé]|Sponsorizzato|Patrocinado|Gesponsord|Sponsorowane)\s*<")
+# Words that mean "paid placement" in the languages of the sites above (compared after normalising, see _plain)
+AD_WORDS = {"anzeige", "gesponsert", "sponsored", "publicite", "sponsorizzato", "patrocinado", "gesponsord", "sponsorowane"}
+# letters eBay swaps for Cyrillic look-alikes inside the decoy label
+_CONFUSABLES = str.maketrans({"е": "e", "а": "a", "о": "o", "р": "p", "с": "c", "х": "x", "у": "y", "і": "i", "ѕ": "s", "ј": "j"})
+# the backwards decoy label and, in older/other layouts, a plain-text label
+LEGACY_AD_RE = re.compile(r"egieznA|>\s*(?:Anzeige|Gesponsert|Sponsored)\s*<")
+_ID_TEXT_RE = re.compile(r'<(\w+)\b[^>]*\bid="([^"]+)"[^>]*>([^<]{1,40})</\1>')
+_ARIA_RE = re.compile(r'aria-labelledby="([^"]+)"')
+_LABEL_SCHEME_RE = re.compile(r'<b aria-labelledby="[^"]*" role="heading"[^>]*background-image')
 
 
-def search_url(keyword: str, country: str = "DE", page: int = 1, per_page: int = 240) -> str:
+def page_size_setting() -> int:
+    """Listings requested per results page: 60 (default), 120 or 240. The same one request either way;
+    60 is lighter and proved the most reliable through Bright Data. Set EBAY_WEB_PAGE_SIZE to change."""
+    try:
+        v = int(os.environ.get("EBAY_WEB_PAGE_SIZE", "60"))
+    except ValueError:
+        return 60
+    return v if v in (60, 120, 240) else 60
+
+
+def search_url(keyword: str, country: str = "DE", page: int = 1, per_page: int = None) -> str:
     host = SITES.get(country.upper(), SITES["DE"])
     q = urllib.parse.quote_plus(keyword)
-    return f"https://{host}/sch/i.html?_nkw={q}&_sacat=0&_ipg={per_page}&_pgn={page}"
+    return f"https://{host}/sch/i.html?_nkw={q}&_sacat=0&_ipg={per_page or page_size_setting()}&_pgn={page}"
+
+
+def _plain(text: str) -> str:
+    """Undo eBay's lettering tricks: drop invisible direction/format characters, fold look-alike letters and accents."""
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Cf")
+    text = unicodedata.normalize("NFKD", text.translate(_CONFUSABLES))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def ad_label_ids(clean_html: str) -> set:
+    """ids of the elements whose whole text is an ad word ("Anzeige"...). Fresh ids on every page load."""
+    return {m.group(2) for m in _ID_TEXT_RE.finditer(clean_html) if _plain(htmllib.unescape(m.group(3))) in AD_WORDS}
 
 
 def _visible_text(segment: str) -> str:
@@ -53,8 +90,10 @@ def _strip_noise(page_html: str) -> str:
 
 
 def parse_cards(page_html: str):
-    """Listings on one results page, in page order: [{"id", "sponsored", "text"}]."""
+    """Listings on one results page, in page order: [{"id", "sponsored", "labelled", "text"}]."""
     page_html = _strip_noise(page_html)
+    ad_ids = ad_label_ids(page_html)
+    scheme = bool(_LABEL_SCHEME_RE.search(page_html))   # eBay's disguised-label layout (decoy text on every card)
     runs = []   # [id, start]
     for m in ITEM_RE.finditer(page_html):
         item_id = m.group(1)
@@ -66,8 +105,21 @@ def parse_cards(page_html: str):
     for i, (item_id, _) in enumerate(runs):
         end = starts[i + 1] if i + 1 < len(runs) else len(page_html)
         segment = page_html[starts[i]:end]
-        cards.append({"id": item_id, "sponsored": bool(AD_RE.search(segment)), "text": _visible_text(segment)[:160]})
+        refs = {r for attr in _ARIA_RE.findall(segment) for r in attr.split()}
+        if scheme or ad_ids:
+            sponsored = bool(refs & ad_ids)                 # the label points at an element that says "Anzeige"
+            labelled = bool(_LABEL_SCHEME_RE.search(segment))
+        else:
+            sponsored = bool(LEGACY_AD_RE.search(segment))  # simple pages: the label is just in the card
+            labelled = sponsored
+        cards.append({"id": item_id, "sponsored": sponsored, "labelled": labelled, "text": _visible_text(segment)[:160]})
     return cards
+
+
+def ad_signals(page_html: str) -> dict:
+    """What the page says about ads, independent of the card parsing (for logs and diagnostics)."""
+    clean = _strip_noise(page_html)
+    return {"ad_elements": len(ad_label_ids(clean)), "decoys": clean.count("egieznA"), "scheme": bool(_LABEL_SCHEME_RE.search(clean))}
 
 
 def locate(cards, target_id):

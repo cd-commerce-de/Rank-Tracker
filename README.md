@@ -140,9 +140,10 @@ Here, 4 products x the keywords above = every keyword checked for every product.
 
 - **`project`** must be spelled the same on both tabs (capital letters don't matter).
   It's what you pick in the dashboard's project dropdown.
-- **`source`** (eBay only, optional): leave blank to use eBay's search API (free), or write `web` to
-  read the real ebay.de results page through Bright Data (the position a shopper actually sees,
-  paid "Anzeige" slots told apart; costs Bright Data credit, needs the Bright Data secrets).
+- **`source`** (eBay only, optional): how the product is read. **Blank = the default set by
+  `EBAY_DEFAULT_SOURCE` in `.github/workflows/track-ranks.yml`** (currently `web`). Write `web` to read the
+  real ebay.de results page through Bright Data (the position a German shopper sees, paid "Anzeige" slots told
+  apart; costs Bright Data credit), or `api` to use eBay's free search API for that product (less faithful).
 - **Several product IDs per project** are fine, on the same marketplace or on
   different ones. Each appears separately in the dashboard's product dropdown;
   the optional `name` is shown there, e.g. "eBay · DE · 3T jack (184176192867)".
@@ -247,7 +248,7 @@ and GitHub may email you; fix the sharing and it recovers by itself.
     both the position a shopper sees (`rank`) and the organic one (`organic_rank`). If your listing appears
     both as an ad and organically, both are recorded. Not verified against live eBay pages while building
     this, so check it with the tool below before relying on it.
-  - **To test your Bright Data key and zone** (one request, changes nothing): run **Actions → Test Bright Data**.
+  - **To test your Bright Data key and zone** (one request, changes nothing): run **Actions → Check an eBay keyword** with source `web`.
   - **Why the eBay API cannot show "organic rank" as ebay.de does** (researched Oct 2026 from eBay's own
     documentation and developer forum): the Browse API returns eBay's "Best Match" order, and eBay does not
     promise it equals the website. eBay's guide for its sibling Finding API says site search results "may not
@@ -263,6 +264,17 @@ and GitHub may email you; fix the sharing and it recovers by itself.
     `deliveryCountry` filter and `X-EBAY-C-ENDUSERCTX` contextual-location header) and prints it next to the
     default, with eBay's own count of matching items, so you can see whether that moves the API closer to
     ebay.de. The daily tracker does not use it unless this proves worthwhile.
+  - **How ads are told apart on the real page** (verified Oct 2026 on a page saved from Bright Data's Playground):
+    eBay hides a decoy label (the word backwards, "egieznA", over scrambled lettering) on *every* card, so that text
+    proves nothing. The real marker is an accessibility link: each card's label points at elements by id, and only on
+    paid cards does one of them hold the text "Anzeige". The ids change on every page load, so they are looked up
+    each time. On that page 7 of 73 listings were ads. The log of the website step prints how many listings it saw
+    and how many it flagged, and warns if the labels become unreadable (eBay changing its layout). Result pages hold
+    about 24 real matches for a specific keyword followed by looser matches; positions count the whole page.
+  - **Page size:** the tracker asks for 60 listings per page (`EBAY_WEB_PAGE_SIZE`: 60, 120 or 240). 60 was the size that
+    returned a page reliably through Bright Data, and it is still one request. In your data your best product was inside
+    the first 60 for every keyword where you appear at all; positions deeper than that are reported as "not found in the
+    top N".
   - **If a number looks wrong:** run **Actions → Check an eBay keyword**. It prints eBay's API results
     *and* the real ebay.de page for the keyword, in order, with your listings highlighted (★), so you can
     compare them with your browser line by line. Remember each tracked row follows **one item ID**: if you
