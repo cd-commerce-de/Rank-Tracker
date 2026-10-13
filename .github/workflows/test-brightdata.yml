@@ -1,0 +1,113 @@
+name: Test Bright Data
+
+# One-off test: sends ONE request through your Bright Data zone to the eBay search page
+# and tells you whether the key and zone work and whether the listings can be read.
+# Costs a single request. Nothing is saved or changed.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask Bright Data for the eBay page
+        env:
+          BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+          BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+        run: |
+          cat > test_brightdata.py <<'PYEOF'
+          import html as H, json, os, re, sys, urllib.error, urllib.request
+
+          KEY = os.environ.get("BRIGHTDATA_API_KEY", "").strip()
+          ZONE = os.environ.get("BRIGHTDATA_ZONE", "").strip()
+          TRACKED = "184137378691"      # the listing that is first on ebay.de for this keyword
+          URL = "https://www.ebay.de/sch/i.html?_nkw=anh%C3%A4ngerplane+211x116&_sacat=0&_ipg=240&_pgn=1"
+          lines = []
+
+          def say(s=""):
+              print(s)
+              lines.append(s)
+
+          def finish(code):
+              p = os.environ.get("GITHUB_STEP_SUMMARY")
+              if p:
+                  with open(p, "a", encoding="utf-8") as f:
+                      f.write("\n".join(lines) + "\n")
+              sys.exit(code)
+
+          say("## Bright Data test")
+          missing = [n for n, v in (("BRIGHTDATA_API_KEY", KEY), ("BRIGHTDATA_ZONE", ZONE)) if not v]
+          if missing:
+              say("**FAILED: these GitHub secrets are missing or empty:** " + ", ".join(missing) + ". Add them under Settings > Secrets and variables > Actions (exact names, capital letters).")
+              finish(1)
+          say(f"Zone name used: `{ZONE}`  (key length {len(KEY)} characters, not shown)")
+
+          body = json.dumps({"zone": ZONE, "url": URL, "format": "raw", "country": "de"}).encode()
+          req = urllib.request.Request("https://api.brightdata.com/request", data=body, method="POST",
+                                       headers={"Authorization": "Bearer " + KEY, "Content-Type": "application/json"})
+          try:
+              with urllib.request.urlopen(req, timeout=120) as r:
+                  status, page = r.status, r.read().decode("utf-8", "replace")
+          except urllib.error.HTTPError as e:
+              status, page = e.code, e.read().decode("utf-8", "replace")
+          except Exception as e:
+              say(f"**FAILED: could not reach Bright Data** ({type(e).__name__}: {e}).")
+              finish(1)
+
+          say(f"Bright Data answered with HTTP **{status}** ({len(page):,} characters)")
+          if status != 200:
+              hint = {
+                  401: "The API key was rejected. Use the key from the zone's own Overview tab (or ask your admin to), and check there is no space before or after it in the secret.",
+                  403: "The key is not allowed to use this zone, or the zone is disabled or needs account verification. Ask your admin to check the zone's access and the account's verification status.",
+                  400: "Bright Data did not accept the request: most often the zone name is wrong (it must be exactly the name shown in Web Access > My APIs).",
+                  404: "The zone name was not found. It must be exactly the name shown in Web Access > My APIs.",
+                  429: "Too many requests at once; wait a minute and run the test again.",
+              }.get(status, "Unexpected answer. Copy the line below to whoever maintains this.")
+              say(f"**FAILED: {hint}**")
+              say("Bright Data's message: `" + re.sub(r"\s+", " ", page)[:300] + "`")
+              finish(1)
+
+          # ---- the page came back: can we read the listings the way the tracker does?
+          clean = re.sub(r"<(script|style|noscript|template)\b.*?</\1\s*>", " ", page, flags=re.S | re.I)
+          clean = re.sub(r"<!--.*?-->", " ", clean, flags=re.S)
+          item = re.compile(r"/itm/(?:[^\"'\s?#<>/]*/)?(\d{10,13})")
+          ad = re.compile(r"egieznA|>\s*(?:Anzeige|Gesponsert|Sponsored)\s*<")
+          runs = []
+          for m in item.finditer(clean):
+              if not runs or runs[-1][0] != m.group(1):
+                  runs.append([m.group(1), m.start()])
+          starts = [max(clean.rfind("<", 0, s), 0) for _, s in runs]
+          cards = []
+          for i, (iid, _) in enumerate(runs):
+              seg = clean[starts[i]: starts[i + 1] if i + 1 < len(runs) else len(clean)]
+              txt = re.sub(r"\s+", " ", H.unescape(re.sub(r"<[^>]+>", " ", re.sub(r"<(script|style)\b.*?</\1>", " ", seg, flags=re.S)))).replace("egieznA", "").strip()
+              cards.append((iid, bool(ad.search(seg)), txt))
+
+          if not cards:
+              say("**The key and zone WORK, but no listings could be read from the page** (eBay may have blocked it, or changed its layout).")
+              say("Start of the page text: `" + re.sub(r"\s+", " ", H.unescape(re.sub(r"<[^>]+>", " ", clean)))[:300] + "`")
+              finish(1)
+
+          say(f"**The key and zone WORK.** {len(cards)} listings read from the page.")
+          say("")
+          say("| # | Organic # | Item ID | Ad | Text on the card |")
+          say("|--:|--:|---|:-:|---|")
+          organic = 0
+          for pos, (iid, is_ad, txt) in enumerate(cards, 1):
+              organic += 0 if is_ad else 1
+              if pos <= 12 or iid == TRACKED:
+                  mark = "  **<- your listing**" if iid == TRACKED else ""
+                  say(f"| {pos} | {'-' if is_ad else organic} | {iid} | {'yes' if is_ad else ''} | {txt[:80].replace('|', '/')}{mark} |")
+          say("")
+          ids = [c[0] for c in cards]
+          if TRACKED in ids:
+              p = ids.index(TRACKED) + 1
+              say(f"Your listing {TRACKED} is at position **{p}** on the real ebay.de page. On ebay.de in your browser it is first, so: " + ("**they match**." if p == 1 else "they differ - send this page to whoever maintains the tracker."))
+          else:
+              say(f"Your listing {TRACKED} was not among the {len(cards)} listings read.")
+          finish(0)
+          PYEOF
+          python3 test_brightdata.py
