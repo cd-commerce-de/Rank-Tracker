@@ -66,20 +66,39 @@ def summarize(mine, tracked, found_ids, total, unit):
     return out
 
 
+def api_results(token, mp, keyword, pages, buyer=None):
+    out = []
+    for page in range(pages):
+        items = e.search_page(token, mp, keyword, page * e.RESULTS_PER_PAGE, buyer)
+        if not items:
+            break
+        out.extend(items)
+    return out, e._TOTALS.get((mp, keyword, buyer))
+
+
+def mine_positions(results, tracked, seller):
+    """{item id: (position, organic position or None, paid?)} for tracked listings and any listing of `seller`."""
+    found, organic = {}, 0
+    for pos, item in enumerate(results, 1):
+        paid = bool(item.get("priorityListing"))
+        organic += 0 if paid else 1
+        legacy = str(item.get("legacyItemId") or "")
+        sname = (item.get("seller") or {}).get("username", "")
+        if legacy in tracked or (seller and sname.lower() == seller):
+            found[legacy] = (pos, None if paid else organic, paid)
+    return found
+
+
 def api_section(keyword, country, seller, show, pages, tracked):
     cid, secret = os.environ.get("EBAY_CLIENT_ID"), os.environ.get("EBAY_CLIENT_SECRET")
     if not cid or not secret:
         return ["## eBay API", "", "EBAY_CLIENT_ID / EBAY_CLIENT_SECRET are not set, so the API view was skipped."]
     mp = e.MARKETPLACE_IDS.get(country.upper(), "EBAY_DE")
     token = e.get_access_token(cid, secret)
-    results = []
-    for page in range(pages):
-        items = e.search_page(token, mp, keyword, page * e.RESULTS_PER_PAGE)
-        if not items:
-            break
-        results.extend(items)
+    results, total = api_results(token, mp, keyword, pages)
     lines = [f"## 1) eBay search API — “{keyword}” ({mp})", "",
-             f"{len(results)} results, in the API's order (Best Match). `Paid` = eBay flags it as a Promoted Listing. `Organic #` skips paid results.", "",
+             f"eBay says **{total if total is not None else '?'} items match** in total; {len(results)} were read, in the API's order (Best Match). "
+             f"`Paid` = eBay flags it as a Promoted Listing. `Organic #` skips paid results.", "",
              "| # | Organic # | Item ID | Seller | Paid | Price | Title | |", "|--:|--:|---|---|:-:|--:|---|---|"]
     organic, mine, found = 0, [], set()
     for pos, item in enumerate(results, 1):
@@ -93,7 +112,21 @@ def api_section(keyword, country, seller, show, pages, tracked):
         if pos <= show or tag:
             title = (item.get("title") or "").replace("|", "/")
             lines.append(f"| {pos} | {'—' if paid else organic} | {legacy} | {sname} | {'yes' if paid else ''} | {price_text(item.get('price'))} | {title[:70]} | {tag} |")
-    return lines + summarize(mine, tracked, found, len(results), "results")
+    lines += summarize(mine, tracked, found, len(results), "results")
+
+    # Experiment: does telling the API the buyer is in Germany change the order?
+    buyer = e.BUYER_CONTEXT.get(country.upper())
+    if buyer:
+        b_results, b_total = api_results(token, mp, keyword, pages, buyer)
+        base, ger = mine_positions(results, tracked, seller), mine_positions(b_results, tracked, seller)
+        lines += ["", f"### Does telling the API the buyer is in {buyer[0]} change the result?", "",
+                  f"Same search, but with eBay's documented buyer-location settings (`deliveryCountry:{buyer[0]}` and a contextual location in {buyer[0]}). "
+                  f"Items eBay says match: **{total if total is not None else '?'}** without, **{b_total if b_total is not None else '?'}** with.", "",
+                  "| Item ID | Listing | API default: position (organic) | As a buyer in " + buyer[0] + ": position (organic) |", "|---|---|---|---|"]
+        fmt = lambda v: "not found" if v is None else f"{v[0]} ({v[1] if v[1] else 'paid'})"
+        for legacy in sorted(set(base) | set(ger) | set(tracked), key=lambda i: min(base.get(i, (9e9,))[0], ger.get(i, (9e9,))[0])):
+            lines.append(f"| {legacy} | {tracked.get(legacy, '')} | {fmt(base.get(legacy))} | {fmt(ger.get(legacy))} |")
+    return lines
 
 
 def web_section(keyword, country, seller, show, pages, tracked):

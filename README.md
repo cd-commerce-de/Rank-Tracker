@@ -248,6 +248,21 @@ and GitHub may email you; fix the sharing and it recovers by itself.
     both as an ad and organically, both are recorded. Not verified against live eBay pages while building
     this, so check it with the tool below before relying on it.
   - **To test your Bright Data key and zone** (one request, changes nothing): run **Actions → Test Bright Data**.
+  - **Why the eBay API cannot show "organic rank" as ebay.de does** (researched Oct 2026 from eBay's own
+    documentation and developer forum): the Browse API returns eBay's "Best Match" order, and eBay does not
+    promise it equals the website. eBay's guide for its sibling Finding API says site search results "may not
+    always match identically" because of application logic on the site; an eBay community expert notes Best
+    Match also depends on the buyer's own search history, and that the site's extra "results matching fewer
+    words" lists are not in the API. The API returns only fixed-price listings by default and treats spaces
+    in the keyword as AND. The only paid/organic signal is the `priorityListing` flag on promoted listings, which
+    is what the `organic_rank` column uses. There is no API setting for "rank as a shopper sees it". Your own
+    manual search is not a neutral reference either: it reflects your location (ebay.de showed "Versand nach
+    Philippinen") and history. The website mode (`source = web`) reads the page as an anonymous buyer in Germany
+    and is the closest available measure.
+  - **Experiment in the keyword check:** it also searches the API "as a buyer in Germany" (eBay's documented
+    `deliveryCountry` filter and `X-EBAY-C-ENDUSERCTX` contextual-location header) and prints it next to the
+    default, with eBay's own count of matching items, so you can see whether that moves the API closer to
+    ebay.de. The daily tracker does not use it unless this proves worthwhile.
   - **If a number looks wrong:** run **Actions → Check an eBay keyword**. It prints eBay's API results
     *and* the real ebay.de page for the keyword, in order, with your listings highlighted (★), so you can
     compare them with your browser line by line. Remember each tracked row follows **one item ID**: if you

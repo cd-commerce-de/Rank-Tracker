@@ -23,6 +23,7 @@ import base64
 import json
 import os
 import sys
+import urllib.parse
 import time
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -85,21 +86,34 @@ def get_access_token(client_id: str, client_secret: str) -> str:
 # One search per keyword per run, shared by every product that is checked for
 # that keyword. Only the few fields we need are kept, so memory stays small.
 _PAGE_CACHE = {}
+_TOTALS = {}   # (marketplace, keyword, buyer) -> how many matching items eBay says exist in total
+
+# "Search as a buyer in <country>": eBay documents the X-EBAY-C-ENDUSERCTX header (contextualLocation) and the
+# deliveryCountry filter for telling the API where the buyer is. Used by the keyword check to test whether it
+# brings the API closer to what shoppers see; the daily tracker does not use it unless you ask for it.
+BUYER_CONTEXT = {
+    "DE": ("DE", "10115"), "AT": ("AT", "1010"), "GB": ("GB", "SW1A 1AA"), "US": ("US", "10001"),
+    "FR": ("FR", "75001"), "IT": ("IT", "00100"), "ES": ("ES", "28001"), "NL": ("NL", "1012"), "PL": ("PL", "00-001"),
+}
 
 
-def search_page(token, marketplace_id, keyword, offset):
-    key = (marketplace_id, keyword, offset)
+def search_page(token, marketplace_id, keyword, offset, buyer=None):
+    """One page (200 results) of eBay's search API. `buyer` = (country, zip) to search as a buyer in that place."""
+    key = (marketplace_id, keyword, offset, buyer)
     if key not in _PAGE_CACHE:
-        resp = _with_retries(lambda: requests.get(
-            SEARCH_URL,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "X-EBAY-C-MARKETPLACE-ID": marketplace_id,
-                "Content-Type": "application/json",
-            },
-            params={"q": keyword, "limit": RESULTS_PER_PAGE, "offset": offset},
-            timeout=60,
-        ))
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "X-EBAY-C-MARKETPLACE-ID": marketplace_id,
+            "Content-Type": "application/json",
+        }
+        params = {"q": keyword, "limit": RESULTS_PER_PAGE, "offset": offset}
+        if buyer:
+            headers["X-EBAY-C-ENDUSERCTX"] = "contextualLocation=" + urllib.parse.quote(f"country={buyer[0]},zip={buyer[1]}", safe="")
+            params["filter"] = f"deliveryCountry:{buyer[0]}"
+        resp = _with_retries(lambda: requests.get(SEARCH_URL, headers=headers, params=params, timeout=60))
+        data = resp.json()
+        if offset == 0:
+            _TOTALS[(marketplace_id, keyword, buyer)] = data.get("total")
         _PAGE_CACHE[key] = [
             {
                 "legacyItemId": i.get("legacyItemId"),
@@ -109,7 +123,7 @@ def search_page(token, marketplace_id, keyword, offset):
                 "priorityListing": bool(i.get("priorityListing")),   # true = part of a Promoted Listings campaign (paid)
                 "price": i.get("price"),
             }
-            for i in resp.json().get("itemSummaries", [])
+            for i in data.get("itemSummaries", [])
         ]
     return _PAGE_CACHE[key]
 
