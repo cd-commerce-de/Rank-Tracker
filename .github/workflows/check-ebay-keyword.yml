@@ -1,0 +1,50 @@
+name: Check an eBay keyword
+
+# Shows what eBay returns for one keyword, from its search API AND from the real ebay.de page
+# (position, paid or not), with your listings highlighted, so you can compare with your browser.
+on:
+  workflow_dispatch:
+    inputs:
+      keyword:
+        description: "Keyword to search, exactly as typed on ebay.de (e.g. anhängerplane 211x116)"
+        required: true
+      seller:
+        description: "Your eBay seller name, to highlight all your listings (optional)"
+        required: false
+        default: "cd_commerce"
+      country:
+        description: "eBay site (DE, US, GB, FR, IT, ES, AT, NL, PL)"
+        required: false
+        default: "DE"
+      source:
+        description: "What to show: both (API and the real ebay.de page), api, or web"
+        required: false
+        default: "both"
+        type: choice
+        options: [both, api, web]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      TRACKING_SHEET_CSV_URL: ${{ secrets.TRACKING_SHEET_CSV_URL }}
+      EBAY_CLIENT_ID: ${{ secrets.EBAY_CLIENT_ID }}
+      EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
+      BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+      BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+      # passed through the environment (not pasted into the command) so odd characters can't break the script
+      KEYWORD: ${{ inputs.keyword }}
+      SELLER: ${{ inputs.seller }}
+      COUNTRY: ${{ inputs.country }}
+      SOURCE: ${{ inputs.source }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Look up the keyword
+        run: python scripts/ebay_check_keyword.py "$KEYWORD" --seller "$SELLER" --country "$COUNTRY" --source "$SOURCE"
