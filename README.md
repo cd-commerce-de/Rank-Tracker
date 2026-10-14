@@ -293,6 +293,12 @@ and GitHub may email you; fix the sharing and it recovers by itself.
     set `EBAY_WEB_POSTCODE` in the workflow step to another German postcode, or to `none` to send no location).
     It also saves each page's own "N Ergebnisse" figure as `page_results` (the browser said 22) so a mismatch is
     easy to spot. Ads still change from request to request, so two checks of one keyword can differ slightly.
+  - **Speed:** one Bright Data page takes about 30 s, so keywords are requested several at a time
+    (`EBAY_WEB_WORKERS`, default 3; 1 = one after another). The number of requests, and the cost, are the same:
+    78 keywords went from about 36 min to roughly 12 min. A keyword whose page fails is tried (3 attempts) once per
+    run, not once per product. If a few keywords still fail in the 06:00 run, the hourly pick-ups at 07:20, 08:20 and
+    09:20 UTC retry just those; later hours do not, so a keyword that keeps failing cannot keep costing requests.
+    Only one run happens at a time, so extra "Run workflow" clicks queue behind the current run.
   - **Page size:** the tracker asks for 60 listings per page (`EBAY_WEB_PAGE_SIZE`: 60, 120 or 240). 60 was the size that
     returned a page reliably through Bright Data, and it is still one request. In your data your best product was inside
     the first 60 for every keyword where you appear at all; positions deeper than that are reported as "not found in the

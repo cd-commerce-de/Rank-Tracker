@@ -82,6 +82,14 @@ def search_url(keyword: str, country: str = "DE", page: int = 1, per_page: int =
     return url
 
 
+def retry_window_open(now=None) -> bool:
+    """Hourly pick-ups may retry keywords that failed in today's full run, but only in the three hours after it
+    (07:00-09:59 UTC; the full run starts at 06:00), so a keyword that keeps failing costs at most 3 more attempts a day."""
+    from datetime import datetime, timezone
+    now = now or datetime.now(timezone.utc)
+    return 7 <= now.hour <= 9
+
+
 def result_count(page_html: str):
     """The number in "22 Ergebnisse für …" at the top of the page (how many exact matches eBay says exist), or None."""
     text = re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", " ", _strip_noise(page_html))))

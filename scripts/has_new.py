@@ -16,9 +16,11 @@ pointless run every hour.
 import json
 import os
 import sys
+from datetime import date
 from pathlib import Path
 
 import config_loader
+import ebay_web
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_PATH = ROOT / "docs" / "data" / "ranks.json"
@@ -45,13 +47,19 @@ def item_configured(item) -> bool:
 
 def find_new(projects, history):
     known = {(r["project_id"], r["item_key"], r["keyword"]) for r in history}
+    today = date.today().isoformat()
+    web_today = {(r["project_id"], r["item_key"], r["keyword"]) for r in history if r["date"] == today and r.get("source") == "web"}
+    # After today's full website run has happened, the hours that follow may retry keywords it failed to get
+    retry = bool(web_today) and ebay_web.retry_window_open()
     new = []
     for project in projects:
         for item in project.get("items", []):
             if not item_configured(item):
                 continue
             for keyword in item.get("keywords", []):
-                if (project["project_id"], item["item_key"], keyword) not in known:
+                key = (project["project_id"], item["item_key"], keyword)
+                missing_today = retry and item.get("marketplace") == "ebay" and item.get("source") == "web" and key not in web_today
+                if key not in known or missing_today:
                     new.append((project["project_name"], item["marketplace"], item["item_key"], keyword))
     return new
 
