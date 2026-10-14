@@ -50,7 +50,7 @@ def find_new(projects, history):
     today = date.today().isoformat()
     web_today = {(r["project_id"], r["item_key"], r["keyword"]) for r in history if r["date"] == today and r.get("source") == "web"}
     # After today's full website run has happened, the hours that follow may retry keywords it failed to get
-    retry = bool(web_today) and ebay_web.retry_window_open()
+    retry = bool(web_today) and ebay_web.retry_window_open(history)
     new = []
     for project in projects:
         for item in project.get("items", []):

@@ -161,13 +161,20 @@ function bestRows(project) {
   return Object.values(out);
 }
 
+function cmpSku(a, b) {
+  const sa = a.sku || "", sb = b.sku || "";
+  if (sa && sb) return sa.localeCompare(sb, undefined, { numeric: true, sensitivity: "base" }) || String(a.product_id).localeCompare(String(b.product_id));
+  if (sa !== sb) return sa ? -1 : 1;           // products with a SKU first
+  return String(a.product_id).localeCompare(String(b.product_id));
+}
+
 function sortedItems(project) {
   return Object.values(project.items).sort(
     (a, b) =>
       (b.synthetic ? 1 : 0) - (a.synthetic ? 1 : 0) ||
       MP_ORDER.indexOf(a.marketplace) - MP_ORDER.indexOf(b.marketplace) ||
       a.country.localeCompare(b.country) ||
-      String(a.product_id).localeCompare(String(b.product_id))
+      cmpSku(a, b)
   );
 }
 
@@ -186,9 +193,13 @@ const fmtFull = (iso) => utcDate(iso).toLocaleDateString(undefined, { month: "sh
 function daysBetween(a, b) { return Math.round((utcDate(b) - utcDate(a)) / 86400000); }
 const MIN_DAILY_COLUMNS = 14; // keep the table's full shape even in the first days of tracking
 
-function itemText(i) {
+function shortName(name, max = 46) {
+  return name && name.length > max ? name.slice(0, max - 1).trimEnd() + "…" : name;
+}
+function itemText(i, full = false) {
   if (i.synthetic) return `★ ${i.label} (${i.count} products)`;
-  const what = i.label ? `${i.label} (${i.product_id})` : i.product_id;
+  const nm = full ? i.label : shortName(i.label);
+  const what = nm ? `${nm} (${i.product_id})` : i.product_id;
   return `${FLAGS[i.country] || ""} ${MP_LABEL[i.marketplace] || i.marketplace} · ${i.country} · ${i.sku ? i.sku + " · " : ""}${what}`.trim();
 }
 // Heatmap colours come from the brand's own Success -> Warning -> Error colours
@@ -281,9 +292,9 @@ function renderPage() {
   computeView();
 
   const lastChecked = project.rows.map((r) => r.checked_at || r.date).sort().pop();
-  const opt = (v, text, sel) => `<option value="${esc(v)}" ${sel ? "selected" : ""}>${esc(text)}</option>`;
+  const opt = (v, text, sel, title) => `<option value="${esc(v)}" ${sel ? "selected" : ""}${title ? ` title="${esc(title)}"` : ""}>${esc(text)}</option>`;
   const projectOptions = projects.map((p) => opt(p.project_id, p.project_name, p.project_id === state.projectId)).join("");
-  const itemOptions = items.map((i) => opt(i.item_key, itemText(i), i.item_key === state.itemKey)).join("");
+  const itemOptions = items.map((i) => opt(i.item_key, itemText(i), i.item_key === state.itemKey, itemText(i, true))).join("");
   const periods = [[14, "Last 14 days"], [30, "Last 30 days"], [60, "Last 60 days"], [90, "Last 90 days"], ["all", "All time"]]
     .map(([v, label]) => opt(v, label, String(v) === String(state.days))).join("");
   const hasOrganic = project.rows.some((r) => r.organic_rank !== undefined);

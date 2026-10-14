@@ -223,8 +223,8 @@ def main():
     only_new = os.environ.get("ONLY_NEW") == "1"
     known_any = {(r["project_id"], r["item_key"], r["keyword"]) for r in history}
     # Hourly pick-ups also retry keywords that failed in today's full run, but only after that run has happened
-    # (some website row exists for today) and only in the 3 hours that follow it.
-    retry_missing = only_new and ebay_web.retry_window_open() and any(r["date"] == today and r.get("source") == "web" for r in history)
+    # (some website row exists for today) and only in the 4 hours that follow its first result.
+    retry_missing = only_new and ebay_web.retry_window_open(history)
 
     def due(key):
         if key in seen_today:

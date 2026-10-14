@@ -82,12 +82,23 @@ def search_url(keyword: str, country: str = "DE", page: int = 1, per_page: int =
     return url
 
 
-def retry_window_open(now=None) -> bool:
-    """Hourly pick-ups may retry keywords that failed in today's full run, but only in the three hours after it
-    (07:00-09:59 UTC; the full run starts at 06:00), so a keyword that keeps failing costs at most 3 more attempts a day."""
-    from datetime import datetime, timezone
+def retry_window_open(history, now=None) -> bool:
+    """
+    Hourly pick-ups may retry keywords that failed in today's full run, but only during the 4 hours after the first
+    website result of today was saved (the full run takes under an hour, which leaves about three hourly retries).
+    Relative to the day's own run rather than a clock time, because GitHub starts scheduled runs late by a varying
+    amount. A keyword that keeps failing therefore costs at most about 3 more attempts a day.
+    """
+    from datetime import datetime, timedelta, timezone
     now = now or datetime.now(timezone.utc)
-    return 7 <= now.hour <= 9
+    today = now.date().isoformat()
+    stamps = [r["checked_at"] for r in history if r.get("date") == today and r.get("source") == "web" and r.get("checked_at")]
+    if not stamps:
+        return False                      # today's full run has not saved anything yet
+    first = datetime.fromisoformat(min(stamps))
+    if first.tzinfo is None:
+        first = first.replace(tzinfo=timezone.utc)
+    return timedelta(0) <= now - first <= timedelta(hours=4)
 
 
 def result_count(page_html: str):

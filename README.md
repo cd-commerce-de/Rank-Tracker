@@ -150,6 +150,9 @@ Here, 4 products x the keywords above = every keyword checked for every product.
 - **`sku`** (optional): your own SKU / identifier for the product. It is shown first in the dashboard's
   product dropdown, e.g. "🇩🇪 eBay · DE · WGH30-3T · 3T Car Jack (184137378691)". Header spellings that work:
   `SKU`, `Seller SKU`. **`name`** (optional) is the product name; `Product name`, `Title` and `Label` also work.
+  The dropdown lists products in SKU order (FP1, FP1-GR, FP2 … FP9, FP10), shortens long names (hover an entry
+  for the full name) and puts products without a SKU last. Only products that have saved results appear, so a
+  product newly added to the sheet shows up after the next full check.
 - **Several product IDs per project** are fine, on the same marketplace or on
   different ones. Each appears separately in the dashboard's product dropdown;
   the optional `name` is shown there, e.g. "eBay · DE · 3T jack (184176192867)".
@@ -305,8 +308,9 @@ and GitHub may email you; fix the sharing and it recovers by itself.
   - **Speed:** one Bright Data page takes about 30 s, so keywords are requested several at a time
     (`EBAY_WEB_WORKERS`, default 3; 1 = one after another). The number of requests, and the cost, are the same:
     78 keywords went from about 36 min to roughly 12 min. A keyword whose page fails is tried (3 attempts) once per
-    run, not once per product. If a few keywords still fail in the 06:00 run, the hourly pick-ups at 07:20, 08:20 and
-    09:20 UTC retry just those; later hours do not, so a keyword that keeps failing cannot keep costing requests.
+    run, not once per product. If a few keywords still fail in the daily run, the hourly pick-ups retry just those during the
+    4 hours after the day's first website result (the daily run itself starts at 05:17 UTC, though GitHub may start it
+    late); after that they do not, so a keyword that keeps failing cannot keep costing requests.
     Only one run happens at a time, so extra "Run workflow" clicks queue behind the current run.
   - **Page size:** the tracker asks for 60 listings per page (`EBAY_WEB_PAGE_SIZE`: 60, 120 or 240). 60 was the size that
     returned a page reliably through Bright Data, and it is still one request. In your data your best product was inside
