@@ -6,7 +6,10 @@ on **eBay, Otto, Kaufland and Temu** — and shows the history in a DataRova-sty
 
 - **Ranks by Product** — pick a product; every keyword as a row, every day as a column,
   colour-coded from green (top of the results) to red, with Now / Best / Avg / Found /
-  Change columns, sortable, with filters ("in the top 10", "moved up", "lost"…).
+  Change columns, sortable, with filters ("in the top 10", "moved up", "lost"…). Each product ID has its own rank.
+  A project with two or more products also offers **★ All products — best position**: for every keyword it
+  shows the best rank among your listings (hover a cell to see which product holds it), and it follows the
+  "all results / organic only" switch.
 - Cards on top: Visibility, Average Position, **Keywords in Top 10** and a Distribution
   chart, each with a trend chart. Daily / Weekly / Monthly view, period picker, CSV export.
 
@@ -275,10 +278,12 @@ and GitHub may email you; fix the sharing and it recovers by itself.
     depend on it. A real results page holds about 20 exact matches (the "N Ergebnisse" figure) followed by looser
     ones; positions count the whole page. To re-check, save a results page (Ctrl+S, "Webpage, HTML only") right
     after a screenshot of it and compare which cards show "Anzeige".
-  - **Country setting:** requests sent with the German country setting were answered by eBay with HTTP 403 (Bright
-    Data's error header says "response status was rejected: 403"), which arrived as an empty page. Requests without
-    the country setting return the page. The tracker therefore sends none by default (`EBAY_WEB_GEO`). The exit
-    address is then not in Germany, so results can differ slightly from a German shopper's view.
+  - **Empty pages / HTTP 403:** eBay rejects a share of Bright Data's requests at random. Bright Data's error
+    header then says "response status was rejected: 403" and the page arrives empty. It happens with and without a
+    country setting (one check got the 403 with it and the page without it, the next the reverse), so the tracker
+    retries an empty page up to twice more, alternating between the German country setting and none
+    (`EBAY_WEB_GEO_MODE`: auto, country or none), and a run stops only after 5 keywords in a row fail. On Oct 13,
+    77 of 78 keywords came back on the first run.
   - **Why the tracker and your browser can show different ranks, and the delivery postcode:** eBay orders results,
     chooses ads and decides which listings exist for a buyer partly by *where the buyer is*. Your browser's
     address carries `_stpos=36179&_fcid=77` (delivery postcode 36179, country 77 = Germany; also in the page's

@@ -185,10 +185,11 @@ def web_section(keyword, country, seller, show, pages, tracked):
         lines.append("")
         lines.append("**No listings could be read from the page.** The lines above show whether the page was empty, "
                      "a block or captcha page, or a different layout.")
-    elif ctry is not None:
+    elif len([n for n in notes if n.startswith("- page 1")]) > 1:
         lines.append("")
-        lines.append("**Note:** the page only came back WITH the country setting (the tracker's default is without). Set "
-                     "EBAY_WEB_GEO to \"country\" in track-ranks.yml.")
+        lines.append("**Note:** the first request got no page and the second did. eBay rejects a share of requests at "
+                     "random (HTTP 403), whichever country setting is sent, so the tracker retries an empty page up to "
+                     "twice more. Seeing this once is normal.")
     return lines + summarize(mine, tracked, found, len(cards), "listings")
 
 

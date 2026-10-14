@@ -44,7 +44,7 @@ def _pages_setting() -> int:
 
 MAX_PAGES = _pages_setting()
 
-MAX_UNREADABLE_IN_A_ROW = 3   # cost safety: stop the run after this many keywords in a row whose page could not be read
+MAX_UNREADABLE_IN_A_ROW = 5   # cost safety: stop the run after this many keywords in a row whose page could not be read
 
 
 class UnreadablePage(RuntimeError):
@@ -60,19 +60,32 @@ _COUNTS = {}   # (keyword, country, page) -> "N Ergebnisse" shown on that page
 _AD_STATS = {"pages": 0, "cards": 0, "flagged": 0, "labelled": 0, "ad_elements": 0, "scheme_pages": 0}   # shows whether paid slots are being recognised
 
 
+def _geo_sequence(country: str):
+    """Country settings to try, in order, for one page (up to 3 attempts)."""
+    mode = os.environ.get("EBAY_WEB_GEO_MODE", "auto").strip().lower()
+    if mode == "country":
+        return [country] * 3
+    if mode == "none":
+        return [None] * 3
+    return [country, None, country]
+
+
 def page_cards(keyword: str, country: str, page: int):
     key = (keyword, country, page)
     if key not in _PAGE_CACHE:
         url = ebay_web.search_url(keyword, country, page)
-        # EBAY_WEB_GEO: "none" (default) sends no country setting. With country=de, eBay answered Bright Data's German
-        # exit addresses with HTTP 403 (seen in Bright Data's own error header), which came back as an empty page.
-        # Set EBAY_WEB_GEO to "country" to send the product's country again.
-        geo = country if os.environ.get("EBAY_WEB_GEO", "none").strip().lower() == "country" else None
-        html = bright_data.fetch_html(url, country=geo)
-        if not html.strip():
-            # An empty answer is often a one-off (a different Bright Data exit address usually works): try once more.
-            time.sleep(5)
+        # eBay rejects a share of Bright Data's requests at random (HTTP 403, which arrives as an empty page), whether or
+        # not a country setting is sent: one check got the 403 with it and the page without it, the next the reverse.
+        # So an empty answer is retried up to twice more, alternating between the country setting and none (each retry
+        # goes out through a different exit address). EBAY_WEB_GEO_MODE: auto (default), country, or none.
+        html = ""
+        geos = _geo_sequence(country)
+        for attempt, geo in enumerate(geos):
             html = bright_data.fetch_html(url, country=geo)
+            if html.strip():
+                break
+            if attempt < len(geos) - 1:
+                time.sleep(5)
         if not html.strip():
             raise UnreadablePage(f"Bright Data answered but the page was EMPTY for {keyword!r}. See the reason under Web Access > "
                                  "Event log in your Bright Data account (it lists every request and any error code).")

@@ -96,12 +96,46 @@ function buildProjects(rows) {
     it.rows.push(r);
     if (r.item_label) it.label = r.item_label; // optional product name from the sheet's Products tab
   });
+  Object.values(map).forEach((p) => {
+    const real = Object.values(p.items);
+    if (real.length < 2) return;
+    // "All products - best position": for every keyword and day, the best (lowest) rank among the project's products.
+    // Computed on demand from the products' rows, so it follows the "all results / organic only" switch.
+    p.items.__best__ = {
+      item_key: "__best__", marketplace: "all", country: "", product_id: "all", synthetic: true, count: real.length,
+      label: "All products — best position",
+      get rows() { return bestRows(p); },
+    };
+  });
   return map;
+}
+
+function bestRows(project) {
+  const out = {};
+  Object.values(project.items).filter((i) => !i.synthetic).forEach((it) => {
+    const name = it.label ? `${it.label} (${it.product_id})` : String(it.product_id);
+    it.rows.forEach((r) => {
+      const k = r.keyword + "\u0000" + r.date;
+      const a = (out[k] = out[k] || {
+        date: r.date, checked_at: r.checked_at, project_id: r.project_id, project_name: r.project_name, item_key: "__best__",
+        marketplace: "all", country: "", keyword: r.keyword, rank: null, item_id: "all", results_scanned: r.results_scanned,
+        blocked: true, holder: null,
+      });
+      if (!r.blocked) {
+        a.blocked = false;
+        if (r.rank !== null && r.rank !== undefined && (a.rank === null || r.rank < a.rank)) { a.rank = r.rank; a.holder = name; }
+        a.results_scanned = Math.max(a.results_scanned || 0, r.results_scanned || 0) || r.results_scanned;
+      }
+      if ((r.checked_at || "") > (a.checked_at || "")) a.checked_at = r.checked_at;
+    });
+  });
+  return Object.values(out);
 }
 
 function sortedItems(project) {
   return Object.values(project.items).sort(
     (a, b) =>
+      (b.synthetic ? 1 : 0) - (a.synthetic ? 1 : 0) ||
       MP_ORDER.indexOf(a.marketplace) - MP_ORDER.indexOf(b.marketplace) ||
       a.country.localeCompare(b.country) ||
       String(a.product_id).localeCompare(String(b.product_id))
@@ -124,6 +158,7 @@ function daysBetween(a, b) { return Math.round((utcDate(b) - utcDate(a)) / 86400
 const MIN_DAILY_COLUMNS = 14; // keep the table's full shape even in the first days of tracking
 
 function itemText(i) {
+  if (i.synthetic) return `★ ${i.label} (${i.count} products)`;
   return `${FLAGS[i.country] || ""} ${MP_LABEL[i.marketplace] || i.marketplace} · ${i.country} · ${i.label ? `${i.label} (${i.product_id})` : i.product_id}`.trim();
 }
 // Heatmap colours come from the brand's own Success -> Warning -> Error colours
@@ -212,7 +247,7 @@ function renderPage() {
   if (!PROJECTS[state.projectId]) state.projectId = projects[0].project_id;
   const project = currentProject();
   const items = sortedItems(project);
-  if (!state.itemKey || !project.items[state.itemKey]) state.itemKey = items[0].item_key;
+  if (!state.itemKey || !project.items[state.itemKey]) state.itemKey = (items.find((i) => !i.synthetic) || items[0]).item_key;
   computeView();
 
   const lastChecked = project.rows.map((r) => r.checked_at || r.date).sort().pop();
@@ -526,7 +561,8 @@ function renderTable() {
       : s.kind === "same" ? `<span class="trend-flat">=</span>` : `<span class="trend-flat">–</span>`;
     const cells = columns.map((c) => {
       const v = getValue(id, c.key);
-      const tip = esc(labelText(id) + " · " + c.key);
+      const r0 = state.range === "daily" && hasCell(id, c.key) ? cell(id, c.key) : null;
+      const tip = esc(labelText(id) + " · " + c.key + (r0 && r0.holder ? " · best: " + r0.holder : ""));
       return cellHTML(v, tip, state.range === "daily" && v === null ? cell(id, c.key).results_scanned : null);
     }).join("");
     return `<tr><td class="kwcol">${labelHTML(id)}${tag}</td>${nowCell}
