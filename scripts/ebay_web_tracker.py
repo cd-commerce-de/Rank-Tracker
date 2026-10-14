@@ -56,6 +56,7 @@ class StopRun(Exception):
 
 # One fetch per results page per run, shared by every product checked for the same keyword.
 _PAGE_CACHE = {}
+_COUNTS = {}   # (keyword, country, page) -> "N Ergebnisse" shown on that page
 _AD_STATS = {"pages": 0, "cards": 0, "flagged": 0, "labelled": 0, "ad_elements": 0, "scheme_pages": 0}   # shows whether paid slots are being recognised
 
 
@@ -63,7 +64,10 @@ def page_cards(keyword: str, country: str, page: int):
     key = (keyword, country, page)
     if key not in _PAGE_CACHE:
         url = ebay_web.search_url(keyword, country, page)
-        geo = None if os.environ.get("EBAY_WEB_GEO", "country").strip().lower() == "none" else country
+        # EBAY_WEB_GEO: "none" (default) sends no country setting. With country=de, eBay answered Bright Data's German
+        # exit addresses with HTTP 403 (seen in Bright Data's own error header), which came back as an empty page.
+        # Set EBAY_WEB_GEO to "country" to send the product's country again.
+        geo = country if os.environ.get("EBAY_WEB_GEO", "none").strip().lower() == "country" else None
         html = bright_data.fetch_html(url, country=geo)
         if not html.strip():
             # An empty answer is often a one-off (a different Bright Data exit address usually works): try once more.
@@ -73,6 +77,7 @@ def page_cards(keyword: str, country: str, page: int):
             raise UnreadablePage(f"Bright Data answered but the page was EMPTY for {keyword!r}. See the reason under Web Access > "
                                  "Event log in your Bright Data account (it lists every request and any error code).")
         cards = ebay_web.parse_cards(html)
+        _COUNTS[key] = ebay_web.result_count(html)
         _PAGE_CACHE[key] = cards
         sig = ebay_web.ad_signals(html)
         _AD_STATS["pages"] += 1
@@ -194,6 +199,7 @@ def main():
                         "item_label": item.get("label"),
                         "title": None,
                         "results_scanned": found["results_scanned"],
+                        "page_results": _COUNTS.get((keyword, country, 1)),   # "N Ergebnisse" eBay shows for the keyword
                     })
                     extra = ""
                     if found["rank"] is not None:

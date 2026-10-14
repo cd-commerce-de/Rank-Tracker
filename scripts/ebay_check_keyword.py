@@ -134,9 +134,9 @@ def api_section(keyword, country, seller, show, pages, tracked):
 def web_section(keyword, country, seller, show, pages, tracked):
     if not os.environ.get("BRIGHTDATA_API_KEY") or not os.environ.get("BRIGHTDATA_ZONE"):
         return ["## ebay.de page", "", "BRIGHTDATA_API_KEY / BRIGHTDATA_ZONE are not set, so the website view was skipped."]
-    cards, ad_elems, decoys, notes = [], 0, 0, []
-    ctry = country        # the country setting sent to Bright Data; dropped if it gets no listings (see below)
-    attempts = [("country=" + country.lower(), country), ("no country setting", None)] if country else [("no country setting", None)]
+    cards, ad_elems, decoys, notes, shown = [], 0, 0, [], None
+    ctry = None          # the country setting that worked (starts with none: eBay rejects the German-country requests with HTTP 403)
+    attempts = [("no country setting", None), ("country=" + country.lower(), country)] if country else [("no country setting", None)]
     for page in range(1, pages + 1):
         url = ebay_web.search_url(keyword, country, page)
         got, html = [], ""
@@ -155,6 +155,8 @@ def web_section(keyword, country, seller, show, pages, tracked):
                 title = re.search(r"<title[^>]*>(.*?)</title>", html, re.S | re.I)
                 notes.append("  - page title: `" + (re.sub(r"\s+", " ", title.group(1)).strip()[:120].replace("`", "'") if title else "none") + "`")
                 notes.append("  - start of the visible text: `" + vis.strip()[:300].replace("`", "'") + "`")
+        if page == 1:
+            shown = ebay_web.result_count(html)
         sig = ebay_web.ad_signals(html)
         ad_elems += sig["ad_elements"]
         decoys += sig["decoys"]
@@ -162,6 +164,8 @@ def web_section(keyword, country, seller, show, pages, tracked):
             break
         cards.extend(got)
     lines = [f"## 2) The ebay.de results page — “{keyword}” ({country.upper()})", "",
+             f"Request sent with delivery postcode **{ebay_web.postcode_setting() or 'none'}** (country id 77 = Germany). "
+             f"The page says **{shown if shown is not None else '?'} results** for the keyword. "
              f"{len(cards)} listings read from the page, in page order (as a shopper sees them). `Ad` = paid placement (“Anzeige”). `Organic #` skips ads. "
              f"{sum(1 for x in cards if x['sponsored'])} flagged as ads; ad-label elements found in the page: {ad_elems} "
              f"(eBay also hides {decoys} decoy labels, one per card, which are ignored).", "",
@@ -181,10 +185,10 @@ def web_section(keyword, country, seller, show, pages, tracked):
         lines.append("")
         lines.append("**No listings could be read from the page.** The lines above show whether the page was empty, "
                      "a block or captcha page, or a different layout.")
-    elif ctry != country:
+    elif ctry is not None:
         lines.append("")
-        lines.append("**Note:** the page only came back without the country setting. Tell whoever maintains this, so the tracker "
-                     "can be set to send requests that way too (EBAY_WEB_GEO=none).")
+        lines.append("**Note:** the page only came back WITH the country setting (the tracker's default is without). Set "
+                     "EBAY_WEB_GEO to \"country\" in track-ranks.yml.")
     return lines + summarize(mine, tracked, found, len(cards), "listings")
 
 

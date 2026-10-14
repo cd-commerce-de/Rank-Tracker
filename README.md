@@ -264,13 +264,30 @@ and GitHub may email you; fix the sharing and it recovers by itself.
     `deliveryCountry` filter and `X-EBAY-C-ENDUSERCTX` contextual-location header) and prints it next to the
     default, with eBay's own count of matching items, so you can see whether that moves the API closer to
     ebay.de. The daily tracker does not use it unless this proves worthwhile.
-  - **How ads are told apart on the real page** (verified Oct 2026 on a page saved from Bright Data's Playground):
-    eBay hides a decoy label (the word backwards, "egieznA", over scrambled lettering) on *every* card, so that text
-    proves nothing. The real marker is an accessibility link: each card's label points at elements by id, and only on
-    paid cards does one of them hold the text "Anzeige". The ids change on every page load, so they are looked up
-    each time. On that page 7 of 73 listings were ads. The log of the website step prints how many listings it saw
-    and how many it flagged, and warns if the labels become unreadable (eBay changing its layout). Result pages hold
-    about 24 real matches for a specific keyword followed by looser matches; positions count the whole page.
+  - **How ads are told apart on the real page:** eBay hides a decoy label (the word backwards, "egieznA", over
+    scrambled lettering) on *every* card, so that text proves nothing, and no other text, class or attribute
+    separates ad cards from organic ones. The only difference is an accessibility link: each card's label points at
+    elements by id, and only on some cards does one of them hold the text "Anzeige". The ids change on every page
+    load, so they are looked up each time. **Checked once against a browser view of the same page load (Oct 13,
+    2026): the first three cards matched the screenshot (one organic, two "Anzeige") — 3 of 3.** That is a small
+    sample; ad slots change from request to request, so two page loads can flag different cards. Treat
+    `organic_rank` as well-founded but not guaranteed; the plain position (`rank`, "Count: all results") does not
+    depend on it. A real results page holds about 20 exact matches (the "N Ergebnisse" figure) followed by looser
+    ones; positions count the whole page. To re-check, save a results page (Ctrl+S, "Webpage, HTML only") right
+    after a screenshot of it and compare which cards show "Anzeige".
+  - **Country setting:** requests sent with the German country setting were answered by eBay with HTTP 403 (Bright
+    Data's error header says "response status was rejected: 403"), which arrived as an empty page. Requests without
+    the country setting return the page. The tracker therefore sends none by default (`EBAY_WEB_GEO`). The exit
+    address is then not in Germany, so results can differ slightly from a German shopper's view.
+  - **Why the tracker and your browser can show different ranks, and the delivery postcode:** eBay orders results,
+    chooses ads and decides which listings exist for a buyer partly by *where the buyer is*. Your browser's
+    address carries `_stpos=36179&_fcid=77` (delivery postcode 36179, country 77 = Germany; also in the page's
+    hidden search form). Requests made without a location returned a different page: e.g. for "anhängerplane
+    211x116" the tracker had 187248526184 first, while the browser view had 185351217006 first and showed three of
+    your listings as ads. The website tracker now sends the same two parameters (default postcode **36179**;
+    set `EBAY_WEB_POSTCODE` in the workflow step to another German postcode, or to `none` to send no location).
+    It also saves each page's own "N Ergebnisse" figure as `page_results` (the browser said 22) so a mismatch is
+    easy to spot. Ads still change from request to request, so two checks of one keyword can differ slightly.
   - **Page size:** the tracker asks for 60 listings per page (`EBAY_WEB_PAGE_SIZE`: 60, 120 or 240). 60 was the size that
     returned a page reliably through Bright Data, and it is still one request. In your data your best product was inside
     the first 60 for every keyword where you appear at all; positions deeper than that are reported as "not found in the

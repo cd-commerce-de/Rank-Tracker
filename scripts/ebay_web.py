@@ -56,10 +56,42 @@ def page_size_setting() -> int:
     return v if v in (60, 120, 240) else 60
 
 
-def search_url(keyword: str, country: str = "DE", page: int = 1, per_page: int = None) -> str:
+# eBay's own "ship to" parameters, as seen in the address of a real ebay.de results page and in its hidden search
+# form (_stpos = delivery postcode, _fcid = country id; 77 = Germany). Sending them tells eBay the buyer is in Germany,
+# which affects which listings are shown and in what order (and which are ads).
+COUNTRY_IDS = {"DE": 77}
+
+
+def postcode_setting() -> str:
+    """German delivery postcode sent with every request. Default 36179 (the one in the saved browser page used to
+    check this tracker). Set EBAY_WEB_POSTCODE to another postcode, or to "none" to send no location."""
+    v = os.environ.get("EBAY_WEB_POSTCODE")
+    if v is None:
+        return "36179"
+    v = v.strip()
+    return "" if v.lower() in ("", "none") else v
+
+
+def search_url(keyword: str, country: str = "DE", page: int = 1, per_page: int = None, postcode: str = None) -> str:
     host = SITES.get(country.upper(), SITES["DE"])
     q = urllib.parse.quote_plus(keyword)
-    return f"https://{host}/sch/i.html?_nkw={q}&_sacat=0&_ipg={per_page or page_size_setting()}&_pgn={page}"
+    url = f"https://{host}/sch/i.html?_nkw={q}&_sacat=0&_ipg={per_page or page_size_setting()}&_pgn={page}"
+    pc = postcode_setting() if postcode is None else postcode
+    if pc and country.upper() in COUNTRY_IDS:
+        url += f"&_stpos={urllib.parse.quote_plus(pc)}&_fcid={COUNTRY_IDS[country.upper()]}"
+    return url
+
+
+def result_count(page_html: str):
+    """The number in "22 Ergebnisse für …" at the top of the page (how many exact matches eBay says exist), or None."""
+    text = re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", " ", _strip_noise(page_html))))
+    m = re.search(r"(\d[\d.,]*)\s+Ergebnisse?\s+für", text)
+    if not m:
+        return None
+    try:
+        return int(re.sub(r"[.,]", "", m.group(1)))
+    except ValueError:
+        return None
 
 
 def _plain(text: str) -> str:
