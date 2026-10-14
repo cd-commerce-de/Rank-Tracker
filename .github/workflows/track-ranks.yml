@@ -3,7 +3,8 @@ name: Track marketplace ranks
 on:
   schedule:
     # 1) Full daily check of every product + keyword.
-    - cron: "0 6 * * *"
+    # (05:17 UTC rather than the busy top of the hour: GitHub starts scheduled runs late, least so at quiet minutes)
+    - cron: "17 5 * * *"
     # 2) Hourly "pick-up": only checks products/keywords that were added since
     #    the last run (so new sheet rows start tracking on their own, with no
     #    button and no token). If nothing is new, the run ends in seconds.
@@ -34,8 +35,8 @@ jobs:
       EBAY_DEFAULT_SOURCE: "web"
       # "1" for any scheduled run EXCEPT the daily one => the hourly pick-up checks only
       # what's new. (Manual/Sync runs and the daily run check everything.)
-      # If you change the daily time above ("0 6 * * *"), change it here too.
-      ONLY_NEW: ${{ github.event_name == 'schedule' && github.event.schedule != '0 6 * * *' && '1' || '' }}
+      # If you change the daily time above ("17 5 * * *"), change it here too.
+      ONLY_NEW: ${{ github.event_name == 'schedule' && github.event.schedule != '17 5 * * *' && '1' || '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,6 +46,22 @@ jobs:
 
       - name: Install dependencies
         run: pip install requests
+
+      # Publishes the CURRENT products + keywords (with SKU and product name) as docs/data/config.json, so the
+      # dashboard shows exactly what is in the sheet today. Runs on every workflow run, including the quick hourly
+      # ones, so a sheet edit shows up within about an hour. Does nothing (and commits nothing) if nothing changed.
+      - name: Publish the current keyword list for the dashboard
+        continue-on-error: true
+        run: |
+          python scripts/export_config.py
+          if [ -f docs/data/config.json ]; then git add docs/data/config.json; fi
+          if ! git diff --staged --quiet; then
+            git config user.name "rank-tracker-bot"
+            git config user.email "actions@users.noreply.github.com"
+            git commit -m "Update keyword list $(date -u +%Y-%m-%d)"
+            git pull --rebase
+            git push
+          fi
 
       - name: Check whether there is anything to do
         id: check
@@ -82,8 +99,11 @@ jobs:
           EBAY_WEB_MAX_PAGES: "1"
           # Listings requested per results page: 60 (default, most reliable), 120 or 240. One request either way.
           EBAY_WEB_PAGE_SIZE: "60"
-          # Country setting sent to Bright Data: none (default) or country. eBay rejects German-country requests (HTTP 403).
-          EBAY_WEB_GEO: "none"
+          # eBay rejects a share of requests at random (HTTP 403). An empty page is retried up to twice more,
+          # alternating between a German country setting and none. auto (default) | country | none
+          EBAY_WEB_GEO_MODE: "auto"
+          # How many keyword pages are requested at the same time (1 = one after another). Same number of requests.
+          EBAY_WEB_WORKERS: "3"
         run: python scripts/ebay_web_tracker.py
 
       - name: Run Otto rank tracker
