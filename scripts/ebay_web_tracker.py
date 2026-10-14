@@ -205,6 +205,7 @@ def save_json(path: Path, data):
 
 
 def main():
+    print(f"eBay website tracker, script files version {config_loader.VERSION}")
     if not os.environ.get("BRIGHTDATA_API_KEY") or not os.environ.get("BRIGHTDATA_ZONE"):
         projects_with_web = any(i.get("source") == "web" and i.get("marketplace") == "ebay"
                                 for p in config_loader.load_projects() for i in p.get("items", []))

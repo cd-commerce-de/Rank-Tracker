@@ -47,6 +47,9 @@ from pathlib import Path
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# Shown in the run logs and in the dashboard footer, so you can see whether an upload really updated the files.
+VERSION = "2026-10-14.7"
 CONFIG_DIR = ROOT / "config"
 PRODUCTS_PATH = CONFIG_DIR / "products.csv"
 KEYWORDS_PATH = CONFIG_DIR / "keywords.csv"

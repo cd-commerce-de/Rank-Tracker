@@ -7,8 +7,9 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
+const APP_VERSION = "2026-10-14.7";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
-let state = { projectId: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
+let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
 
 // ---------- Small helpers ----------
@@ -126,28 +127,32 @@ function buildProjects(allRows) {
     });
   }
   Object.values(map).forEach((p) => {
-    const real = Object.values(p.items);
-    if (real.length < 2) return;
-    // "All products - best position": for every keyword and day, the best (lowest) rank among the project's products.
-    // Computed on demand from the products' rows, so it follows the "all results / organic only" switch.
-    p.items.__best__ = {
-      item_key: "__best__", marketplace: "all", country: "", product_id: "all", synthetic: true, count: real.length,
-      label: "All products — best position",
-      get rows() { return bestRows(p); },
-    };
+    const byMp = {};
+    Object.values(p.items).forEach((i) => (byMp[i.marketplace] = byMp[i.marketplace] || []).push(i));
+    Object.entries(byMp).forEach(([mp, list]) => {
+      if (list.length < 2) return;
+      // "All <marketplace> products - best position": for every keyword and day, the best (lowest) rank among that
+      // marketplace's products in the project. Computed on demand, so it follows the "all results / organic only" switch.
+      const key = "__best__:" + mp;
+      p.items[key] = {
+        item_key: key, marketplace: mp, country: "", product_id: "all", synthetic: true, count: list.length,
+        label: `All ${MP_LABEL[mp] || mp} products — best position`,
+        get rows() { return bestRows(p, mp, key); },
+      };
+    });
   });
   return map;
 }
 
-function bestRows(project) {
+function bestRows(project, mp, key) {
   const out = {};
-  Object.values(project.items).filter((i) => !i.synthetic).forEach((it) => {
+  Object.values(project.items).filter((i) => !i.synthetic && i.marketplace === mp).forEach((it) => {
     const name = it.label ? `${it.label} (${it.product_id})` : String(it.product_id);
     it.rows.forEach((r) => {
       const k = r.keyword + "\u0000" + r.date;
       const a = (out[k] = out[k] || {
-        date: r.date, checked_at: r.checked_at, project_id: r.project_id, project_name: r.project_name, item_key: "__best__",
-        marketplace: "all", country: "", keyword: r.keyword, rank: null, item_id: "all", results_scanned: r.results_scanned,
+        date: r.date, checked_at: r.checked_at, project_id: r.project_id, project_name: r.project_name, item_key: key,
+        marketplace: mp, country: "", keyword: r.keyword, rank: null, item_id: "all", results_scanned: r.results_scanned,
         blocked: true, holder: null,
       });
       if (!r.blocked) {
@@ -168,8 +173,13 @@ function cmpSku(a, b) {
   return String(a.product_id).localeCompare(String(b.product_id));
 }
 
-function sortedItems(project) {
-  return Object.values(project.items).sort(
+function marketplacesOf(project) {
+  const present = new Set(Object.values(project.items).map((i) => i.marketplace));
+  return [...MP_ORDER.filter((m) => present.has(m)), ...[...present].filter((m) => !MP_ORDER.includes(m))];
+}
+
+function sortedItems(project, mp) {
+  return Object.values(project.items).filter((i) => !mp || i.marketplace === mp).sort(
     (a, b) =>
       (b.synthetic ? 1 : 0) - (a.synthetic ? 1 : 0) ||
       MP_ORDER.indexOf(a.marketplace) - MP_ORDER.indexOf(b.marketplace) ||
@@ -193,14 +203,10 @@ const fmtFull = (iso) => utcDate(iso).toLocaleDateString(undefined, { month: "sh
 function daysBetween(a, b) { return Math.round((utcDate(b) - utcDate(a)) / 86400000); }
 const MIN_DAILY_COLUMNS = 14; // keep the table's full shape even in the first days of tracking
 
-function shortName(name, max = 46) {
-  return name && name.length > max ? name.slice(0, max - 1).trimEnd() + "…" : name;
-}
-function itemText(i, full = false) {
+function itemText(i, withCountry = false) {
   if (i.synthetic) return `★ ${i.label} (${i.count} products)`;
-  const nm = full ? i.label : shortName(i.label);
-  const what = nm ? `${nm} (${i.product_id})` : i.product_id;
-  return `${FLAGS[i.country] || ""} ${MP_LABEL[i.marketplace] || i.marketplace} · ${i.country} · ${i.sku ? i.sku + " · " : ""}${what}`.trim();
+  const core = i.sku ? `${i.sku} · ${i.product_id}` : String(i.product_id);
+  return withCountry && i.country ? `${core} · ${i.country}` : core;
 }
 // Heatmap colours come from the brand's own Success -> Warning -> Error colours
 // (#10B981, #F59E0B, #EF4444), blended by rank: 1 = success, ~30 = warning, 150+ = error.
@@ -266,6 +272,72 @@ function computeView() {
   VIEW = { rows, rangeText };
 }
 
+// ---------- Searchable product box ----------
+// Lower-case, accent-free text, so "anhanger" finds "Anhänger".
+function foldText(t) { return String(t).toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, ""); }
+function markMatches(text, terms) {
+  let out = esc(text);
+  terms.forEach((t) => { if (t) out = out.replace(new RegExp("(" + t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig"), "<mark>$1</mark>"); });
+  return out;
+}
+let COMBO_CLOSE = null; // closes the product list that is currently open (one document-level listener, bound once)
+document.addEventListener("mousedown", (e) => { if (COMBO_CLOSE && !e.target.closest(".combo")) COMBO_CLOSE(); });
+
+function bindCombo(entries, selectedKey) {
+  const input = document.getElementById("itemInput"), list = document.getElementById("itemList"), toggle = document.getElementById("itemToggle");
+  if (!input || !list) return;
+  const current = entries.find((e) => e.key === selectedKey);
+  let shown = entries, active = -1, open = false;
+
+  const setOpen = (v) => { open = v; list.hidden = !v; input.setAttribute("aria-expanded", String(v)); if (!v) input.removeAttribute("aria-activedescendant"); };
+  const close = () => { if (open) setOpen(false); input.value = current ? current.text : ""; };
+  const paintActive = () => {
+    [...list.children].forEach((li, i) => li.classList.toggle("active", i === active));
+    const li = list.children[active];
+    if (li && li.id) { input.setAttribute("aria-activedescendant", li.id); li.scrollIntoView({ block: "nearest" }); }
+  };
+  const render = (query) => {
+    const terms = foldText(query).split(/\s+/).filter(Boolean);
+    shown = terms.length ? entries.filter((e) => terms.every((t) => e.hay.includes(t))) : entries;
+    list.innerHTML = shown.length
+      ? shown.map((e, i) => `<li role="option" id="itemOpt${i}" data-key="${esc(e.key)}" class="${e.key === selectedKey ? "sel" : ""}"${e.title ? ` title="${esc(e.title)}"` : ""}>${markMatches(e.text, terms)}</li>`).join("")
+      : `<li class="none">No product matches “${esc(query)}”</li>`;
+    // empty box: start on the current product; while typing: start on the first match
+    active = shown.length ? (terms.length ? 0 : Math.max(0, shown.findIndex((e) => e.key === selectedKey))) : -1;
+    paintActive();
+  };
+  const choose = (key) => {
+    setOpen(false);
+    if (key && key !== state.itemKey) { state.itemKey = key; renderPage(); } else input.value = current ? current.text : "";
+  };
+  const show = (query) => { render(query); setOpen(true); COMBO_CLOSE = close; };
+
+  input.addEventListener("focus", () => { input.select(); show(""); });
+  input.addEventListener("click", () => { if (!open) { input.select(); show(""); } });
+  input.addEventListener("input", () => show(input.value));
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!open) { show(""); return; }
+      if (shown.length) { active = (active + (e.key === "ArrowDown" ? 1 : -1) + shown.length) % shown.length; paintActive(); }
+    } else if (e.key === "Enter") {
+      if (open && shown[active]) { e.preventDefault(); choose(shown[active].key); }
+    } else if (e.key === "Escape") {
+      if (open) { e.preventDefault(); close(); input.select(); }
+    } else if (e.key === "Tab") { close(); }
+  });
+  list.addEventListener("mousedown", (e) => {
+    e.preventDefault();                                   // keep the box focused until the choice is made
+    const li = e.target.closest("li[data-key]");
+    if (li) choose(li.dataset.key);
+  });
+  list.addEventListener("mousemove", (e) => {
+    const li = e.target.closest("li[data-key]");
+    if (li) { active = [...list.children].indexOf(li); [...list.children].forEach((x, i) => x.classList.toggle("active", i === active)); }
+  });
+  toggle.addEventListener("mousedown", (e) => { e.preventDefault(); if (open) close(); else { input.focus(); show(""); } });
+}
+
 function renderPage() {
   const app = document.getElementById("app");
   const projects = Object.values(PROJECTS);
@@ -287,14 +359,28 @@ function renderPage() {
 
   if (!PROJECTS[state.projectId]) state.projectId = projects[0].project_id;
   const project = currentProject();
-  const items = sortedItems(project);
-  if (!state.itemKey || !project.items[state.itemKey]) state.itemKey = (items.find((i) => !i.synthetic) || items[0]).item_key;
+  const mps = marketplacesOf(project);
+  if (!state.marketplace || !mps.includes(state.marketplace)) state.marketplace = mps[0];
+  const items = sortedItems(project, state.marketplace);
+  if (!state.itemKey || !project.items[state.itemKey] || project.items[state.itemKey].marketplace !== state.marketplace) {
+    state.itemKey = (items.find((i) => !i.synthetic) || items[0]).item_key;
+  }
+  const multiCountry = new Set(items.filter((i) => !i.synthetic).map((i) => i.country)).size > 1;
   computeView();
 
   const lastChecked = project.rows.map((r) => r.checked_at || r.date).sort().pop();
   const opt = (v, text, sel, title) => `<option value="${esc(v)}" ${sel ? "selected" : ""}${title ? ` title="${esc(title)}"` : ""}>${esc(text)}</option>`;
   const projectOptions = projects.map((p) => opt(p.project_id, p.project_name, p.project_id === state.projectId)).join("");
-  const itemOptions = items.map((i) => opt(i.item_key, itemText(i), i.item_key === state.itemKey, itemText(i, true))).join("");
+  const comboEntries = items.map((i) => ({
+    key: i.item_key, text: itemText(i, multiCountry), title: i.synthetic ? "" : i.label || "",
+    // what typing can match: SKU, product ID, country and the product name (the name is searched but not shown)
+    hay: foldText([i.sku, i.product_id, i.country, i.synthetic ? `${i.label} all best position` : i.label].filter(Boolean).join(" ")),
+  }));
+  const selectedText = (comboEntries.find((e) => e.key === state.itemKey) || { text: "" }).text;
+  const marketOptions = mps.map((m) => {
+    const n = Object.values(project.items).filter((i) => !i.synthetic && i.marketplace === m).length;
+    return opt(m, `${MP_LABEL[m] || m} (${n})`, m === state.marketplace);
+  }).join("");
   const periods = [[14, "Last 14 days"], [30, "Last 30 days"], [60, "Last 60 days"], [90, "Last 90 days"], ["all", "All time"]]
     .map(([v, label]) => opt(v, label, String(v) === String(state.days))).join("");
   const hasOrganic = project.rows.some((r) => r.organic_rank !== undefined);
@@ -304,7 +390,12 @@ function renderPage() {
   const rangeGroup = `${basisSelect}<div class="range-group">${["daily", "weekly", "monthly"].map((r) => `<div class="range-btn ${state.range === r ? "active" : ""}" data-range="${r}">${r[0].toUpperCase() + r.slice(1)}</div>`).join("")}</div>
       <select id="periodSelect">${periods}</select><span class="range-text">${esc(VIEW.rangeText)}</span>`;
 
-  const controls = `<div class="ctrl-group"><select class="item-select" id="itemSelect">${itemOptions}</select><button class="btn" id="addKwBtn">+ Add keyword</button></div><div class="ctrl-group">${rangeGroup}</div>`;
+  const controls = `<div class="ctrl-group"><select class="market-select" id="marketSelect" title="Marketplace">${marketOptions}</select><div class="combo" id="itemCombo">
+        <input type="text" class="combo-input" id="itemInput" role="combobox" aria-expanded="false" aria-controls="itemList" aria-autocomplete="list"
+               autocomplete="off" spellcheck="false" placeholder="Search SKU or product ID…" value="${esc(selectedText)}" title="Type to search by SKU, product ID or product name" />
+        <button type="button" class="combo-toggle" id="itemToggle" tabindex="-1" aria-label="Show all products">▾</button>
+        <ul class="combo-list" id="itemList" role="listbox" hidden></ul>
+      </div><button class="btn" id="addKwBtn">+ Add keyword</button></div><div class="ctrl-group">${rangeGroup}</div>`;
 
   app.innerHTML = `
     ${demoBanner}
@@ -325,12 +416,14 @@ function renderPage() {
       <div class="table-toolbar" id="tableToolbar"></div>
       <div class="grid-legend" id="gridLegend"></div>
       <div class="grid-wrap"><table class="rankgrid" id="rankGrid"></table></div>
+      <div class="version-note">Dashboard files version ${APP_VERSION}</div>
     </div>`;
 
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   bindSyncControls();
-  on("projectSelect", "change", (e) => { state.projectId = e.target.value; state.itemKey = null; renderPage(); });
-  on("itemSelect", "change", (e) => { state.itemKey = e.target.value; renderPage(); });
+  on("projectSelect", "change", (e) => { state.projectId = e.target.value; state.marketplace = null; state.itemKey = null; renderPage(); });
+  on("marketSelect", "change", (e) => { state.marketplace = e.target.value; state.itemKey = null; renderPage(); });
+  bindCombo(comboEntries, state.itemKey);
   on("basisSelect", "change", (e) => { state.basis = e.target.value; applyBasis(ALL_ROWS); renderPage(); });
   on("periodSelect", "change", (e) => { state.days = e.target.value === "all" ? "all" : Number(e.target.value); renderPage(); });
   on("helpBtn", "click", () => { state.helpOpen = !state.helpOpen; renderPage(); });

@@ -16,6 +16,15 @@ on **eBay, Otto, Kaufland and Temu** — and shows the history in a DataRova-sty
 Runs free on GitHub: Actions does the daily checks, Pages hosts the dashboard.
 The dashboard draws its own charts, so it needs nothing from outside websites.
 
+## Checking that an upload really updated the files
+
+Every release has a version string (currently `2026-10-14.5`). The dashboard shows it bottom right ("Dashboard files
+version …"), and the first line of the "Check whether there is anything to do" and "website mode" steps in a run's
+log shows the scripts' version. **All three must show the same string.** If the dashboard shows an older one,
+`docs/app.js` was not updated (or the page is cached: press Cmd+Shift+R); if a run log shows an older one,
+the `scripts` folder was not updated. Upload the whole `scripts` folder at once: a mix of old and new script files
+can break a run.
+
 ## Updating the tool without losing your data
 
 Your data and settings live in files that are **not** in the zip, so uploading a new version
@@ -148,14 +157,20 @@ Here, 4 products x the keywords above = every keyword checked for every product.
   real ebay.de results page through Bright Data (the position a German shopper sees, paid "Anzeige" slots told
   apart; costs Bright Data credit), or `api` to use eBay's free search API for that product (less faithful).
 - **`sku`** (optional): your own SKU / identifier for the product. It is shown first in the dashboard's
-  product dropdown, e.g. "🇩🇪 eBay · DE · WGH30-3T · 3T Car Jack (184137378691)". Header spellings that work:
+  product dropdown as "SKU · product ID", e.g. "WGH30-3T · 184137378691". Header spellings that work:
   `SKU`, `Seller SKU`. **`name`** (optional) is the product name; `Product name`, `Title` and `Label` also work.
-  The dropdown lists products in SKU order (FP1, FP1-GR, FP2 … FP9, FP10), shortens long names (hover an entry
-  for the full name) and puts products without a SKU last. Only products that have saved results appear, so a
-  product newly added to the sheet shows up after the next full check.
-- **Several product IDs per project** are fine, on the same marketplace or on
-  different ones. Each appears separately in the dashboard's product dropdown;
-  the optional `name` is shown there, e.g. "eBay · DE · 3T jack (184176192867)".
+  The dashboard has two dropdowns: **marketplace** (eBay, Otto, Kaufland, Temu, with the number of products) and
+  **product**. Choosing a marketplace lists only that marketplace's products, as "SKU · product ID" in SKU order
+  (FP1, FP1-GR, FP2 … FP9, FP10); the product name is not shown (hover an entry for it), and a product without a
+  SKU shows just its ID. If a marketplace spans several countries the country is added to tell them apart. Each
+  marketplace with two or more products also gets "★ All <marketplace> products — best position". Only products
+  that have saved results appear, so a product newly added to the sheet shows up after the next full check.
+  The product box is **searchable**: click it (or the ▾) and type to filter the list: by SKU, product ID, country
+  or the product name (the name is searched but not shown). Several words must all match, accents are ignored
+  ("anhanger" finds "Anhänger"), matched text is highlighted, and you can use ↑ ↓ Enter, Esc, or the mouse.
+- **Several product IDs per project** are fine, on the same marketplace or on different ones. Each appears
+  separately in the dashboard's product dropdown, under its marketplace; the optional `name` is kept for the hover
+  tooltip, not shown in the list.
 - **`marketplace`**: `ebay`, `otto`, `kaufland` or `temu`. **`country`**: `DE`, `US`, …
 - **`product_id`** — the ID from **your own listing's URL**:
   - eBay: `ebay.de/itm/`**`123456789012`**

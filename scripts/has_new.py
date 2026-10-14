@@ -74,6 +74,7 @@ def write_output(run: bool):
 
 
 def main():
+    print(f"Rank tracker script files, version {config_loader.VERSION}")
     if os.environ.get("ONLY_NEW") != "1":
         print("Full run (daily check or Sync button): checking everything.")
         write_output(True)
