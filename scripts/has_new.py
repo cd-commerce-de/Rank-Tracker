@@ -51,6 +51,7 @@ def find_new(projects, history):
     web_today = {(r["project_id"], r["item_key"], r["keyword"]) for r in history if r["date"] == today and r.get("source") == "web"}
     # After today's full website run has happened, the hours that follow may retry keywords it failed to get
     retry = bool(web_today) and ebay_web.retry_window_open(history)
+    catch_up = ebay_web.catch_up_due(history)       # today's full website check has not happened yet
     new = []
     for project in projects:
         for item in project.get("items", []):
@@ -58,7 +59,8 @@ def find_new(projects, history):
                 continue
             for keyword in item.get("keywords", []):
                 key = (project["project_id"], item["item_key"], keyword)
-                missing_today = retry and item.get("marketplace") == "ebay" and item.get("source") == "web" and key not in web_today
+                is_web = item.get("marketplace") == "ebay" and item.get("source") == "web"
+                missing_today = (retry or catch_up) and is_web and key not in web_today
                 if key not in known or missing_today:
                     new.append((project["project_name"], item["marketplace"], item["item_key"], keyword))
     return new

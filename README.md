@@ -327,6 +327,14 @@ and GitHub may email you; fix the sharing and it recovers by itself.
     4 hours after the day's first website result (the daily run itself starts at 05:17 UTC, though GitHub may start it
     late); after that they do not, so a keyword that keeps failing cannot keep costing requests.
     Only one run happens at a time, so extra "Run workflow" clicks queue behind the current run.
+  - **Daily check and GitHub's scheduler:** the daily run is scheduled for 05:17 UTC, but GitHub starts free scheduled
+    runs late and drops many of them (the hourly ones fired only a few times a day, the daily one at a different hour
+    each day). So the daily check does not depend on one trigger: whichever scheduled run fires first after 05:00 UTC
+    and finds no website result saved today does the full check ("catch-up"); every later one finds today's results
+    already there and does nothing. You can always click **Run workflow** for an immediate check. New products,
+    keywords and projects in the sheet are picked up by the next scheduled run that fires (or immediately with Run
+    workflow): a new product costs one page per keyword (shared), a new keyword one page. This catch-up covers
+    eBay website mode; Otto, Kaufland and Temu rely on the daily trigger and the hourly pick-up.
   - **Page size:** the tracker asks for 60 listings per page (`EBAY_WEB_PAGE_SIZE`: 60, 120 or 240). 60 was the size that
     returned a page reliably through Bright Data, and it is still one request. In your data your best product was inside
     the first 60 for every keyword where you appear at all; positions deeper than that are reported as "not found in the

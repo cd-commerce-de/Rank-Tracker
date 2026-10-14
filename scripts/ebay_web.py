@@ -101,6 +101,21 @@ def retry_window_open(history, now=None) -> bool:
     return timedelta(0) <= now - first <= timedelta(hours=4)
 
 
+def catch_up_due(history, now=None) -> bool:
+    """
+    True when any scheduled run that fires after 05:00 UTC should do today's FULL website check because none has been
+    saved yet today. GitHub starts free scheduled runs late and drops many of them (the daily one included), so the
+    daily check must not depend on one particular trigger: whichever scheduled run fires first after 05:00 UTC
+    does it, and every later one finds today's results already there and does nothing.
+    """
+    from datetime import datetime, timezone
+    now = now or datetime.now(timezone.utc)
+    if now.hour < 5:
+        return False
+    today = now.date().isoformat()
+    return not any(r.get("date") == today and r.get("source") == "web" for r in history)
+
+
 def result_count(page_html: str):
     """The number in "22 Ergebnisse für …" at the top of the page (how many exact matches eBay says exist), or None."""
     text = re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", " ", _strip_noise(page_html))))

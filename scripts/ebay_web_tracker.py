@@ -227,10 +227,15 @@ def main():
     # (some website row exists for today) and only in the 4 hours that follow its first result.
     retry_missing = only_new and ebay_web.retry_window_open(history)
 
+    # No website result saved yet today and it is past 05:00 UTC: this (even "hourly") run does the day's full check.
+    catch_up = only_new and ebay_web.catch_up_due(history)
+    if catch_up:
+        print("No website result has been saved yet today: this scheduled run does today's full check (catch-up).")
+
     def due(key):
         if key in seen_today:
             return False
-        return not (only_new and key in known_any and not retry_missing)
+        return not (only_new and key in known_any and not retry_missing and not catch_up)
 
     # which keyword pages are needed at all, in sheet order, so they can be requested several at a time
     pairs, seen_pairs = [], set()
