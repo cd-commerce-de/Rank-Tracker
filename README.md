@@ -130,7 +130,7 @@ own marketplace — so a keyword is written once, and a product is written once.
 | WGH30 (3T Car Jacks) | wagenheber |
 | WGH30 (3T Car Jacks) | wagenheber 3t |
 
-**Tab named Products** — columns `project`, `marketplace`, `country`, `product_id`, and the optional `name` and `source`:
+**Tab named Products** — columns `project`, `marketplace`, `country`, `product_id`, and the optional `sku`, `name` and `source`:
 
 | project | marketplace | country | product_id | name |
 |---|---|---|---|---|
@@ -147,6 +147,9 @@ Here, 4 products x the keywords above = every keyword checked for every product.
   `EBAY_DEFAULT_SOURCE` in `.github/workflows/track-ranks.yml`** (currently `web`). Write `web` to read the
   real ebay.de results page through Bright Data (the position a German shopper sees, paid "Anzeige" slots told
   apart; costs Bright Data credit), or `api` to use eBay's free search API for that product (less faithful).
+- **`sku`** (optional): your own SKU / identifier for the product. It is shown first in the dashboard's
+  product dropdown, e.g. "🇩🇪 eBay · DE · WGH30-3T · 3T Car Jack (184137378691)". Header spellings that work:
+  `SKU`, `Seller SKU`. **`name`** (optional) is the product name; `Product name`, `Title` and `Label` also work.
 - **Several product IDs per project** are fine, on the same marketplace or on
   different ones. Each appears separately in the dashboard's product dropdown;
   the optional `name` is shown there, e.g. "eBay · DE · 3T jack (184176192867)".
@@ -184,6 +187,12 @@ contains product IDs and keywords, but it isn't private).
 `config/keywords.csv` and `config/products.csv`, and edit them (same columns). They're used whenever the secret isn't set.
 The older single table (`project,marketplace,country,product_id,keyword`, one
 row per product + keyword) also still works, in a sheet or as `config/tracked.csv`.
+
+**What the dashboard shows follows the sheet.** Every run (including the quick hourly ones) publishes the products
+and keywords that are in the sheet *today* as `docs/data/config.json`, and the dashboard shows only those, with
+the SKU and name from the sheet. Keywords or products you remove disappear from the dashboard within about an
+hour, but their history stays in `ranks.json` and reappears if you add them back. If `config.json` is missing,
+or the sheet returns nothing, the dashboard shows everything as before; it never goes blank.
 
 A new keyword's history starts the first day it is checked — nothing is
 backfilled. To check it immediately, run the workflow (step 6).

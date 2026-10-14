@@ -173,6 +173,7 @@ def main():
                         "rank": rank,
                         "item_id": target_id,
                     "item_label": item.get("label"),
+                    "item_sku": item.get("sku"),
                         "title": None,
                         "results_scanned": OFFSET_STEP * MAX_PAGES,
                     }

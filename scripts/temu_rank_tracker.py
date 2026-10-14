@@ -188,6 +188,7 @@ def main():
                         "blocked": blocked,
                         "item_id": target_id,
                     "item_label": item.get("label"),
+                    "item_sku": item.get("sku"),
                         "title": None,
                         "results_scanned": None if blocked else MAX_PRODUCTS_TO_SCAN,
                     }

@@ -269,6 +269,7 @@ def main():
                         "promoted": found["promoted"],           # is this listing itself flagged as a paid placement?
                         "item_id": item.get("ebay_item_id") or item_id,
                         "item_label": item.get("label"),
+                        "item_sku": item.get("sku"),
                         "title": title,
                         "results_scanned": RESULTS_PER_PAGE * MAX_PAGES,
                     }

@@ -301,6 +301,7 @@ def main():
                         "ad_rank": found["ad_rank"],
                         "item_id": target_id,
                         "item_label": item.get("label"),
+                        "item_sku": item.get("sku"),
                         "title": None,
                         "results_scanned": found["results_scanned"],
                         "page_results": _COUNTS.get((keyword, country, 1)),   # "N Ergebnisse" eBay shows for the keyword

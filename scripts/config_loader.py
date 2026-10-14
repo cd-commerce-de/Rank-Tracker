@@ -4,7 +4,8 @@ Loads "what to track" for every marketplace tracker.
 THE SHEET HAS TWO TABS (the recommended setup):
 
   Keywords tab   -> columns:  project, keyword
-  Products tab   -> columns:  project, marketplace, country, product_id [, name] [, source]
+  Products tab   -> columns:  project, marketplace, country, product_id [, sku] [, name] [, source]
+                 sku = your own SKU / identifier; name = product name (also read: product_name, title, label)
                  source (eBay only): blank = the workflow's EBAY_DEFAULT_SOURCE, "web" = ebay.de page via
                  Bright Data, "api" = eBay's free search API
 
@@ -117,9 +118,12 @@ class _Builder:
             "item_key": item_key, "marketplace": marketplace, "country": country,
             ID_FIELD[marketplace]: product_id, "keywords": [],
         })
-        label = row.get("name") or row.get("label") or ""
+        label = (row.get("name") or row.get("product_name") or row.get("product") or row.get("title") or row.get("label") or "")
         if label and not item.get("label"):
             item["label"] = label
+        sku = (row.get("sku") or row.get("seller_sku") or row.get("item_sku") or row.get("sku_id") or "")
+        if sku and not item.get("sku"):
+            item["sku"] = sku
         # eBay only: "web" reads the ebay.de page through Bright Data (what a shopper sees, with
         # paid slots told apart); anything else (or blank) uses eBay's search API.
         # A blank cell uses EBAY_DEFAULT_SOURCE (set in the workflow; "api" if unset). Write "api" in the cell

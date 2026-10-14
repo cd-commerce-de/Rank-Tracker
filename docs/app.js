@@ -7,6 +7,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
+let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
 
@@ -70,7 +71,19 @@ async function loadData() {
   }
   ALL_ROWS = rows || [];
   SETTINGS = (await fetchJSON("settings.json")) || {};
+  CONFIG = IS_DEMO ? null : await fetchJSON("data/config.json");
   PROJECTS = buildProjects(ALL_ROWS);
+}
+
+// ranks.json is a history: keywords and products removed from the sheet stay in it (so nothing is lost and they
+// come back with their history if re-added), but the dashboard shows only what the sheet has today (config.json).
+function visibleRows(rows) {
+  if (!CONFIG || !Array.isArray(CONFIG.projects) || IS_DEMO) return rows;
+  const allowed = new Set();
+  CONFIG.projects.forEach((p) => (p.items || []).forEach((i) => (i.keywords || []).forEach((k) => allowed.add(`${p.project_id}|${i.item_key}|${k}`))));
+  const kept = rows.filter((r) => allowed.has(`${r.project_id}|${r.item_key}|${r.keyword}`));
+  if (!kept.length && rows.length) { console.warn("config.json matches none of the saved rows; showing everything"); return rows; }
+  return kept;
 }
 
 // Which position counts: every result (as listed), or "organic only" with paid placements removed.
@@ -82,8 +95,9 @@ function applyBasis(rows) {
   });
 }
 
-function buildProjects(rows) {
-  applyBasis(rows);
+function buildProjects(allRows) {
+  applyBasis(allRows);
+  const rows = visibleRows(allRows);
   const map = {};
   rows.forEach((r) => {
     const p = (map[r.project_id] = map[r.project_id] || {
@@ -95,7 +109,22 @@ function buildProjects(rows) {
     });
     it.rows.push(r);
     if (r.item_label) it.label = r.item_label; // optional product name from the sheet's Products tab
+    if (r.item_sku) it.sku = r.item_sku;       // optional SKU
   });
+  // the sheet as it is today wins over what older rows carry (SKU, product name, project name)
+  if (CONFIG && Array.isArray(CONFIG.projects) && !IS_DEMO) {
+    CONFIG.projects.forEach((cp) => {
+      const p = map[cp.project_id];
+      if (!p) return;
+      if (cp.project_name) p.project_name = cp.project_name;
+      (cp.items || []).forEach((ci) => {
+        const it = p.items[ci.item_key];
+        if (!it) return;
+        if (ci.label) it.label = ci.label;
+        if (ci.sku) it.sku = ci.sku;
+      });
+    });
+  }
   Object.values(map).forEach((p) => {
     const real = Object.values(p.items);
     if (real.length < 2) return;
@@ -159,7 +188,8 @@ const MIN_DAILY_COLUMNS = 14; // keep the table's full shape even in the first d
 
 function itemText(i) {
   if (i.synthetic) return `★ ${i.label} (${i.count} products)`;
-  return `${FLAGS[i.country] || ""} ${MP_LABEL[i.marketplace] || i.marketplace} · ${i.country} · ${i.label ? `${i.label} (${i.product_id})` : i.product_id}`.trim();
+  const what = i.label ? `${i.label} (${i.product_id})` : i.product_id;
+  return `${FLAGS[i.country] || ""} ${MP_LABEL[i.marketplace] || i.marketplace} · ${i.country} · ${i.sku ? i.sku + " · " : ""}${what}`.trim();
 }
 // Heatmap colours come from the brand's own Success -> Warning -> Error colours
 // (#10B981, #F59E0B, #EF4444), blended by rank: 1 = success, ~30 = warning, 150+ = error.
