@@ -164,11 +164,15 @@ Here, 4 products x the keywords above = every keyword checked for every product.
   (FP1, FP1-GR, FP2 … FP9, FP10); the product name is not shown (hover an entry for it), and a product without a
   SKU shows just its ID. If a marketplace spans several countries the country is added to tell them apart. Each
   marketplace with two or more products also gets "★ All <marketplace> products — best position". In that
-  best-position view, **hover (or tap) any number** to see which product ranked first for that keyword: its SKU
-  and product ID, the position and the date, ties, and the other products of yours that also rank. This works on the
-  Now and Best columns and on every day cell in the Daily view; in the Weekly and Monthly views the numbers are
-  averages, so only Now and Best have it. Only products
+  best-position view, **hover a number** to see which product ranked first for that keyword: its SKU and product
+  ID, the position and the date, ties, and the other products of yours that also rank. The note stays open while you
+  move the mouse onto it; **click (or tap) a number to pin it**, then select the text or use **Copy SKU**, **Copy ID**
+  or **Copy all**. Esc, the × button or a click elsewhere closes it. It works on the Now and Best columns and on every
+  day cell in the Daily view; in the Weekly and Monthly views the numbers are averages, so only Now and Best have it. Only products
   that have saved results appear, so a product newly added to the sheet shows up after the next full check.
+  **The dashboard opens on "★ All <marketplace> products — best position"** (for the first marketplace, eBay), and so does
+  each marketplace you switch to; a marketplace with a single product opens on that product. Pick a product and your
+  choice stays while you change the period or the count; reloading the page starts on the best-position entry again.
   The product box is **searchable**: click it (or the ▾) and type to filter the list: by SKU, product ID, country
   or the product name (the name is searched but not shown). Several words must all match, accents are ignored
   ("anhanger" finds "Anhänger"), matched text is highlighted, and you can use ↑ ↓ Enter, Esc, or the mouse.

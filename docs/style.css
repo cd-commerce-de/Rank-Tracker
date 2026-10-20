@@ -199,10 +199,10 @@ td.rank-cell.r-blocked, .chip.r-blocked { background: var(--color-white); color:
 .combo-list mark { background: var(--color-accent-subtle); color: var(--color-accent-pressed); border-radius: 3px; padding: 0 1px; }
 
 /* ---------- Pop-up note: who ranked first (best-position view) ---------- */
-td.has-pop { cursor: help; position: relative; }
+td.has-pop { cursor: pointer; position: relative; }
 td.has-pop::after { content: ""; position: absolute; top: 3px; right: 3px; width: 0; height: 0; border-top: 6px solid var(--color-accent); border-left: 6px solid transparent; opacity: .75; }
 .rank-pop { position: fixed; z-index: 100; max-width: 340px; padding: 12px 14px; background: var(--color-primary); color: var(--color-white);
-  border-radius: var(--radius-md); box-shadow: var(--shadow-md); font-size: 13px; line-height: 1.45; pointer-events: auto; }
+  border-radius: var(--radius-md); box-shadow: var(--shadow-md); font-size: 13px; line-height: 1.45; pointer-events: auto; user-select: text; -webkit-user-select: text; cursor: auto; }
 .rank-pop[hidden] { display: none; }
 .rank-pop .pop-title { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; opacity: .65; margin-bottom: 4px; }
 .rank-pop .pop-main { font-size: 16px; margin-bottom: 2px; }
@@ -211,3 +211,15 @@ td.has-pop::after { content: ""; position: absolute; top: 3px; right: 3px; width
 .rank-pop .pop-more { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.18); opacity: .85; font-size: 12px; }
 .rank-pop .pop-more i { font-style: normal; opacity: .7; }
 .legend-hint { color: var(--neutral-500); }
+
+.rank-pop .pop-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; }
+.rank-pop .pop-head .pop-title { margin: 0; }
+.rank-pop .pop-x { border: none; background: none; color: inherit; opacity: .6; font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.rank-pop .pop-x:hover { opacity: 1; }
+.rank-pop .pop-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.rank-pop .pop-actions button { font: inherit; font-size: 12px; font-weight: 600; color: var(--color-primary); background: var(--color-white); border: none; border-radius: 999px; padding: 5px 11px; cursor: pointer; }
+.rank-pop .pop-actions button:hover { background: var(--color-accent-subtle); }
+.rank-pop .pop-actions button.done { background: #BBF7D0; }
+.rank-pop .pop-hint { display: none; margin-top: 8px; font-size: 11px; opacity: .55; }
+.rank-pop.pinned .pop-hint { display: block; }
+.rank-pop.pinned { box-shadow: 0 0 0 2px var(--color-accent), var(--shadow-md); }

@@ -7,7 +7,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-10-18.1";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-10-18.3";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -159,7 +159,7 @@ function bestRows(project, mp, key) {
       });
       if (!r.blocked) {
         a.blocked = false;
-        if (r.rank !== null && r.rank !== undefined) a._list.push({ who: who(it), rank: r.rank });
+        if (r.rank !== null && r.rank !== undefined) a._list.push({ who: who(it), sku: it.sku || "", id: String(it.product_id), rank: r.rank });
         a.results_scanned = Math.max(a.results_scanned || 0, r.results_scanned || 0) || r.results_scanned;
       }
       if ((r.checked_at || "") > (a.checked_at || "")) a.checked_at = r.checked_at;
@@ -168,7 +168,7 @@ function bestRows(project, mp, key) {
   return Object.values(out).map((a) => {
     a._list.sort((x, y) => x.rank - y.rank);
     if (a._list.length) {
-      a.rank = a._list[0].rank; a.holder = a._list[0].who; a.found_n = a._list.length;
+      a.rank = a._list[0].rank; a.holder = a._list[0].who; a.holder_sku = a._list[0].sku; a.holder_id = a._list[0].id; a.found_n = a._list.length;
       a.tied = a._list.slice(1).filter((e) => e.rank === a.rank).map((e) => e.who);
       a.others = a._list.slice(1).filter((e) => e.rank !== a.rank);
     }
@@ -374,7 +374,7 @@ function renderPage() {
   if (!state.marketplace || !mps.includes(state.marketplace)) state.marketplace = mps[0];
   const items = sortedItems(project, state.marketplace);
   if (!state.itemKey || !project.items[state.itemKey] || project.items[state.itemKey].marketplace !== state.marketplace) {
-    state.itemKey = (items.find((i) => !i.synthetic) || items[0]).item_key;
+    state.itemKey = items[0].item_key;   // the list starts with "★ All <marketplace> products — best position" whenever the marketplace has 2+ products
   }
   const multiCountry = new Set(items.filter((i) => !i.synthetic).map((i) => i.country)).size > 1;
   computeView();
@@ -563,37 +563,91 @@ function renderSummaryCards(rows) {
 // ---------- Pop-up note on the "best position" table ----------
 let POP = {};
 function popHTML(p) {
-  const [sku, ...rest] = p.holder.split(" · ");
   const basis = state.basis === "organic" ? "organic position" : "position";
   const more = p.tied.length ? `<div class="pop-more">Tied with ${esc(p.tied.join(", "))}</div>` : "";
   const others = p.others.length
     ? `<div class="pop-more">Also ranking (${p.others.length}): ${p.others.slice(0, 4).map((o) => `${esc(o.who)} <i>#${o.rank}</i>`).join(", ")}${p.others.length > 4 ? ` +${p.others.length - 4} more` : ""}</div>`
     : (p.tied.length ? "" : `<div class="pop-more">No other product of yours ranks for this keyword.</div>`);
-  return `<div class="pop-title">Ranked first · ${esc(fmtDateShort(p.date))}</div>
-    <div class="pop-main"><b>${esc(sku)}</b>${rest.length ? " · " + esc(rest.join(" · ")) : ""}</div>
-    <div class="pop-sub">${basis} ${p.rank} for “${esc(p.kw)}”</div>${more}${others}`;
+  const main = p.sku ? `<b class="pop-sku">${esc(p.sku)}</b> · <span class="pop-id">${esc(p.holder.split(" · ").slice(1).join(" · "))}</span>` : `<b class="pop-sku">${esc(p.holder)}</b>`;
+  return `<div class="pop-head"><span class="pop-title">Ranked first · ${esc(fmtDateShort(p.date))}</span><button type="button" class="pop-x" data-close aria-label="Close">×</button></div>
+    <div class="pop-main">${main}</div>
+    <div class="pop-sub">${basis} ${p.rank} for “${esc(p.kw)}”</div>
+    <div class="pop-actions">${p.sku ? `<button type="button" data-copy="sku">Copy SKU</button>` : ""}<button type="button" data-copy="id">Copy ID</button><button type="button" data-copy="all">Copy all</button></div>
+    ${more}${others}<div class="pop-hint">Pinned · click outside or press Esc to close</div>`;
+}
+function popCopyText(p, what) {
+  if (what === "sku") return p.sku;
+  if (what === "id") return p.id || p.holder;
+  const lines = [`Ranked first for “${p.kw}” (${fmtDateShort(p.date)})`, `${p.holder} — ${state.basis === "organic" ? "organic position" : "position"} ${p.rank}`];
+  p.tied.forEach((t) => lines.push(`${t} — tied`));
+  if (p.others.length) { lines.push("Also ranking:"); p.others.forEach((o) => lines.push(`${o.who} — ${o.rank}`)); }
+  return lines.join("\n");
+}
+async function copyText(text) {
+  try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; } } catch (e) { /* fall through */ }
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.cssText = "position:fixed;opacity:0;top:0;left:0"; document.body.appendChild(ta); ta.select();
+  let ok = false; try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+  ta.remove(); return ok;
 }
 (function initRankPop() {
   const el = document.createElement("div");
-  el.id = "rankPop"; el.className = "rank-pop"; el.hidden = true; el.setAttribute("role", "tooltip");
+  el.id = "rankPop"; el.className = "rank-pop"; el.hidden = true; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Which product ranked first");
   document.body.appendChild(el);
-  let current = null;
-  const hide = () => { el.hidden = true; current = null; };
-  const show = (td) => {
+  let current = null, pinned = false, timer = null;
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  const hide = () => { cancel(); el.hidden = true; el.classList.remove("pinned"); current = null; pinned = false; };
+  const later = () => { cancel(); if (!pinned) timer = setTimeout(hide, 350); };   // a short grace period lets the mouse travel onto the pop-up
+  const place = () => {
+    if (!current) return;
+    if (!current.isConnected) return hide();
+    const r = current.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+    el.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + "px";
+    el.style.top = (r.bottom + h + 8 > vh && r.top - h - 4 > 0 ? r.top - h - 4 : r.bottom + 2) + "px";
+  };
+  const show = (td, pin) => {
     const p = POP[td.dataset.pop];
     if (!p) return hide();
-    current = td; el.innerHTML = popHTML(p); el.hidden = false;
-    const r = td.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
-    el.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + "px";
-    el.style.top = (r.bottom + h + 12 > vh && r.top - h - 8 > 0 ? r.top - h - 8 : r.bottom + 6) + "px";
+    cancel(); current = td; pinned = !!pin; el.classList.toggle("pinned", pinned);
+    el.innerHTML = popHTML(p); el.hidden = false; place();
   };
   const cellOf = (e) => (e.target.closest ? e.target.closest("td[data-pop]") : null);
-  document.addEventListener("mouseover", (e) => { const td = cellOf(e); if (td && td !== current) show(td); else if (!td && !e.target.closest("#rankPop")) hide(); });
-  document.addEventListener("focusin", (e) => { const td = cellOf(e); if (td) show(td); else hide(); });
-  document.addEventListener("click", (e) => { const td = cellOf(e); if (td) show(td); else if (!e.target.closest("#rankPop")) hide(); });
+  const inPop = (e) => !!(e.target.closest && e.target.closest("#rankPop"));
+  document.addEventListener("mouseover", (e) => {
+    if (inPop(e)) return cancel();                       // on the pop-up: keep it
+    const td = cellOf(e);
+    if (pinned) return;                                  // a pinned pop-up stays until it is closed
+    if (td) { if (td !== current) show(td, false); else cancel(); } else later();
+  });
+  document.addEventListener("focusin", (e) => {
+    if (inPop(e)) return cancel();
+    const td = cellOf(e);
+    if (pinned) return;
+    if (td) show(td, false); else hide();
+  });
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest ? e.target.closest("#rankPop button") : null;
+    if (btn) {
+      if (btn.hasAttribute("data-close")) return hide();
+      const what = btn.dataset.copy, p = current && POP[current.dataset.pop];
+      if (what && p) {
+        const ok = await copyText(popCopyText(p, what));
+        const old = btn.dataset.label || btn.textContent; btn.dataset.label = old;
+        btn.textContent = ok ? "Copied ✓" : "Press Ctrl/Cmd+C"; btn.classList.toggle("done", ok);
+        setTimeout(() => { btn.textContent = old; btn.classList.remove("done"); }, 1600);
+      }
+      return;
+    }
+    if (inPop(e)) return;
+    const td = cellOf(e);
+    if (td) show(td, true);                               // click or tap pins it so the text can be selected and copied
+    else hide();
+  });
+  el.addEventListener("mouseenter", cancel);
+  el.addEventListener("mouseleave", later);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
-  window.addEventListener("scroll", hide, true);
-  window.addEventListener("resize", hide);
+  window.addEventListener("scroll", () => { if (pinned) place(); else if (!el.hidden) hide(); }, true);   // a pinned pop-up follows its cell
+  window.addEventListener("resize", () => { if (pinned) place(); else hide(); });
   document.addEventListener("rankpop-reset", hide);
 })();
 
@@ -728,7 +782,7 @@ function renderTable() {
   document.getElementById("exportBtn").addEventListener("click", exportCSV);
   document.querySelectorAll("#tableToolbar .mv").forEach((b) => b.addEventListener("click", () => { state.filter = state.filter === b.dataset.f ? "all" : b.dataset.f; renderTable(); }));
 
-  document.getElementById("gridLegend").innerHTML = legendHTML() + (bestView ? ` <span class="legend-hint">· <b>Hover or tap a number</b> to see which product ranked first.</span>` : "");
+  document.getElementById("gridLegend").innerHTML = legendHTML() + (bestView ? ` <span class="legend-hint">· <b>Hover a number</b> to see which product ranked first; <b>click it</b> to pin the note and copy the SKU.</span>` : "");
 
   const arrow = (k) => (state.sort.key === k ? (state.sort.dir === 1 ? " ▲" : " ▼") : "");
   const th = (k, text, tip, extra = "") => `<th class="metric sortable ${extra}" data-sort="${k}" title="${tip}">${text}${arrow(k)}</th>`;
@@ -745,7 +799,7 @@ function renderTable() {
     const r = cell(id, date);
     if (!r.holder || r.rank === null || r.rank === undefined) return null;
     const key = "p" + Object.keys(POP).length;
-    POP[key] = { kw: id, date, holder: r.holder, rank: r.rank, n: r.found_n, others: r.others || [], tied: r.tied || [] };
+    POP[key] = { kw: id, date, holder: r.holder, sku: r.holder_sku || "", id: r.holder_id || "", rank: r.rank, n: r.found_n, others: r.others || [], tied: r.tied || [] };
     return key;
   };
   const body = ids.map((id) => {
