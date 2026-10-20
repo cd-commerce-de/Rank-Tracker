@@ -163,7 +163,11 @@ Here, 4 products x the keywords above = every keyword checked for every product.
   **product**. Choosing a marketplace lists only that marketplace's products, as "SKU · product ID" in SKU order
   (FP1, FP1-GR, FP2 … FP9, FP10); the product name is not shown (hover an entry for it), and a product without a
   SKU shows just its ID. If a marketplace spans several countries the country is added to tell them apart. Each
-  marketplace with two or more products also gets "★ All <marketplace> products — best position". Only products
+  marketplace with two or more products also gets "★ All <marketplace> products — best position". In that
+  best-position view, **hover (or tap) any number** to see which product ranked first for that keyword: its SKU
+  and product ID, the position and the date, ties, and the other products of yours that also rank. This works on the
+  Now and Best columns and on every day cell in the Daily view; in the Weekly and Monthly views the numbers are
+  averages, so only Now and Best have it. Only products
   that have saved results appear, so a product newly added to the sheet shows up after the next full check.
   The product box is **searchable**: click it (or the ▾) and type to filter the list: by SKU, product ID, country
   or the product name (the name is searched but not shown). Several words must all match, accents are ignored

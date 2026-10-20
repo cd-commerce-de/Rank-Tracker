@@ -197,3 +197,17 @@ td.rank-cell.r-blocked, .chip.r-blocked { background: var(--color-white); color:
 .combo-list li.sel::after { content: " ✓"; color: var(--color-accent-dark); }
 .combo-list li.none { color: var(--neutral-500); cursor: default; white-space: normal; }
 .combo-list mark { background: var(--color-accent-subtle); color: var(--color-accent-pressed); border-radius: 3px; padding: 0 1px; }
+
+/* ---------- Pop-up note: who ranked first (best-position view) ---------- */
+td.has-pop { cursor: help; position: relative; }
+td.has-pop::after { content: ""; position: absolute; top: 3px; right: 3px; width: 0; height: 0; border-top: 6px solid var(--color-accent); border-left: 6px solid transparent; opacity: .75; }
+.rank-pop { position: fixed; z-index: 100; max-width: 340px; padding: 12px 14px; background: var(--color-primary); color: var(--color-white);
+  border-radius: var(--radius-md); box-shadow: var(--shadow-md); font-size: 13px; line-height: 1.45; pointer-events: auto; }
+.rank-pop[hidden] { display: none; }
+.rank-pop .pop-title { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; opacity: .65; margin-bottom: 4px; }
+.rank-pop .pop-main { font-size: 16px; margin-bottom: 2px; }
+.rank-pop .pop-main b { color: var(--color-accent); }
+.rank-pop .pop-sub { opacity: .85; }
+.rank-pop .pop-more { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.18); opacity: .85; font-size: 12px; }
+.rank-pop .pop-more i { font-style: normal; opacity: .7; }
+.legend-hint { color: var(--neutral-500); }

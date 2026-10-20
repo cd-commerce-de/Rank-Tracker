@@ -7,7 +7,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-10-14.8";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-10-18.1";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -145,25 +145,36 @@ function buildProjects(allRows) {
 }
 
 function bestRows(project, mp, key) {
+  const real = Object.values(project.items).filter((i) => !i.synthetic && i.marketplace === mp);
+  const multiCountry = new Set(real.map((i) => i.country)).size > 1;
+  const who = (it) => `${it.sku ? it.sku + " · " : ""}${it.product_id}${multiCountry && it.country ? " · " + it.country : ""}`;
   const out = {};
-  Object.values(project.items).filter((i) => !i.synthetic && i.marketplace === mp).forEach((it) => {
-    const name = it.label ? `${it.label} (${it.product_id})` : String(it.product_id);
+  real.forEach((it) => {
     it.rows.forEach((r) => {
       const k = r.keyword + "\u0000" + r.date;
       const a = (out[k] = out[k] || {
         date: r.date, checked_at: r.checked_at, project_id: r.project_id, project_name: r.project_name, item_key: key,
         marketplace: mp, country: "", keyword: r.keyword, rank: null, item_id: "all", results_scanned: r.results_scanned,
-        blocked: true, holder: null,
+        blocked: true, holder: null, found_n: 0, others: [], tied: [], _list: [],
       });
       if (!r.blocked) {
         a.blocked = false;
-        if (r.rank !== null && r.rank !== undefined && (a.rank === null || r.rank < a.rank)) { a.rank = r.rank; a.holder = name; }
+        if (r.rank !== null && r.rank !== undefined) a._list.push({ who: who(it), rank: r.rank });
         a.results_scanned = Math.max(a.results_scanned || 0, r.results_scanned || 0) || r.results_scanned;
       }
       if ((r.checked_at || "") > (a.checked_at || "")) a.checked_at = r.checked_at;
     });
   });
-  return Object.values(out);
+  return Object.values(out).map((a) => {
+    a._list.sort((x, y) => x.rank - y.rank);
+    if (a._list.length) {
+      a.rank = a._list[0].rank; a.holder = a._list[0].who; a.found_n = a._list.length;
+      a.tied = a._list.slice(1).filter((e) => e.rank === a.rank).map((e) => e.who);
+      a.others = a._list.slice(1).filter((e) => e.rank !== a.rank);
+    }
+    delete a._list;
+    return a;
+  });
 }
 
 function cmpSku(a, b) {
@@ -549,12 +560,50 @@ function renderSummaryCards(rows) {
     </div>`;
 }
 
+// ---------- Pop-up note on the "best position" table ----------
+let POP = {};
+function popHTML(p) {
+  const [sku, ...rest] = p.holder.split(" · ");
+  const basis = state.basis === "organic" ? "organic position" : "position";
+  const more = p.tied.length ? `<div class="pop-more">Tied with ${esc(p.tied.join(", "))}</div>` : "";
+  const others = p.others.length
+    ? `<div class="pop-more">Also ranking (${p.others.length}): ${p.others.slice(0, 4).map((o) => `${esc(o.who)} <i>#${o.rank}</i>`).join(", ")}${p.others.length > 4 ? ` +${p.others.length - 4} more` : ""}</div>`
+    : (p.tied.length ? "" : `<div class="pop-more">No other product of yours ranks for this keyword.</div>`);
+  return `<div class="pop-title">Ranked first · ${esc(fmtDateShort(p.date))}</div>
+    <div class="pop-main"><b>${esc(sku)}</b>${rest.length ? " · " + esc(rest.join(" · ")) : ""}</div>
+    <div class="pop-sub">${basis} ${p.rank} for “${esc(p.kw)}”</div>${more}${others}`;
+}
+(function initRankPop() {
+  const el = document.createElement("div");
+  el.id = "rankPop"; el.className = "rank-pop"; el.hidden = true; el.setAttribute("role", "tooltip");
+  document.body.appendChild(el);
+  let current = null;
+  const hide = () => { el.hidden = true; current = null; };
+  const show = (td) => {
+    const p = POP[td.dataset.pop];
+    if (!p) return hide();
+    current = td; el.innerHTML = popHTML(p); el.hidden = false;
+    const r = td.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+    el.style.left = Math.max(8, Math.min(r.left, vw - w - 8)) + "px";
+    el.style.top = (r.bottom + h + 12 > vh && r.top - h - 8 > 0 ? r.top - h - 8 : r.bottom + 6) + "px";
+  };
+  const cellOf = (e) => (e.target.closest ? e.target.closest("td[data-pop]") : null);
+  document.addEventListener("mouseover", (e) => { const td = cellOf(e); if (td && td !== current) show(td); else if (!td && !e.target.closest("#rankPop")) hide(); });
+  document.addEventListener("focusin", (e) => { const td = cellOf(e); if (td) show(td); else hide(); });
+  document.addEventListener("click", (e) => { const td = cellOf(e); if (td) show(td); else if (!e.target.closest("#rankPop")) hide(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
+  window.addEventListener("scroll", hide, true);
+  window.addEventListener("resize", hide);
+  document.addEventListener("rankpop-reset", hide);
+})();
+
 // ---------- The rank tables ----------
-function cellHTML(v, tip, scanned) {
+function cellHTML(v, tip, scanned, pop) {
   if (v === undefined) return `<td class="nodata" title="${tip} — not checked">·</td>`;
   if (v === "BLOCKED") return `<td class="rank-cell r-blocked" title="${tip} — the marketplace blocked this check, which is not the same as falling out of the rankings">?</td>`;
   if (v === null) return `<td class="rank-cell r-nf" title="${tip} — not found">${scanned ? `&gt;${scanned}` : "–"}</td>`;
   const h = heat(v);
+  if (pop) return `<td class="rank-cell has-pop" style="background:${h.bg};color:${h.fg}" data-pop="${pop}" tabindex="0">${v}</td>`;
   return `<td class="rank-cell" style="background:${h.bg};color:${h.fg}" title="${tip}">${v}</td>`;
 }
 function dayHeaderHTML(label) {
@@ -565,6 +614,8 @@ function dayHeaderHTML(label) {
 const SORT_DEFAULT_DIR = { name: 1, now: 1, best: 1, avg: 1, change: -1, found: -1 };
 
 function renderTable() {
+  document.dispatchEvent(new Event("rankpop-reset"));
+  const bestView = !!currentItem().synthetic;      // "All <marketplace> products — best position" is selected
   const project = currentProject();
   const rows = VIEW.rows;
   const byKw = "keyword";
@@ -608,17 +659,20 @@ function renderTable() {
   // Per-row summary: latest usable check, best, average, share of checks found, and change.
   const stats = (id) => {
     const ds = rawDates.filter((d) => hasCell(id, d) && !cell(id, d).blocked);
-    if (!ds.length) return { now: undefined, best: null, avg: null, found: null, prev: undefined, scanned: null, delta: null, kind: null };
+    if (!ds.length) return { now: undefined, nowDate: null, bestDate: null, best: null, avg: null, found: null, prev: undefined, scanned: null, delta: null, kind: null };
     const ranks = ds.map((d) => cell(id, d).rank);
     const found = ranks.filter((r) => r !== null);
     const now = ranks[ranks.length - 1], prev = ranks.length > 1 ? ranks[ranks.length - 2] : undefined;
+    const nowDate = ds[ds.length - 1];
+    let bestDate = null;
+    ds.forEach((d) => { const r = cell(id, d).rank; if (r !== null && (bestDate === null || r <= cell(id, bestDate).rank)) bestDate = d; });
     let delta = null, kind = null;
     if (prev !== undefined) {
       if (prev === null && now !== null) kind = "new";
       else if (prev !== null && now === null) kind = "lost";
       else if (prev !== null && now !== null) { delta = prev - now; kind = delta > 0 ? "improved" : delta < 0 ? "dropped" : "same"; }
     }
-    return { now, best: found.length ? Math.min(...found) : null, avg: found.length ? mean(found) : null,
+    return { now, nowDate, bestDate, best: found.length ? Math.min(...found) : null, avg: found.length ? mean(found) : null,
       found: (found.length / ranks.length) * 100, prev, scanned: cell(id, ds[ds.length - 1]).results_scanned, delta, kind };
   };
   const st = {};
@@ -674,7 +728,7 @@ function renderTable() {
   document.getElementById("exportBtn").addEventListener("click", exportCSV);
   document.querySelectorAll("#tableToolbar .mv").forEach((b) => b.addEventListener("click", () => { state.filter = state.filter === b.dataset.f ? "all" : b.dataset.f; renderTable(); }));
 
-  document.getElementById("gridLegend").innerHTML = legendHTML();
+  document.getElementById("gridLegend").innerHTML = legendHTML() + (bestView ? ` <span class="legend-hint">· <b>Hover or tap a number</b> to see which product ranked first.</span>` : "");
 
   const arrow = (k) => (state.sort.key === k ? (state.sort.dir === 1 ? " ▲" : " ▼") : "");
   const th = (k, text, tip, extra = "") => `<th class="metric sortable ${extra}" data-sort="${k}" title="${tip}">${text}${arrow(k)}</th>`;
@@ -685,11 +739,20 @@ function renderTable() {
     ${th("change", "Change", "Change since the check before the latest one", "metric-last")}
     ${columns.map((c) => `<th class="day">${state.range === "daily" ? dayHeaderHTML(c.label) : esc(c.label)}</th>`).join("")}</tr></thead>`;
 
+  POP = {};
+  const popFor = (id, date) => {                       // pop-up data for keyword `id` on `date`, or null
+    if (!bestView || !date || !hasCell(id, date)) return null;
+    const r = cell(id, date);
+    if (!r.holder || r.rank === null || r.rank === undefined) return null;
+    const key = "p" + Object.keys(POP).length;
+    POP[key] = { kw: id, date, holder: r.holder, rank: r.rank, n: r.found_n, others: r.others || [], tied: r.tied || [] };
+    return key;
+  };
   const body = ids.map((id) => {
     const s = st[id];
     const nowN = s.now === undefined ? 9999 : s.now === null ? 9999 : s.now;
     const tag = nowN === 1 ? '<span class="kw-tag">#1</span>' : nowN <= 3 ? '<span class="kw-tag">TOP 3</span>' : "";
-    const nowCell = s.now === undefined ? `<td class="metric nodata">·</td>` : cellHTML(s.now, `${esc(labelText(id))} · position at the most recent check`, s.scanned).replace("<td ", '<td data-m="now" ').replace('class="rank-cell', 'class="metric rank-cell');
+    const nowCell = s.now === undefined ? `<td class="metric nodata">·</td>` : cellHTML(s.now, `${esc(labelText(id))} · position at the most recent check`, s.scanned, s.now === null ? null : popFor(id, s.nowDate)).replace("<td ", '<td data-m="now" ').replace('class="rank-cell', 'class="metric rank-cell');
     const change = s.kind === "new" ? `<span class="trend-down"><i>●</i> new</span>` : s.kind === "lost" ? `<span class="trend-up"><i>✕</i> lost</span>`
       : s.kind === "improved" ? `<span class="trend-down"><i>▲</i> ${s.delta}</span>` : s.kind === "dropped" ? `<span class="trend-up"><i>▼</i> ${-s.delta}</span>`
       : s.kind === "same" ? `<span class="trend-flat">=</span>` : `<span class="trend-flat">–</span>`;
@@ -697,10 +760,10 @@ function renderTable() {
       const v = getValue(id, c.key);
       const r0 = state.range === "daily" && hasCell(id, c.key) ? cell(id, c.key) : null;
       const tip = esc(labelText(id) + " · " + c.key + (r0 && r0.holder ? " · best: " + r0.holder : ""));
-      return cellHTML(v, tip, state.range === "daily" && v === null ? cell(id, c.key).results_scanned : null);
+      return cellHTML(v, tip, state.range === "daily" && v === null ? cell(id, c.key).results_scanned : null, state.range === "daily" && typeof v === "number" ? popFor(id, c.key) : null);
     }).join("");
     return `<tr><td class="kwcol">${labelHTML(id)}${tag}</td>${nowCell}
-      <td class="metric">${s.best === null ? "–" : s.best}</td><td class="metric">${s.avg === null ? "–" : s.avg.toFixed(1)}</td>
+      ${(() => { const pk = s.best === null ? null : popFor(id, s.bestDate); return `<td class="metric${pk ? " has-pop" : ""}"${pk ? ` data-pop="${pk}" tabindex="0"` : ""}>${s.best === null ? "–" : s.best}</td>`; })()}<td class="metric">${s.avg === null ? "–" : s.avg.toFixed(1)}</td>
       <td class="metric">${s.found === null ? "–" : Math.round(s.found) + "%"}</td><td class="metric metric-last">${change}</td>${cells}</tr>`;
   }).join("");
 
