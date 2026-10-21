@@ -82,8 +82,9 @@ listings that were actually looked at (the dashboard shows it as `>N`). To look 
   (`DORMANT_AFTER_CHECKS`, 0 = off) is only fetched again every 7 days (`DORMANT_RECHECK_DAYS`). On the days in between a
   row marked `carried` (still not found, not re-checked, no request) is saved, so the daily Visibility and Average Position
   stay comparable; hovering such a cell says so. The day a product is found again, daily checks resume.
-- **A page that cannot be read is never saved as "not found".** An empty answer is retried once without the country
-  setting; if it is still empty the keyword is skipped for the day. A failing page is not requested again for the other
+- **A page that cannot be read is never saved as "not found".** An empty answer, or a first results page with no product
+  IDs at all (a blocked page or a script-only shell, as Otto once returned), is retried once without the country
+  setting; if it is still unreadable the keyword is skipped for the day. Otto's first page uses the plain search address. A failing page is not requested again for the other
   products, and a run stops after 5 keywords in a row fail.
 For 243 keywords on one of these marketplaces that is roughly 8,500 requests a month (about $13 at $1.50 per 1,000)
 instead of 44,000 (Otto) or 70,000 (Kaufland), assuming about 60% of the keywords never rank for you. Pages are read one
@@ -395,7 +396,9 @@ and GitHub may email you; fix the sharing and it recovers by itself.
 **To test Otto or Kaufland on one keyword (1–4 Bright Data requests, nothing saved): Actions → "Check an Otto or Kaufland
 keyword".** It reads your live sheet, so it works before the daily run has seen new products. It shows how many listings
 each page returned (the real page size), warns if page 2 just repeats page 1, and lists where your products are, for
-comparing with your own search on otto.de or kaufland.de. If it shows an empty or blocked page it says what came back.
+comparing with your own search on otto.de or kaufland.de. If a page has no products it lists every request it made (the
+country setting, no country setting, and for Otto the old `?o=0` address), says what each returned (empty, bot check, a
+script-only shell...), shows the first characters of a small page and Bright Data's own response headers.
 
 **For Otto, Kaufland and Temu: before trusting the daily numbers, pick one
 keyword whose rank you know by searching yourself, and compare.** If the

@@ -49,6 +49,11 @@ DATA_PATH = ROOT / "docs" / "data" / "ranks.json"
 
 SEARCH_URL = "https://www.otto.de/suche/{query}/?o={offset}"
 
+
+def search_url(query: str, offset: int) -> str:
+    """Otto's first results page is the plain search address (what a shopper lands on); later pages add the offset."""
+    return f"https://www.otto.de/suche/{query}/" if offset == 0 else SEARCH_URL.format(query=query, offset=offset)
+
 OFFSET_STEP = 60   # unverified guess at results-per-page, see caveat above
 MAX_PAGES = ps.env_int("OTTO_MAX_PAGES", 2, 1, 10)   # results pages read per keyword = Bright Data requests per keyword per day
 
@@ -78,8 +83,8 @@ _PAGE_CACHE = {}
 _PAGE_ERRORS = {}
 
 
-def _page_ids(url: str, country: str) -> list[str]:
-    return ps.fetch_ids(url, country, extract_ordered_product_ids, _PAGE_CACHE, _PAGE_ERRORS)
+def _page_ids(url: str, country: str, first: bool = False) -> list[str]:
+    return ps.fetch_ids(url, country, extract_ordered_product_ids, _PAGE_CACHE, _PAGE_ERRORS, first)
 
 
 def find_rank(keyword: str, target_product_id: str, country: str):
@@ -87,8 +92,8 @@ def find_rank(keyword: str, target_product_id: str, country: str):
     all_ids: list[str] = []
     for page in range(MAX_PAGES):
         offset = page * OFFSET_STEP
-        url = SEARCH_URL.format(query=query, offset=offset)
-        ids = _page_ids(url, country)
+        url = search_url(query, offset)
+        ids = _page_ids(url, country, first=(page == 0))
         if not ids:
             break
         all_ids.extend(ids)

@@ -37,19 +37,30 @@ def env_int(name: str, default: int, lo: int, hi: int) -> int:
         return default
 
 
-def fetch_ids(url: str, country: str, extractor, cache: dict, errors: dict) -> list:
-    """Product IDs on one results page. One request per page per run; failures are remembered, never retried per product."""
+def fetch_ids(url: str, country: str, extractor, cache: dict, errors: dict, first: bool = False) -> list:
+    """
+    Product IDs on one results page. One request per page per run; failures are remembered, never retried per product.
+    A first page that yields NO product IDs (an empty page, or a blocked / script-only shell) is a failed read, never
+    "not found": it is retried once without the country setting, and then raises EmptyPage. A later page without IDs is
+    the normal end of the results.
+    """
     key = (url, country)
     if key in errors:
         raise errors[key]
     if key not in cache:
         try:
             html = bright_data.fetch_html(url, country=country)
-            if not html.strip():
-                html = bright_data.fetch_html(url, country=None)       # a different exit address often works
+            ids = extractor(html) if html.strip() else []
+            if not ids and (first or not html.strip()):
+                html2 = bright_data.fetch_html(url, country=None)       # a different exit address often works
+                ids2 = extractor(html2) if html2.strip() else []
+                if ids2 or not html.strip():
+                    html, ids = html2, ids2
             if not html.strip():
                 raise EmptyPage(f"empty page for {url}")
-            cache[key] = extractor(html)
+            if first and not ids:
+                raise EmptyPage(f"no products recognised on the first results page ({len(html):,} characters): a blocked or empty page, not 'not found'")
+            cache[key] = ids
         except (EmptyPage, requests.RequestException) as e:
             errors[key] = e
             raise

@@ -70,8 +70,8 @@ _PAGE_CACHE = {}
 _PAGE_ERRORS = {}
 
 
-def _page_ids(url: str, country: str) -> list[str]:
-    return ps.fetch_ids(url, country, extract_ordered_product_ids, _PAGE_CACHE, _PAGE_ERRORS)
+def _page_ids(url: str, country: str, first: bool = False) -> list[str]:
+    return ps.fetch_ids(url, country, extract_ordered_product_ids, _PAGE_CACHE, _PAGE_ERRORS, first)
 
 
 def find_rank(keyword: str, target_product_id: str, country: str):
@@ -79,7 +79,7 @@ def find_rank(keyword: str, target_product_id: str, country: str):
     all_ids: list[str] = []
     for page in range(1, MAX_PAGES + 1):
         url = SEARCH_URL.format(query=query, page=page)
-        ids = _page_ids(url, country)
+        ids = _page_ids(url, country, first=(page == 1))
         if not ids:
             break
         all_ids.extend(ids)

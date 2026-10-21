@@ -28,26 +28,68 @@ MODULES = {"otto": otto, "kaufland": kfl}
 def page_url(marketplace: str, keyword: str, page: int) -> str:
     q = urllib.parse.quote(keyword)
     if marketplace == "otto":
-        return otto.SEARCH_URL.format(query=q, offset=(page - 1) * otto.OFFSET_STEP)
+        return otto.search_url(q, (page - 1) * otto.OFFSET_STEP)
     return kfl.SEARCH_URL.format(query=q, page=page)
 
 
-def fetch(url: str, country: str):
-    """Same order as the tracker: the country setting first, then none. Returns (html, notes)."""
-    notes, html = [], ""
-    for label, c in ((f"country={country.lower()}", country), ("no country setting", None)):
+BOT_WORDS = ("captcha", "robot", "roboter", "verify", "access denied", "zugriff", "challenge", "blocked", "unusual traffic")
+
+
+def describe(html: str, ids: list) -> str:
+    """What kind of page this was, in plain words (judged on the visible text, not on script addresses)."""
+    if ids:
+        return "a results page"
+    if not html.strip():
+        return "empty"
+    noscript = " ".join(re.findall(r"<noscript\b[^>]*>(.*?)</noscript>", html, flags=re.S | re.I))
+    body = re.sub(r"<(script|style|noscript)\b.*?</\1>", " ", html, flags=re.S | re.I)
+    visible = re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", " ", body))).strip()
+    if any(w in visible.lower() for w in BOT_WORDS):
+        return "looks like a bot check / access denied page"
+    if not visible:
+        extra = ""
+        if re.search(r"javascript|enable js|aktivieren", noscript, re.I):
+            extra += "; it asks for JavaScript"
+        if "challenge" in html.lower():
+            extra += "; it loads a 'challenge' script"
+        return "a script-only shell (no visible text): the results are not in it" + extra
+    return "a page with text but no product IDs"
+
+
+def raw_start(html: str, n: int = 700) -> str:
+    return re.sub(r"\s+", " ", html)[:n].replace("`", "'")
+
+
+def attempts_for(marketplace: str, keyword: str, page: int, country: str):
+    """The requests tried for one page, in order, stopping at the first that returns product IDs. First pages get more variants."""
+    url = page_url(marketplace, keyword, page)
+    seq = [(url, country, f"country={country.lower()}"), (url, None, "no country setting")]
+    if marketplace == "otto" and page == 1:       # the old tracker address, to see whether the '?o=0' form behaves differently
+        seq.append((otto.SEARCH_URL.format(query=urllib.parse.quote(keyword), offset=0), country, f"old address with ?o=0, country={country.lower()}"))
+    return seq
+
+
+def fetch_page(marketplace: str, keyword: str, page: int, country: str, extractor):
+    """Returns (html, ids, attempts); each attempt is a dict describing one request."""
+    log = []
+    html, ids = "", []
+    for url, c, label in attempts_for(marketplace, keyword, page, country):
         t0 = time.monotonic()
         try:
             resp = bright_data.fetch_response(url, country=c)
         except requests.RequestException as e:
-            notes.append(f"  - {label}: failed after {time.monotonic() - t0:.0f} s: `{type(e).__name__}: {str(e)[:120]}`")
+            log.append({"label": label, "url": url, "status": "failed", "chars": 0, "secs": time.monotonic() - t0, "ids": 0,
+                        "what": f"request failed: {type(e).__name__}: {str(e)[:100]}", "hdr": "", "raw": ""})
             continue
-        html = resp.text
+        h = resp.text
+        i = extractor(h) if h.strip() else []
         hdr = "; ".join(f"{k}: {str(v)[:100]}" for k, v in resp.headers.items() if k.lower().startswith(("x-brd", "x-luminati")))
-        notes.append(f"  - {label}: HTTP {resp.status_code}, {len(html):,} characters, {time.monotonic() - t0:.0f} s" + (f"; Bright Data headers: `{hdr}`" if hdr and not html.strip() else ""))
-        if html.strip():
-            return html, notes
-    return "", notes
+        log.append({"label": label, "url": url, "status": resp.status_code, "chars": len(h), "secs": time.monotonic() - t0, "ids": len(i),
+                    "what": describe(h, i), "hdr": hdr, "raw": raw_start(h) if (h.strip() and not i and len(h) < 6000) else ""})
+        html, ids = h, i
+        if i:
+            break
+    return html, ids, log
 
 
 def visible_start(html: str, n: int = 300) -> str:
@@ -82,15 +124,12 @@ def main():
     lines = [f"# {a.marketplace.capitalize()} check — “{a.keyword}”", "",
              f"Reads up to {pages} results page(s) through your Bright Data zone, exactly as the daily tracker does. "
              f"Products found in your sheet for {a.marketplace}" + (f" (projects containing “{a.project}”)" if a.project else "") + f": **{len(tracked)}**.", ""]
-    ordered, per_page, notes_all = [], [], []
+    ordered, per_page, attempts_all = [], [], []
     for page in range(1, pages + 1):
-        url = page_url(a.marketplace, a.keyword, page)
-        html, notes = fetch(url, a.country)
-        ids = mod.extract_ordered_product_ids(html) if html.strip() else []
+        html, ids, log = fetch_page(a.marketplace, a.keyword, page, a.country, mod.extract_ordered_product_ids)
         new = [i for i in ids if i not in ordered]
-        overlap = len(ids) - len(new)
-        per_page.append((page, url, len(html), len(ids), len(new), overlap))
-        notes_all.append((page, notes, html))
+        per_page.append((page, log[-1]["url"] if log else "", len(html), len(ids), len(new), len(ids) - len(new)))
+        attempts_all.append((page, log))
         ordered.extend(new)
         if not ids:
             break
@@ -98,17 +137,22 @@ def main():
     lines += ["## What each page returned", "", "| Page | Characters | Product IDs on it | New (not on an earlier page) | Repeated from earlier pages |", "|--:|--:|--:|--:|--:|"]
     for page, url, n_chars, n_ids, n_new, n_overlap in per_page:
         lines.append(f"| {page} | {n_chars:,} | {n_ids} | {n_new} | {n_overlap} |")
+    lines += ["", "## Every request made", "", "| Page | Variant | HTTP | Characters | Seconds | Product IDs | What came back |", "|--:|---|--:|--:|--:|--:|---|"]
+    for page, log in attempts_all:
+        for t in log:
+            lines.append(f"| {page} | {t['label']} | {t['status']} | {t['chars']:,} | {t['secs']:.0f} | {t['ids']} | {t['what']} |")
     lines.append("")
-    for page, notes, html in notes_all:
-        lines.append(f"Page {page}, Bright Data:")
-        lines += notes
-        if not mod.extract_ordered_product_ids(html):
-            if html.strip():
-                m = re.search(r"<title[^>]*>(.*?)</title>", html, re.S | re.I)
-                lines.append(f"  - **no product IDs recognised.** Page title: `{re.sub(chr(10), ' ', htmllib.unescape(m.group(1)).strip())[:120].replace(chr(96), chr(39)) if m else 'none'}`; the page starts: `{visible_start(html)}`")
-            else:
-                lines.append("  - **an empty page**: the marketplace rejected the request. Try again; the tracker retries this and never saves it as 'not found'.")
-    lines.append("")
+    for page, log in attempts_all:
+        for t in log:
+            if t["hdr"] and not t["ids"]:
+                lines.append(f"Page {page}, {t['label']} — Bright Data headers: `{t['hdr']}`")
+            if t["raw"]:
+                lines.append(f"Page {page}, {t['label']} — the page itself, from its start (so you can see what it is): `{t['raw']}`")
+    if any(t["raw"] or (t["hdr"] and not t["ids"]) for _, log in attempts_all for t in log):
+        lines.append("")
+    if per_page and per_page[0][3] == 0:
+        lines += ["**Page 1 returned no product IDs in any variant.** The daily tracker treats this as a failed read: it saves nothing "
+                  "for the keyword that day (never a 'not found') and stops the run after 5 such keywords in a row.", ""]
 
     sizes = [p[3] for p in per_page if p[3]]
     if sizes:
