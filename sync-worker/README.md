@@ -75,3 +75,19 @@ everyone"* — then click **↻ Sync now**.
   `GITHUB_TOKEN` in the Worker.
 - **"Couldn't reach the sync service":** `sync_url` in `docs/settings.json` is wrong
   or has a typo.
+
+## Optional: a precise daily timer
+
+GitHub's free scheduler starts the tracker late, by a different amount each day. This worker can start it at the
+exact minute instead, so every day's reading is taken at the same hour.
+
+1. Replace the worker's code with the new `worker.js` from this folder (Cloudflare → your worker → *Edit code* →
+   paste → *Deploy*). The Sync button keeps working exactly as before.
+2. In Cloudflare open your worker → **Settings → Triggers → Cron Triggers → Add**, and enter `30 1 * * *`.
+   Cloudflare cron times are **UTC**: 01:30 UTC is 03:30 in Germany in summer time and 02:30 in winter time.
+3. Nothing else is needed: the worker already has the GitHub token and repo settings. In *Logs* you should see
+   "daily timer: tracker started" each night. "GitHub answered 403" means the token has expired or lost its
+   *Actions: Read and write* permission.
+
+GitHub's own 01:30 UTC schedule stays in the workflow as a backup. If both fire, the second one finds today's
+results already saved and does nothing, so it costs nothing.

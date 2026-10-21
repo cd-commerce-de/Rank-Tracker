@@ -336,14 +336,18 @@ and GitHub may email you; fix the sharing and it recovers by itself.
     (`EBAY_WEB_WORKERS`, default 3; 1 = one after another). The number of requests, and the cost, are the same:
     78 keywords went from about 36 min to roughly 12 min. A keyword whose page fails is tried (3 attempts) once per
     run, not once per product. If a few keywords still fail in the daily run, the hourly pick-ups retry just those during the
-    4 hours after the day's first website result (the daily run itself starts at 05:17 UTC, though GitHub may start it
+    4 hours after the day's first website result (the daily run itself is scheduled for 01:30 UTC, though GitHub may start it
     late); after that they do not, so a keyword that keeps failing cannot keep costing requests.
     Only one run happens at a time, so extra "Run workflow" clicks queue behind the current run.
-  - **Daily check and GitHub's scheduler:** the daily run is scheduled for 05:17 UTC, but GitHub starts free scheduled
-    runs late and drops many of them (the hourly ones fired only a few times a day, the daily one at a different hour
-    each day). So the daily check does not depend on one trigger: whichever scheduled run fires first after 05:00 UTC
-    and finds no website result saved today does the full check ("catch-up"); every later one finds today's results
-    already there and does nothing. You can always click **Run workflow** for an immediate check. New products,
+  - **When the daily check runs, and why a fixed hour matters:** it is scheduled for **01:30 UTC = 03:30 in Germany in
+    summer time, 02:30 in winter time** (a night slot; the clocks change on 25 Oct 2026). Your own data showed that
+    two readings about 24 hours apart move less than readings at varying hours (median change 2 places against 4), so
+    the aim is the same hour every day. GitHub starts free scheduled runs late and drops many of them, so the start
+    can slip by minutes or hours. For an exact start, add the **daily timer** to the Cloudflare helper (see
+    `sync-worker/README.md`); GitHub's schedule then stays as a backup. As a further safety net, whichever scheduled
+    run fires first after 03:00 UTC and finds no website result saved today does the full check ("catch-up"); every
+    later one finds today's results already there and does nothing. You can always click **Run workflow** for an
+    immediate check, but a run at another hour gives that day's reading at another hour. New products,
     keywords and projects in the sheet are picked up by the next scheduled run that fires (or immediately with Run
     workflow): a new product costs one page per keyword (shared), a new keyword one page. This catch-up covers
     eBay website mode; Otto, Kaufland and Temu rely on the daily trigger and the hourly pick-up.

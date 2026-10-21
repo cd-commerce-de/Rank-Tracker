@@ -101,16 +101,19 @@ def retry_window_open(history, now=None) -> bool:
     return timedelta(0) <= now - first <= timedelta(hours=4)
 
 
+CATCH_UP_FROM_HOUR_UTC = 3   # the daily run is scheduled for 01:30 UTC; from 03:00 UTC any scheduled run covers for it if it never ran
+
+
 def catch_up_due(history, now=None) -> bool:
     """
-    True when any scheduled run that fires after 05:00 UTC should do today's FULL website check because none has been
+    True when any scheduled run that fires after 03:00 UTC should do today's FULL website check because none has been
     saved yet today. GitHub starts free scheduled runs late and drops many of them (the daily one included), so the
-    daily check must not depend on one particular trigger: whichever scheduled run fires first after 05:00 UTC
+    daily check must not depend on one particular trigger: whichever scheduled run fires first after 03:00 UTC
     does it, and every later one finds today's results already there and does nothing.
     """
     from datetime import datetime, timezone
     now = now or datetime.now(timezone.utc)
-    if now.hour < 5:
+    if now.hour < CATCH_UP_FROM_HOUR_UTC:
         return False
     today = now.date().isoformat()
     return not any(r.get("date") == today and r.get("source") == "web" for r in history)

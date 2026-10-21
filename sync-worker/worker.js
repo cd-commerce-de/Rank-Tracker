@@ -120,4 +120,29 @@ export default {
     }
     return reply({ state: "started", run: null });
   },
+
+  /**
+   * Daily timer: Cloudflare calls this at the time set under Triggers -> Cron Triggers (UTC), e.g. "30 1 * * *".
+   * It starts the tracker workflow at that exact minute, which GitHub's own free scheduler cannot promise (it
+   * starts runs late, by a different amount every day). No origin or passcode check here: only Cloudflare calls it.
+   * If a run is already going, GitHub queues this one behind it; the tracker never checks the same keyword twice
+   * in a day, so an extra or duplicate start costs nothing.
+   */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil((async () => {
+      if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) { console.log("daily timer: GITHUB_TOKEN or GITHUB_REPO is not set"); return; }
+      const workflow = env.GITHUB_WORKFLOW || "track-ranks.yml";
+      const res = await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${workflow}/dispatches`, {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + env.GITHUB_TOKEN,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+          "User-Agent": "rank-tracker-sync",
+        },
+        body: JSON.stringify({ ref: env.GITHUB_BRANCH || "main" }),
+      });
+      console.log(res.status === 204 ? "daily timer: tracker started" : `daily timer: GitHub answered ${res.status}`);
+    })());
+  },
 };
