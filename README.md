@@ -159,6 +159,10 @@ Here, 4 products x the keywords above = every keyword checked for every product.
 - **`sku`** (optional): your own SKU / identifier for the product. It is shown first in the dashboard's
   product dropdown as "SKU · product ID", e.g. "WGH30-3T · 184137378691". Header spellings that work:
   `SKU`, `Seller SKU`. **`name`** (optional) is the product name; `Product name`, `Title` and `Label` also work.
+  **The dashboard opens on "Count: organic only"** whenever the saved data has organic positions (paid "Anzeige" slots
+  left out); the dropdown next to Daily/Weekly/Monthly switches to "Count: all results", which counts the ads. A
+  listing that eBay shows as an ad on a given check has no organic position that day, so it appears as not found
+  in organic mode. Both numbers are saved for every check.
   The dashboard has two dropdowns: **marketplace** (eBay, Otto, Kaufland, Temu, with the number of products) and
   **product**. Choosing a marketplace lists only that marketplace's products, as "SKU · product ID" in SKU order
   (FP1, FP1-GR, FP2 … FP9, FP10); the product name is not shown (hover an entry for it), and a product without a

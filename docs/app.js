@@ -7,7 +7,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-10-18.3";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-10-21.1";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -73,6 +73,9 @@ async function loadData() {
   ALL_ROWS = rows || [];
   SETTINGS = (await fetchJSON("settings.json")) || {};
   CONFIG = IS_DEMO ? null : await fetchJSON("data/config.json");
+  // Open on organic positions (paid "Anzeige" slots left out) whenever the data has them; the dropdown switches back to
+  // "all results". Only on the first load, so a choice made later (and kept while syncing) is never overridden.
+  if (!IS_DEMO && ALL_ROWS.some((r) => r.organic_rank !== undefined)) state.basis = "organic";
   PROJECTS = buildProjects(ALL_ROWS);
 }
 
