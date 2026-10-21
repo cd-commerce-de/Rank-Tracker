@@ -164,6 +164,9 @@ def main():
                         continue
                     try:
                         rank = find_rank(keyword, target_id, country)
+                    except ps.PolicyRefused as e:
+                        print(f"  !! Bright Data refuses kaufland for your account, so nothing was read or saved: {e}", file=sys.stderr)
+                        raise ps.StopRun()
                     except (requests.RequestException, ps.EmptyPage) as e:
                         # a page that could not be read is NOT "not found": nothing is saved for this keyword today
                         if keyword not in counted:
@@ -196,7 +199,7 @@ def main():
                     print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}")
 
     except ps.StopRun:
-        print(f"  !! Stopping the kaufland run: {ps.MAX_FAILED_KEYWORDS_IN_A_ROW} keywords in a row could not be read. "
+        print(f"  !! Stopping the kaufland run: it cannot continue (see the message above). "
               "Stopping here so a blocked marketplace cannot keep spending Bright Data credit.", file=sys.stderr)
     finally:
         save_json(DATA_PATH, history)

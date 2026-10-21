@@ -13,6 +13,7 @@ Cost controls shared by the Otto and Kaufland trackers (both bill one Bright Dat
 """
 
 import os
+import re
 from collections import defaultdict
 from datetime import date
 
@@ -26,8 +27,22 @@ class EmptyPage(RuntimeError):
     """Bright Data answered, but with an empty page (the marketplace rejected the request)."""
 
 
+class PolicyRefused(EmptyPage):
+    """Bright Data refused the request itself (account policy, e.g. the site needs KYC verification): retrying cannot help."""
+
+
 class StopRun(Exception):
     """Too many keywords in a row could not be read: stop instead of paying for more failures."""
+
+
+REFUSAL_RE = re.compile(r"brightdata\.com/cp/kyc|Residential Failed|policy_\d{4,6}", re.I)
+
+
+def refusal(text: str):
+    """Bright Data's own refusal message if this 'page' is one, else None (these are short plain-text answers)."""
+    if text and len(text) < 2000 and REFUSAL_RE.search(text):
+        return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", text)).strip()[:300]
+    return None
 
 
 def env_int(name: str, default: int, lo: int, hi: int) -> int:
@@ -50,6 +65,9 @@ def fetch_ids(url: str, country: str, extractor, cache: dict, errors: dict, firs
     if key not in cache:
         try:
             html = bright_data.fetch_html(url, country=country)
+            msg = refusal(html)
+            if msg:
+                raise PolicyRefused(msg)                                 # account policy: another try cannot change it
             ids = extractor(html) if html.strip() else []
             if not ids and (first or not html.strip()):
                 html2 = bright_data.fetch_html(url, country=None)       # a different exit address often works

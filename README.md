@@ -33,7 +33,7 @@ never touches them:
 | Yours (never in the zip) | What it is |
 |---|---|
 | `docs/data/ranks.json` | every rank saved so far — your history |
-| `docs/settings.json` | your sheet link, repo name, sync address |
+| `docs/settings.json` | your sheet link and repo name |
 | the repo secrets | eBay / Bright Data keys, `TRACKING_SHEET_CSV_URL` |
 | `config/keywords.csv`, `config/products.csv` | only if you use files instead of a sheet |
 
@@ -55,7 +55,7 @@ products that use it (eBay products with `source = web`, plus Otto, Kaufland and
 | Part | Cost |
 |---|---|
 | eBay search API (`source` blank) | free |
-| GitHub Pages, Actions (public repo), the Google Sheet, Cloudflare sync service, fonts | free |
+| GitHub Pages, Actions (public repo), the Google Sheet, Cloudflare (optional daily timer), fonts | free |
 | GitHub Actions on a *private* repo | 2,000 minutes a month included (3,000 on a Team plan); the daily run plus the hourly check use roughly 1,000–2,000 — see below |
 | Bright Data **Web Unlocker** (eBay website mode, Otto, Kaufland) | 5,000 successful requests a month free, then **$1.50 per 1,000**; failed requests are not billed (rates seen in recent 2026 listings — confirm in your Bright Data account) |
 | Bright Data **Browser API** (Temu) | billed per GB (about $5–8/GB), not per request |
@@ -84,7 +84,14 @@ listings that were actually looked at (the dashboard shows it as `>N`). To look 
   stay comparable; hovering such a cell says so. The day a product is found again, daily checks resume.
 - **A page that cannot be read is never saved as "not found".** An empty answer, or a first results page with no product
   IDs at all (a blocked page or a script-only shell, as Otto once returned), is retried once without the country
-  setting; if it is still unreadable the keyword is skipped for the day. Otto's first page uses the plain search address. A failing page is not requested again for the other
+  setting; if it is still unreadable the keyword is skipped for the day. Otto's first page uses the plain search address.
+- **Bright Data refusing a site for your account stops that marketplace's run at once.** Seen on Kaufland in October 2026:
+  Bright Data answered HTTP 402 / `policy_20140` ("not available for immediate residential (no KYC) access mode in
+  accordance with robots.txt") and asked for its KYC verification form (brightdata.com/cp/kyc), which an account owner
+  completes. That is a permission on the account, not something the tracker can work around. The run makes one request,
+  saves nothing, and says so in the log; run the "Check an Otto or Kaufland keyword" test again once access is granted.
+  Otto, a different case, answers with Kasada's bot-protection page (a `KPSDK` / `ips.js` script) that the zone did not
+  get past. A failing page is not requested again for the other
   products, and a run stops after 5 keywords in a row fail.
 For 243 keywords on one of these marketplaces that is roughly 8,500 requests a month (about $13 at $1.50 per 1,000)
 instead of 44,000 (Otto) or 70,000 (Kaufland), assuming about 60% of the keywords never rank for you. Pages are read one
@@ -256,11 +263,11 @@ backfilled. To check it immediately, run the workflow (step 6).
   Overview tab.
 
 ### 6. Run it once and check it
-Repo **Actions → Track marketplace ranks → Run workflow** (or the dashboard's Sync button once the shared sync service is set up). Expand each
+Repo **Actions → Track marketplace ranks → Run workflow**. Expand each
 marketplace's step to see what it found, then reload the dashboard.
 A green tick doesn't mean every marketplace worked — a marketplace you haven't
 set up fails its own step but doesn't stop the others. After that it runs by
-itself every day at 06:00 UTC (edit the `cron` line to change that).
+itself every night at 01:30 UTC (edit the `cron` line to change that).
 
 ## Keeping it up to date (nobody ever enters a token)
 
@@ -269,18 +276,14 @@ workflow looks at your sheet. If you've added a product or keyword that has neve
 checked, it checks just that and saves it; otherwise the run ends in seconds. So
 **a new row in the sheet starts tracking within about an hour** (GitHub can start
 scheduled runs a little late). Every product is then fully re-checked once a day at
-06:00 UTC. A new keyword's history starts when it is first checked; nothing is
+01:30 UTC. A new keyword's history starts when it is first checked; nothing is
 backfilled. A marketplace you haven't connected yet (no keys) is ignored by the
 hourly pick-up, so it doesn't trigger pointless runs.
 
-**Instant — the ↻ Sync now button.** It runs the full check right now, for anyone who
-can open the dashboard, with no token and no GitHub login. Because the dashboard is a
-public web page, it can't hold the key that starts GitHub jobs; so an admin sets up a
-small shared service **once** (about 10 minutes, free): see `sync-worker/README.md`.
-Until that's done, the button just explains the automatic pick-up above, and
-there's a link to GitHub's own **Run workflow** page. If someone has already started a
-sync, a second click joins it rather than starting another. A keyword is checked
-once per day, so syncing again the same day only adds keywords not yet checked.
+**Instant — run the workflow yourself.** In your repo go to **Actions → Track marketplace ranks → Run workflow**.
+It checks everything not yet checked today (a keyword is checked once per day, so running again the same day only adds
+keywords not yet checked); if a run is already going, the new one waits for it. The dashboard used to have a
+"Sync now" button; it was removed because it did nothing unless an optional Cloudflare service was set up.
 
 **GitHub Actions minutes.** Hourly idle runs are short but each is billed as at
 least a minute, roughly 700 minutes a month on top of the daily check. Public repos
@@ -407,8 +410,8 @@ or matching detail needs adjusting.
 
 ## Troubleshooting
 - **I added a keyword and it isn't showing:** it's picked up within about an hour
-  (scheduled runs can be late). To check right away, use Sync now or Actions → Run
-  workflow. If it still doesn't appear, open the latest run and expand
+  (scheduled runs can be late). To check right away, use Actions → Track marketplace
+  ranks → Run workflow. If it still doesn't appear, open the latest run and expand
   *Check whether there is anything to do*: it says how many new keywords it found.
 - **Dashboard shows this README / a 404:** Pages folder isn't `/docs` (step 2),
   or the files were uploaded one folder too deep.

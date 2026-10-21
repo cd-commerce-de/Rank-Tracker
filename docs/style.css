@@ -165,13 +165,6 @@ td.rank-cell.r-blocked, .chip.r-blocked { background: var(--color-white); color:
 .help-panel p { margin: 6px 0; }
 .help-panel ol { margin: 6px 0 6px 18px; padding: 0; }
 .empty-state { text-align: center; color: var(--neutral-500); padding: 60px 20px; background: var(--color-white); border: 1px dashed var(--neutral-300); border-radius: var(--radius-lg); }
-#syncStatus { font-size: 13px; }
-.sync-msg { color: var(--neutral-500); }
-.sync-msg.busy { color: var(--color-accent-dark); }
-.sync-msg.ok { color: var(--neutral-700); }
-.sync-msg.warn { color: var(--color-accent-pressed); }
-.sync-msg.err { color: var(--color-error); font-weight: 600; }
-#syncStatus a { margin-left: 4px; }
 
 @media (max-width: 1100px) { .summary-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 640px) { .summary-grid { grid-template-columns: 1fr; } .topbar, .content { padding-left: 16px; padding-right: 16px; } }

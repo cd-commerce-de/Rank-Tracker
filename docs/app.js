@@ -7,7 +7,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-10-21.5";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-10-21.7";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -74,7 +74,7 @@ async function loadData() {
   SETTINGS = (await fetchJSON("settings.json")) || {};
   CONFIG = IS_DEMO ? null : await fetchJSON("data/config.json");
   // Open on organic positions (paid "Anzeige" slots left out) whenever the data has them; the dropdown switches back to
-  // "all results". Only on the first load, so a choice made later (and kept while syncing) is never overridden.
+  // "all results". Only on the first load, so a choice made later is never overridden.
   if (!IS_DEMO && ALL_ROWS.some((r) => r.organic_rank !== undefined)) state.basis = "organic";
   PROJECTS = buildProjects(ALL_ROWS);
 }
@@ -268,7 +268,7 @@ function helpPanelHTML() {
       <p>Your sheet has two tabs. <b>Keywords:</b> <code>project</code>, <code>keyword</code>. <b>Products:</b> <code>project</code>, <code>marketplace</code> (ebay / otto / kaufland / temu), <code>country</code>, <code>product_id</code> (the ID from your own listing's URL), and optionally <code>name</code> and <code>source</code> (eBay only: <code>web</code> reads the real ebay.de page instead of eBay's search API).</p>
       <p>Every product in a project is checked against every keyword of that project, so each keyword is written once and each product is written once. A project can have several product IDs, on one marketplace or several.</p>
       ${link}
-      <p>A new keyword's history starts the first day it's checked. To check right away, use <b>↻ Sync now</b>, or run the workflow from your repo's <b>Actions</b> tab.</p>
+      <p>A new keyword's history starts the first day it's checked. To check right away, run the workflow from your repo's <b>Actions</b> tab (<b>Track marketplace ranks → Run workflow</b>).</p>
     </div>`;
 }
 
@@ -363,11 +363,9 @@ function renderPage() {
   if (!projects.length) {
     app.innerHTML = `
       ${demoBanner}
-      <div class="topbar"><img class="brand-icon" src="logo-icon.svg" alt="CD Commerce" /><h1>Rank Tracker</h1><div class="spacer"></div>${syncControlsHTML()}</div>
-      ${syncPanelHTML()}
+      <div class="topbar"><img class="brand-icon" src="logo-icon.svg" alt="CD Commerce" /><h1>Rank Tracker</h1><div class="spacer"></div></div>
       ${helpPanelHTML()}
       <div class="content"><div class="empty-state">Nothing is being tracked yet.</div></div>`;
-    bindSyncControls();
     return;
   }
 
@@ -419,10 +417,8 @@ function renderPage() {
       <select class="project-select" id="projectSelect">${projectOptions}</select>
       <div class="spacer"></div>
       <span class="updated">Last checked: ${esc(new Date(lastChecked).toLocaleString())}</span>
-      ${syncControlsHTML()}
       <button class="btn primary" id="helpBtn">+ Add products &amp; keywords</button>
     </div>
-    ${syncPanelHTML()}
     ${state.helpOpen ? helpPanelHTML() : ""}
     <div class="content">
       <div class="controls-row">${controls}</div>
@@ -434,7 +430,6 @@ function renderPage() {
     </div>`;
 
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
-  bindSyncControls();
   on("projectSelect", "change", (e) => { state.projectId = e.target.value; state.marketplace = null; state.itemKey = null; renderPage(); });
   on("marketSelect", "change", (e) => { state.marketplace = e.target.value; state.itemKey = null; renderPage(); });
   bindCombo(comboEntries, state.itemKey);
@@ -837,174 +832,6 @@ function legendHTML() {
   const chips = [2, 7, 25, 70, 200].map((r, i) => { const h = heat(r); return `<span class="chip" style="background:${h.bg};color:${h.fg}">${["1–3", "4–10", "11–50", "51–100", ">100"][i]}</span>`; }).join("");
   return `Each column is a day; the number is where the product appears in that marketplace's search results for the keyword (1 = first). ${chips}
     <span class="chip r-nf">&gt;N not found in the top N checked</span><span class="chip r-blocked">?</span> blocked by the marketplace &nbsp;·&nbsp; <b>·</b> not checked that day`;
-}
-
-// ---------- Sync ----------
-// Two things keep the data fresh, and neither asks anyone for a token:
-//  1. AUTOMATIC: every hour GitHub checks the sheet and starts tracking any
-//     product/keyword that was added (see .github/workflows/track-ranks.yml).
-//  2. INSTANT: the "Sync now" button asks the shared sync service
-//     (sync-worker/, set up once by an admin; its address is "sync_url" in
-//     docs/settings.json) to run the check right now, for anyone.
-const PASSCODE_KEY = "rank_tracker_sync_passcode";
-let SYNC_TIMING = { runPollMs: 8000, runMaxMs: 20 * 60000, dataPollMs: 15000, dataMaxMs: 4 * 60000 };
-let syncState = { busy: false, msg: "", kind: "", runUrl: "", panelOpen: false };
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-function stored(key) { try { return localStorage.getItem(key) || ""; } catch (e) { return ""; } }
-function store(key, val) { try { val ? localStorage.setItem(key, val) : localStorage.removeItem(key); } catch (e) {} }
-const getPasscode = () => stored(PASSCODE_KEY);
-const setPasscode = (p) => store(PASSCODE_KEY, p || "");
-
-// Only used to build the "open on GitHub" link in the sync panel.
-function repoInfo() {
-  let repo = SETTINGS.repo;
-  if (!repo && location.hostname.endsWith(".github.io")) {
-    const owner = location.hostname.split(".")[0];
-    const name = location.pathname.split("/").filter(Boolean)[0];
-    if (owner && name) repo = owner + "/" + name;
-  }
-  if (!repo) return null;
-  return { repo, workflow: SETTINGS.workflow_file || "track-ranks.yml" };
-}
-
-function dataStamp(rows) {
-  const latest = (rows || []).map((r) => r.checked_at || r.date).sort().pop();
-  return latest || "none";
-}
-
-// --- backend 1: the shared relay service (no per-person setup) ---
-function proxyBackend(url) {
-  const call = async (method, query = "", canPrompt = true) => {
-    const headers = { "Content-Type": "application/json" };
-    if (getPasscode()) headers["X-Sync-Passcode"] = getPasscode();
-    let res;
-    try {
-      res = await fetch(url + query, { method, headers, body: method === "POST" ? "{}" : undefined });
-    } catch (e) {
-      throw new Error("Couldn't reach the sync service. Check your connection, or the sync_url in docs/settings.json.");
-    }
-    let body = {};
-    try { body = await res.json(); } catch (e) {}
-    if (res.status === 401) {
-      if (canPrompt) {
-        const code = window.prompt("Enter your team's sync passcode (you only need to do this once on this computer):");
-        if (code && code.trim()) { setPasscode(code.trim()); return call(method, query, false); }
-        throw new Error("Sync needs the team passcode.");
-      }
-      setPasscode("");
-      throw new Error("That passcode wasn't accepted.");
-    }
-    if (res.status === 403) throw new Error("The sync service doesn't accept requests from this website (ALLOWED_ORIGIN in the Cloudflare worker must match the dashboard's address exactly).");
-    if (!res.ok) throw new Error(body.message || `The sync service returned an error (${res.status}).`);
-    return body;
-  };
-  return {
-    start: async () => { const b = await call("POST"); return { state: b.state, run: b.run || null }; },
-    status: async (run) => call("GET", "?run=" + encodeURIComponent(run.id)),
-  };
-}
-
-function getBackend() {
-  return SETTINGS.sync_url ? proxyBackend(SETTINGS.sync_url) : null; // null -> explain the automatic pick-up
-}
-
-// --- status line, buttons, panel ---
-function syncStatusHTML() {
-  if (!syncState.msg) return "";
-  const link = syncState.runUrl ? ` <a href="${esc(syncState.runUrl)}" target="_blank" rel="noopener">View run</a>` : "";
-  return `<span class="sync-msg ${esc(syncState.kind)}">${esc(syncState.msg)}</span>${link}`;
-}
-function setSync(msg, kind, runUrl) {
-  syncState.msg = msg;
-  syncState.kind = kind || "";
-  syncState.runUrl = runUrl || "";
-  const el = document.getElementById("syncStatus");
-  if (el) el.innerHTML = syncStatusHTML();
-}
-
-function syncControlsHTML() {
-  return `<span id="syncStatus">${syncStatusHTML()}</span>
-    <button class="btn secondary" id="syncBtn" ${syncState.busy ? "disabled" : ""}>↻ Sync now</button>
-    <button class="btn" id="syncCfgBtn" title="Sync settings">⚙</button>`;
-}
-
-function syncPanelHTML() {
-  if (!syncState.panelOpen) return "";
-  const info = repoInfo();
-  const ghLink = info
-    ? `<a href="https://github.com/${esc(info.repo)}/actions/workflows/${esc(info.workflow)}" target="_blank" rel="noopener">open the workflow on GitHub</a> and click <b>Run workflow</b>`
-    : "open the workflow on GitHub and click <b>Run workflow</b>";
-  const auto = `<p><b>New products and keywords you add to the sheet are picked up automatically</b>, about once an hour — nobody has to press anything or enter a token. Every product is then re-checked once a day (06:00 UTC).</p>`;
-  if (SETTINGS.sync_url) {
-    return `<div class="help-panel"><b>Sync</b>${auto}
-      <p><b>↻ Sync now</b> runs the check immediately, for anyone, with no token or GitHub login. It takes a few minutes.</p>
-      ${getPasscode() ? `<p>A team passcode is saved on this computer. <button class="linkbtn" id="syncForgetPass">Forget it</button></p>` : ""}
-      <p>You can also ${ghLink}.</p></div>`;
-  }
-  return `<div class="help-panel"><b>Sync</b>${auto}
-    <p>Want an instant check as well? Your admin can switch on the shared sync service once (about 10 minutes, free — see <code>sync-worker/README.md</code>); after that <b>↻ Sync now</b> works for everyone. Until then you can ${ghLink}.</p></div>`;
-}
-
-function bindSyncControls() {
-  const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
-  on("syncBtn", "click", startSync);
-  on("syncCfgBtn", "click", () => { syncState.panelOpen = !syncState.panelOpen; renderPage(); });
-  on("syncForgetPass", "click", () => { setPasscode(""); setSync("Saved passcode removed.", ""); renderPage(); });
-}
-
-// --- the sync itself ---
-async function startSync() {
-  if (syncState.busy) return;
-  const backend = getBackend();
-  if (!backend) { syncState.panelOpen = true; renderPage(); return; }
-
-  syncState.busy = true;
-  const btn = document.getElementById("syncBtn");
-  if (btn) btn.disabled = true;
-  setSync("Starting sync…", "busy");
-  const before = IS_DEMO ? "none" : dataStamp(ALL_ROWS);
-
-  try {
-    const started = await backend.start();
-    const run = started.run;
-    if (!run) { setSync("Sync was requested, but I couldn't see the run start. Check the Actions tab on GitHub.", "warn"); return; }
-    const quick = started.state === "too_soon"; // a run began moments ago; just show its result
-    if (started.state === "already_running") setSync("A sync is already running — following it…", "busy", run.html_url);
-    if (quick) setSync("A sync was started moments ago — checking its result…", "busy", run.html_url);
-
-    // follow the run until it finishes
-    const t0 = Date.now();
-    let current = { status: "queued" };
-    for (;;) {
-      try { current = await backend.status(run); } catch (e) { /* brief network hiccup: try again */ }
-      if (current.status === "completed") break;
-      if (Date.now() - t0 > SYNC_TIMING.runMaxMs) { setSync("Still running after 20 minutes — check GitHub.", "warn", run.html_url); return; }
-      if (!quick) setSync(`Syncing… ${Math.round((Date.now() - t0) / 1000)}s`, "busy", run.html_url);
-      await sleep(SYNC_TIMING.runPollMs);
-    }
-    if (current.conclusion !== "success") { setSync(`Sync run ${current.conclusion || "did not finish"}.`, "err", run.html_url); return; }
-
-    // The run saved new ranks; GitHub Pages needs a moment to publish them.
-    setSync("Run finished — loading the new data…", "busy", run.html_url);
-    const t1 = Date.now();
-    for (;;) {
-      const rows = await fetchJSON("data/ranks.json");
-      if (rows && rows.length && (dataStamp(rows) !== before || quick)) {
-        ALL_ROWS = rows; IS_DEMO = false; PROJECTS = buildProjects(rows);
-        setSync(quick ? "Up to date." : "Sync complete — dashboard updated.", "ok", run.html_url);
-        return;
-      }
-      if (quick || Date.now() - t1 > SYNC_TIMING.dataMaxMs) break;
-      await sleep(SYNC_TIMING.dataPollMs);
-    }
-    setSync("The run finished but no new ranks appeared. Keywords already checked today are skipped, and a marketplace step may have failed — open the run to see.", "warn", run.html_url);
-  } catch (e) {
-    setSync(String(e.message || e), "err");
-  } finally {
-    syncState.busy = false;
-    renderPage();
-  }
 }
 
 // ---------- CSV export ----------

@@ -18,6 +18,7 @@ import urllib.parse
 
 import bright_data
 import config_loader
+import page_savings as ps
 import kaufland_rank_tracker as kfl
 import otto_rank_tracker as otto
 import requests
@@ -41,6 +42,8 @@ def describe(html: str, ids: list) -> str:
         return "a results page"
     if not html.strip():
         return "empty"
+    if ps.refusal(html):
+        return "Bright Data itself refused this request (account policy), before reaching the site"
     noscript = " ".join(re.findall(r"<noscript\b[^>]*>(.*?)</noscript>", html, flags=re.S | re.I))
     body = re.sub(r"<(script|style|noscript)\b.*?</\1>", " ", html, flags=re.S | re.I)
     visible = re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", " ", body))).strip()
@@ -87,7 +90,7 @@ def fetch_page(marketplace: str, keyword: str, page: int, country: str, extracto
         log.append({"label": label, "url": url, "status": resp.status_code, "chars": len(h), "secs": time.monotonic() - t0, "ids": len(i),
                     "what": describe(h, i), "hdr": hdr, "raw": raw_start(h) if (h.strip() and not i and len(h) < 6000) else ""})
         html, ids = h, i
-        if i:
+        if i or ps.refusal(h):          # results found, or Bright Data refused outright: other variants cannot change that
             break
     return html, ids, log
 
@@ -150,6 +153,12 @@ def main():
                 lines.append(f"Page {page}, {t['label']} — the page itself, from its start (so you can see what it is): `{t['raw']}`")
     if any(t["raw"] or (t["hdr"] and not t["ids"]) for _, log in attempts_all for t in log):
         lines.append("")
+    refused = [t for _, log in attempts_all for t in log if t["what"].startswith("Bright Data itself refused")]
+    if refused:
+        lines += ["**Bright Data refused the request itself, before it reached " + a.marketplace.capitalize() + ".** This is a permission on your "
+                  "Bright Data account, not a fault in the tracker or the address. Read its message above (for sites that need it, "
+                  "it asks for the KYC verification form at brightdata.com/cp/kyc, which an account owner completes). "
+                  "Once approved, run this check again.", ""]
     if per_page and per_page[0][3] == 0:
         lines += ["**Page 1 returned no product IDs in any variant.** The daily tracker treats this as a failed read: it saves nothing "
                   "for the keyword that day (never a 'not found') and stops the run after 5 such keywords in a row.", ""]

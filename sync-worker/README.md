@@ -1,15 +1,12 @@
-# Shared Sync service (one-time setup, ~10 minutes, by one admin)
+# Cloudflare helper: an exact daily timer (optional, ~10 minutes, by one admin)
 
-**Optional.** New products and keywords you add to the sheet are already picked up
-automatically every hour, with no setup at all. This service adds an *instant* option:
-it makes the dashboard's **↻ Sync now** button work for **everyone** — no GitHub
-account, no token, nothing to install for the other users.
+**Optional.** The dashboard no longer has a "Sync now" button, so this helper now has one use: starting the daily
+check at an exact minute (see "A precise daily timer" at the end). New products and keywords you add to the sheet are
+already picked up automatically, with no setup at all, and you can always run the workflow yourself from GitHub's
+**Actions** tab.
 
-**Why a separate service?** The dashboard is a public web page, so it can't
-contain the key that starts GitHub jobs. This little service keeps that key as
-a secret on Cloudflare (free) and the dashboard just asks it to "run the
-tracker". It can do exactly two things: start the tracker workflow, and report
-how that run is going.
+**Why a separate service?** GitHub's free scheduler starts the tracker late, by a different amount every day. This
+little service keeps the GitHub key as a secret on Cloudflare (free) and starts the tracker at a time you choose.
 
 ## Step 1 — Create the GitHub key (once)
 Best done by an organization owner (the key stops working if the person who
@@ -55,34 +52,19 @@ the button from the dashboard's website — the worst they can do is start the
 tracker (at most once per cooldown). With it, each person types the passcode once
 per computer (it's remembered). Use it if your dashboard address is public.
 
-## Step 4 — Point the dashboard at it
-Copy the Worker's address (it ends in `.workers.dev`) and put it in
-`docs/settings.json` in the repo:
-
-```json
-{
-  "sync_url": "https://rank-tracker-sync.YOURNAME.workers.dev/"
-}
-```
-(keep the other lines in that file as they are). Commit. After a minute, open the
-dashboard, click **⚙** — it should say *"One-click sync is connected for
-everyone"* — then click **↻ Sync now**.
-
 ## If something goes wrong
 - **"doesn't accept requests from this website":** `ALLOWED_ORIGIN` must match the
   dashboard's address exactly (`https://cd-commerce-de.github.io`).
 - **"…token… may have expired":** renew the GitHub key (step 1) and replace
   `GITHUB_TOKEN` in the Worker.
-- **"Couldn't reach the sync service":** `sync_url` in `docs/settings.json` is wrong
-  or has a typo.
 
-## Optional: a precise daily timer
+## A precise daily timer
 
 GitHub's free scheduler starts the tracker late, by a different amount each day. This worker can start it at the
 exact minute instead, so every day's reading is taken at the same hour.
 
 1. Replace the worker's code with the new `worker.js` from this folder (Cloudflare → your worker → *Edit code* →
-   paste → *Deploy*). The Sync button keeps working exactly as before.
+   paste → *Deploy*).
 2. In Cloudflare open your worker → **Settings → Triggers → Cron Triggers → Add**, and enter `30 1 * * *`.
    Cloudflare cron times are **UTC**: 01:30 UTC is 03:30 in Germany in summer time and 02:30 in winter time.
 3. Nothing else is needed: the worker already has the GitHub token and repo settings. In *Logs* you should see
