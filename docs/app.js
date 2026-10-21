@@ -7,7 +7,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-10-21.7";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-10-21.8";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -258,6 +258,14 @@ async function boot() {
   renderPage();
 }
 
+// "+ Add products & keywords" and "+ Add keyword": straight to the Google Sheet (docs/settings.json -> sheet_url), opened in
+// a new tab. Without a sheet link they stay buttons that open the how-to panel.
+function addButtonHTML(id, label, cls) {
+  return SETTINGS.sheet_url
+    ? `<a class="btn ${cls}" id="${id}" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener" title="Opens your Google Sheet in a new tab">${label}</a>`
+    : `<button class="btn ${cls}" id="${id}">${label}</button>`;
+}
+
 function helpPanelHTML() {
   const link = SETTINGS.sheet_url
     ? `<p><a href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener"><b>Open the tracking sheet</b></a> and add your rows there. They're picked up on the next hourly check.</p>`
@@ -407,7 +415,7 @@ function renderPage() {
                autocomplete="off" spellcheck="false" placeholder="Search SKU or product ID…" value="${esc(selectedText)}" title="Type to search by SKU, product ID or product name" />
         <button type="button" class="combo-toggle" id="itemToggle" tabindex="-1" aria-label="Show all products">▾</button>
         <ul class="combo-list" id="itemList" role="listbox" hidden></ul>
-      </div><button class="btn" id="addKwBtn">+ Add keyword</button></div><div class="ctrl-group">${rangeGroup}</div>`;
+      </div>${addButtonHTML("addKwBtn", "+ Add keyword", "")}</div><div class="ctrl-group">${rangeGroup}</div>`;
 
   app.innerHTML = `
     ${demoBanner}
@@ -417,7 +425,7 @@ function renderPage() {
       <select class="project-select" id="projectSelect">${projectOptions}</select>
       <div class="spacer"></div>
       <span class="updated">Last checked: ${esc(new Date(lastChecked).toLocaleString())}</span>
-      <button class="btn primary" id="helpBtn">+ Add products &amp; keywords</button>
+      ${addButtonHTML("helpBtn", "+ Add products &amp; keywords", "primary")}
     </div>
     ${state.helpOpen ? helpPanelHTML() : ""}
     <div class="content">
@@ -435,8 +443,10 @@ function renderPage() {
   bindCombo(comboEntries, state.itemKey);
   on("basisSelect", "change", (e) => { state.basis = e.target.value; applyBasis(ALL_ROWS); renderPage(); });
   on("periodSelect", "change", (e) => { state.days = e.target.value === "all" ? "all" : Number(e.target.value); renderPage(); });
-  on("helpBtn", "click", () => { state.helpOpen = !state.helpOpen; renderPage(); });
-  on("addKwBtn", "click", () => { state.helpOpen = true; renderPage(); window.scrollTo(0, 0); });
+  if (!SETTINGS.sheet_url) {   // with a sheet link set, these are plain links that open the sheet; without one they show the how-to panel
+    on("helpBtn", "click", () => { state.helpOpen = !state.helpOpen; renderPage(); });
+    on("addKwBtn", "click", () => { state.helpOpen = true; renderPage(); window.scrollTo(0, 0); });
+  }
   document.querySelectorAll(".range-btn").forEach((b) => b.addEventListener("click", () => { state.range = b.dataset.range; renderPage(); }));
 
   safely("summaryGrid", () => renderSummaryCards(VIEW.rows));
