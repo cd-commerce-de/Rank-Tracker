@@ -392,6 +392,11 @@ and GitHub may email you; fix the sharing and it recovers by itself.
   "not found" — blocked days show as a blue **?** in the grid and are left out of the
   summary numbers.
 
+**To test Otto or Kaufland on one keyword (1–4 Bright Data requests, nothing saved): Actions → "Check an Otto or Kaufland
+keyword".** It reads your live sheet, so it works before the daily run has seen new products. It shows how many listings
+each page returned (the real page size), warns if page 2 just repeats page 1, and lists where your products are, for
+comparing with your own search on otto.de or kaufland.de. If it shows an empty or blocked page it says what came back.
+
 **For Otto, Kaufland and Temu: before trusting the daily numbers, pick one
 keyword whose rank you know by searching yourself, and compare.** If the
 tracker disagrees, tell whoever maintains this — it usually means a pagination
