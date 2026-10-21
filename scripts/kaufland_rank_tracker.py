@@ -36,6 +36,7 @@ from pathlib import Path
 
 import bright_data
 import config_loader
+import page_savings as ps
 import requests
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -43,7 +44,7 @@ DATA_PATH = ROOT / "docs" / "data" / "ranks.json"
 
 SEARCH_URL = "https://www.kaufland.de/s/?search_value={query}&page={page}"
 
-MAX_PAGES = 8  # unverified page size; see module docstring caveat
+MAX_PAGES = ps.env_int("KAUFLAND_MAX_PAGES", 2, 1, 10)   # results pages read per keyword = Bright Data requests per keyword per day
 
 # Matches Kaufland's plain numeric product ID, e.g. the "123456789" in
 # "https://www.kaufland.de/product/123456789/"
@@ -66,11 +67,11 @@ def extract_ordered_product_ids(html: str) -> list[str]:
 _PAGE_CACHE = {}
 
 
+_PAGE_ERRORS = {}
+
+
 def _page_ids(url: str, country: str) -> list[str]:
-    key = (url, country)
-    if key not in _PAGE_CACHE:
-        _PAGE_CACHE[key] = extract_ordered_product_ids(bright_data.fetch_html(url, country=country))
-    return _PAGE_CACHE[key]
+    return ps.fetch_ids(url, country, extract_ordered_product_ids, _PAGE_CACHE, _PAGE_ERRORS)
 
 
 def find_rank(keyword: str, target_product_id: str, country: str):
@@ -124,6 +125,12 @@ def main():
     only_new = os.environ.get("ONLY_NEW") == "1"
     known_any = {(r["project_id"], r["item_key"], r["keyword"]) for r in history}
 
+    # Keywords where none of your products has been found in their last few checks are only re-checked weekly.
+    dormant = ps.dormant_skip(history, "kaufland", today)
+    skipped_dormant = set()
+    counted, failed_in_a_row = set(), 0
+    pages_before = len(_PAGE_CACHE)
+
     try:
         for project in projects:
             project_id = project["project_id"]
@@ -145,11 +152,29 @@ def main():
                         only_new and (project_id, item_key, keyword) in known_any
                     ):
                         continue
+                    if (country, keyword) in dormant:
+                        skipped_dormant.add((country, keyword))
+                        history.append({
+                            "date": today, "checked_at": datetime.now(timezone.utc).isoformat(), "project_id": project_id,
+                            "project_name": project_name, "item_key": item_key, "marketplace": "kaufland", "country": country,
+                            "keyword": keyword, "rank": None, "item_id": target_id, "item_label": item.get("label"),
+                            "item_sku": item.get("sku"), "title": None, "results_scanned": None,
+                            "carried": True,    # not re-checked today: nothing of yours was found in its last checks
+                        })
+                        continue
                     try:
                         rank = find_rank(keyword, target_id, country)
-                    except requests.RequestException as e:
-                        print(f"  ! error searching '{keyword}': {e}", file=sys.stderr)
+                    except (requests.RequestException, ps.EmptyPage) as e:
+                        # a page that could not be read is NOT "not found": nothing is saved for this keyword today
+                        if keyword not in counted:
+                            print(f"  ! could not read results for '{keyword}': {e}", file=sys.stderr)
+                            counted.add(keyword)
+                            failed_in_a_row += 1
+                            if failed_in_a_row >= ps.MAX_FAILED_KEYWORDS_IN_A_ROW:
+                                raise ps.StopRun()
                         continue
+                    failed_in_a_row = 0
+                    counted.clear()
 
                     row = {
                         "date": today,
@@ -170,8 +195,13 @@ def main():
                     history.append(row)
                     print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}")
 
+    except ps.StopRun:
+        print(f"  !! Stopping the kaufland run: {ps.MAX_FAILED_KEYWORDS_IN_A_ROW} keywords in a row could not be read. "
+              "Stopping here so a blocked marketplace cannot keep spending Bright Data credit.", file=sys.stderr)
     finally:
         save_json(DATA_PATH, history)
+    print(f"kaufland: {len(_PAGE_CACHE) - pages_before} results page(s) requested, up to {MAX_PAGES} per keyword; "
+          f"{len(skipped_dormant)} keyword(s) skipped as dormant (re-checked every {ps.env_int('DORMANT_RECHECK_DAYS', 7, 1, 60)} days).")
     print(f"Saved {len(history)} total rows to {DATA_PATH}")
 
 

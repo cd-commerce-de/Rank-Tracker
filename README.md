@@ -62,9 +62,8 @@ products that use it (eBay products with `source = web`, plus Otto, Kaufland and
 
 **How many Web Unlocker requests?** One request per *results page*, and a search is shared by **every
 product** checked for that keyword. So adding products costs nothing extra; what costs is
-**keywords × pages × days**. The eBay website tracker reads **page 1 only** by default (up to 240
-listings if eBay honours the page size, otherwise fewer), so it is about **one request per keyword per
-day**. A listing that only appears further down is reported as "not found" with the number of
+**keywords × pages × days**. The eBay website tracker reads **page 1 only** by default (60 listings, see
+`EBAY_WEB_PAGE_SIZE`), so it is about **one request per keyword per day**. A listing that only appears further down is reported as "not found" with the number of
 listings that were actually looked at (the dashboard shows it as `>N`). To look deeper, change
 `EBAY_WEB_MAX_PAGES` (1–5) in `.github/workflows/track-ranks.yml`. Per month (30 days):
 
@@ -75,6 +74,20 @@ listings that were actually looked at (the dashboard shows it as `>N`). To look 
 | 150 | 4,500 | $0.00 | 13,500 | $12.75 |
 | 200 | 6,000 | $1.50 | 18,000 | $19.50 |
 | 300 | 9,000 | $6.00 | 27,000 | $33.00 |
+
+**Otto and Kaufland cost more per keyword, so they have cost controls** (they were reading up to 5 and 8 pages per keyword):
+- **Page depth: 2 pages by default** (`OTTO_MAX_PAGES`, `KAUFLAND_MAX_PAGES`, 1–10, set as environment values on the
+  Otto/Kaufland steps of `track-ranks.yml`). A product further down is reported as not found in the top N.
+- **Dormant keywords are re-checked weekly.** A keyword where none of your products was found in its last 3 checks
+  (`DORMANT_AFTER_CHECKS`, 0 = off) is only fetched again every 7 days (`DORMANT_RECHECK_DAYS`). On the days in between a
+  row marked `carried` (still not found, not re-checked, no request) is saved, so the daily Visibility and Average Position
+  stay comparable; hovering such a cell says so. The day a product is found again, daily checks resume.
+- **A page that cannot be read is never saved as "not found".** An empty answer is retried once without the country
+  setting; if it is still empty the keyword is skipped for the day. A failing page is not requested again for the other
+  products, and a run stops after 5 keywords in a row fail.
+For 243 keywords on one of these marketplaces that is roughly 8,500 requests a month (about $13 at $1.50 per 1,000)
+instead of 44,000 (Otto) or 70,000 (Kaufland), assuming about 60% of the keywords never rank for you. Pages are read one
+after another, so a large keyword list takes long; the Otto and Kaufland page sizes were never verified on live pages.
 
 (Cost = requests beyond the free 5,000 × $1.50 / 1,000. Up to about 165 keywords fit in the free
 allowance with page 1 only. New keywords found by the hourly check and "Check an eBay keyword" runs add a

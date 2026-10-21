@@ -7,7 +7,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-10-21.2";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-10-21.3";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -816,7 +816,8 @@ function renderTable() {
     const cells = columns.map((c) => {
       const v = getValue(id, c.key);
       const r0 = state.range === "daily" && hasCell(id, c.key) ? cell(id, c.key) : null;
-      const tip = esc(labelText(id) + " · " + c.key + (r0 && r0.holder ? " · best: " + r0.holder : ""));
+      const carried = state.range === "daily" && hasCell(id, c.key) && cell(id, c.key).carried;
+      const tip = esc(labelText(id) + " · " + c.key + (r0 && r0.holder ? " · best: " + r0.holder : "") + (carried ? " · not re-checked today (nothing found in its last checks; re-checked weekly)" : ""));
       return cellHTML(v, tip, state.range === "daily" && v === null ? cell(id, c.key).results_scanned : null, state.range === "daily" && typeof v === "number" ? popFor(id, c.key) : null);
     }).join("");
     return `<tr><td class="kwcol">${labelHTML(id)}${tag}</td>${nowCell}
