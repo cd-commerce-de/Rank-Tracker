@@ -1,0 +1,48 @@
+name: Check an Otto or Kaufland keyword
+
+# Tests ONE keyword on Otto or Kaufland through your Bright Data zone, the same way the daily tracker reads it,
+# and shows what came back (page size, pagination, product IDs) and where your products are.
+# Costs 1 to 4 Bright Data requests. Nothing is saved or changed.
+on:
+  workflow_dispatch:
+    inputs:
+      marketplace:
+        description: "Which marketplace"
+        required: true
+        default: "otto"
+        type: choice
+        options: [otto, kaufland]
+      keyword:
+        description: "Keyword, exactly as in your sheet"
+        required: true
+      project:
+        description: "Only highlight products of projects whose name contains this (e.g. WGH25). Blank = all."
+        required: false
+        default: ""
+      pages:
+        description: "Results pages to read (1-5, each costs a request)"
+        required: false
+        default: "2"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      TRACKING_SHEET_CSV_URL: ${{ secrets.TRACKING_SHEET_CSV_URL }}
+      BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+      BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+      MARKETPLACE: ${{ inputs.marketplace }}
+      KEYWORD: ${{ inputs.keyword }}
+      PROJECT: ${{ inputs.project }}
+      PAGES: ${{ inputs.pages }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Look up the keyword
+        run: python scripts/marketplace_check_keyword.py "$MARKETPLACE" "$KEYWORD" --project "$PROJECT" --pages "$PAGES"
