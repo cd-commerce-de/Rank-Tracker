@@ -180,7 +180,15 @@ Here, 4 products x the keywords above = every keyword checked for every product.
 - **`sku`** (optional): your own SKU / identifier for the product. It is shown first in the dashboard's
   product dropdown as "SKU · product ID", e.g. "WGH30-3T · 184137378691". Header spellings that work:
   `SKU`, `Seller SKU`. **`name`** (optional) is the product name; `Product name`, `Title` and `Label` also work.
-  **"+ Add products & keywords" and "+ Add keyword" open your Google Sheet** in a new tab (the link is `sheet_url` in
+  **Click a keyword in the table to open its rank history.** The pop-up shows a chart of the keyword's Organic position
+(blue), Sponsored / ad-slot position (orange) and, if ticked, Overall position with ads counted (grey dashed), with a
+product selector (including "★ All … products — best position"), range buttons (7D, 1M, 3M, 1Y, ALL) and hover details
+for each day (ads above, and whether the reading came from a German connection and a German page). Days where the
+product was not found are marked at the bottom of the chart. **"Open on eBay"** (or Otto, Kaufland, Temu) opens the
+search page for that keyword in a new tab: for eBay Germany the same address the tracker reads (60 listings, delivery
+postcode, country 77). If eBay opens in English, switch it to German first; in English eBay translates the keyword.
+
+**"+ Add products & keywords" and "+ Add keyword" open your Google Sheet** in a new tab (the link is `sheet_url` in
 `docs/settings.json`). If `sheet_url` is empty they show a short how-to panel instead.
 
 **The dashboard opens on "Count: organic only"** whenever the saved data has organic positions (paid "Anzeige" slots
@@ -340,9 +348,17 @@ and GitHub may email you; fix the sharing and it recovers by itself.
   - **Empty pages / HTTP 403:** eBay rejects a share of Bright Data's requests at random. Bright Data's error
     header then says "response status was rejected: 403" and the page arrives empty. It happens with and without a
     country setting (one check got the 403 with it and the page without it, the next the reverse), so the tracker
-    retries an empty page up to twice more, alternating between the German country setting and none
-    (`EBAY_WEB_GEO_MODE`: auto, country or none), and a run stops only after 5 keywords in a row fail. On Oct 13,
-    77 of 78 keywords came back on the first run.
+    retries an empty page up to twice more **from the German exit again** (`EBAY_WEB_ATTEMPTS`, default 3), and a run
+    stops only after 5 keywords in a row fail. On Oct 13, 77 of 78 keywords came back on the first run.
+  - **The tracker looks at eBay from Germany, and checks that it did.** Every attempt uses Bright Data's German exit
+    (`country=de`); the address carries your delivery postcode (default 36179, `EBAY_WEB_POSTCODE`) and country 77;
+    a page must be in German (an English page is refused); and each reading records `page_geo` (DE), `page_lang` (de)
+    and `page_shipto` (the postcode eBay printed on the page). The run log ends with a "Perspective check" line and
+    warns if any reading came from another connection or showed a different postcode. A reading is never silently taken
+    from a non-German connection: if the German exit is rejected on every try, nothing is saved for that keyword that
+    day. `EBAY_WEB_GEO_MODE: "any"` restores the old behaviour (German first, then any connection). Limits: Bright Data
+    targets by country only (not city), and it adds language headers only with its "custom headers" option, which bills
+    every request including failed ones, so the tracker verifies the language on the page instead.
   - **Why the tracker and your browser can show different ranks, and the delivery postcode:** eBay orders results,
     chooses ads and decides which listings exist for a buyer partly by *where the buyer is*. Your browser's
     address carries `_stpos=36179&_fcid=77` (delivery postcode 36179, country 77 = Germany; also in the page's
@@ -371,6 +387,21 @@ and GitHub may email you; fix the sharing and it recovers by itself.
     keywords and projects in the sheet are picked up by the next scheduled run that fires (or immediately with Run
     workflow): a new product costs one page per keyword (shared), a new keyword one page. This catch-up covers
     eBay website mode; Otto, Kaufland and Temu rely on the daily trigger and the hourly pick-up.
+  - **Search language (important when you compare with a manual search):** if eBay serves its **English** version it
+    *translates your keyword* ("auto heber" became "car jack", "6,700+ results"; "wagenheber 3t" became "3t car jack",
+    "1,600+ results") and returns a different, much longer list than a German shopper searching the German keyword sees.
+    A manual search from a browser set to English is therefore a different search. The tracker detects the language
+    of every page (`page_lang` on each row), refuses an English page, retries from another exit, and saves nothing for
+    a keyword that only ever comes back in English; the run log reports it. When you search by hand, make sure eBay is
+    in German: the heading must read "N Ergebnisse für …" and the listing titles must be German.
+  - **Which connection produced a reading (`page_geo`) and the "Compare eBay results by connection location" test:**
+    every saved row records whether the German exit (`DE`) or the no-country fallback (`none`) produced its page. The test
+    (Actions → "Compare eBay results by connection location") fetches one keyword several times from each kind of exit
+    and reports how many of the first 10 listings are the same and in the same place, between identical requests and
+    between the two kinds of exit. If German-vs-none differs clearly more than identical-vs-identical, the location
+    changes what eBay shows and `EBAY_WEB_GEO_MODE: "country"` (German exit only) is the better setting. The number of
+    ads above a product also changes from one load to the next (0 to 6 for the same product and keyword on different
+    days), which is why the organic position moves more than the overall position.
   - **Page size:** the tracker asks for 60 listings per page (`EBAY_WEB_PAGE_SIZE`: 60, 120 or 240). 60 was the size that
     returned a page reliably through Bright Data, and it is still one request. In your data your best product was inside
     the first 60 for every keyword where you appear at all; positions deeper than that are reported as "not found in the

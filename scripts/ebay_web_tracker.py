@@ -60,18 +60,35 @@ class StopRun(Exception):
 _PAGE_CACHE = {}
 _ERRORS = {}   # (keyword, country, page) -> the error a page ended with this run (never retried for other products)
 _LOCK = threading.Lock()
+_SHIPTO = {}   # (keyword, country, page) -> the delivery postcode the page showed ("Versand nach ..."), or None
+_GEOS = {}    # (keyword, country, page) -> "DE" if the German exit produced the page that was read, "none" if the no-country one did
+_LANGS = {}   # (keyword, country, page) -> "de" / "?" : the language of the page that was read (English pages are refused)
 _COUNTS = {}   # (keyword, country, page) -> "N Ergebnisse" shown on that page
-_AD_STATS = {"pages": 0, "cards": 0, "flagged": 0, "labelled": 0, "ad_elements": 0, "scheme_pages": 0}   # shows whether paid slots are being recognised
+_AD_STATS = {"pages": 0, "cards": 0, "flagged": 0, "labelled": 0, "ad_elements": 0, "scheme_pages": 0, "english": 0, "ship_ok": 0, "ship_other": 0, "ship_missing": 0, "geo_de": 0, "geo_none": 0}   # shows whether paid slots are being recognised
+
+
+def _attempts() -> int:
+    try:
+        return max(1, min(6, int(os.environ.get("EBAY_WEB_ATTEMPTS", "3"))))
+    except ValueError:
+        return 3
 
 
 def _geo_sequence(country: str):
-    """Country settings to try, in order, for one page (up to 3 attempts)."""
+    """
+    Connections to try for one page, in order. EBAY_WEB_GEO_MODE:
+      auto / country (default): the German exit (country=de) for EVERY attempt, so every reading is taken from Germany;
+      any: the old behaviour, German exit first, then a connection from anywhere, then German again;
+      none: connections from anywhere (not recommended).
+    EBAY_WEB_ATTEMPTS (default 3) is how many times a page is tried before the keyword is skipped for the day.
+    """
     mode = os.environ.get("EBAY_WEB_GEO_MODE", "auto").strip().lower()
-    if mode == "country":
-        return [country] * 3
+    n = _attempts()
     if mode == "none":
-        return [None] * 3
-    return [country, None, country]
+        return [None] * n
+    if mode == "any":
+        return [country, None, country][:n] + [country] * max(0, n - 3)
+    return [country] * n
 
 
 def page_cards(keyword: str, country: str, page: int):
@@ -95,15 +112,36 @@ def _fetch_page(key, keyword: str, country: str, page: int):
     # goes out through a different exit address). EBAY_WEB_GEO_MODE: auto (default), country, or none.
     html = ""
     geos = _geo_sequence(country)
+    saw_english = False
+    used_geo = None
     for attempt, geo in enumerate(geos):
         html = bright_data.fetch_html(url, country=geo)
+        if html.strip() and ebay_web.page_language(html) == "en":
+            # eBay answered in English and translated the keyword: those results are not a German search. Try another exit.
+            saw_english = True
+            with _LOCK:
+                _AD_STATS["english"] += 1
+            html = ""
         if html.strip():
+            used_geo = geo
             break
         if attempt < len(geos) - 1:
             time.sleep(5)
     if not html.strip():
+        if saw_english:
+            raise UnreadablePage(f"eBay answered in ENGLISH for {keyword!r} on every try (it translates the keyword, so the results would not "
+                                 "match a German search): nothing is saved for it today.")
         raise UnreadablePage(f"Bright Data answered but the page was EMPTY for {keyword!r}. See the reason under Web Access > "
                              "Event log in your Bright Data account (it lists every request and any error code).")
+    _LANGS[key] = ebay_web.page_language(html)
+    _SHIPTO[key] = ebay_web.page_shipto(html)
+    want = ebay_web.postcode_setting()
+    with _LOCK:
+        if want:
+            _AD_STATS["ship_ok" if _SHIPTO[key] == want else "ship_other" if _SHIPTO[key] else "ship_missing"] += 1
+    _GEOS[key] = used_geo if used_geo else "none"
+    with _LOCK:
+        _AD_STATS["geo_de" if used_geo else "geo_none"] += 1
     cards = ebay_web.parse_cards(html)
     _COUNTS[key] = ebay_web.result_count(html)
     _PAGE_CACHE[key] = cards
@@ -311,6 +349,9 @@ def main():
                         "title": None,
                         "results_scanned": found["results_scanned"],
                         "page_results": _COUNTS.get((keyword, country, 1)),   # "N Ergebnisse" eBay shows for the keyword
+                        "page_lang": _LANGS.get((keyword, country, 1)),       # language of the page that was read ("de" = German)
+                        "page_geo": _GEOS.get((keyword, country, 1)),         # connection that produced it: "DE" (German exit) or "none"
+                        "page_shipto": _SHIPTO.get((keyword, country, 1)),    # delivery postcode eBay showed on that page
                     })
                     extra = ""
                     if found["rank"] is not None:
@@ -328,6 +369,14 @@ def main():
     if s["pages"]:
         print(f"Page reading summary: {s['pages']} page(s), {s['cards']} listings read, {s['flagged']} flagged as paid ads "
               f"(\"Anzeige\"), {s['cards'] - s['flagged']} organic; ad-label elements found: {s['ad_elements']}.")
+        if s["pages"]:
+            want = ebay_web.postcode_setting()
+            print(f"Perspective check ({s['pages']} page(s)): German connection {s['geo_de']}, other connection {s['geo_none']}; "
+                  + (f"delivery postcode {want} confirmed on {s['ship_ok']}, a different postcode on {s['ship_other']}, not shown on {s['ship_missing']}." if want else "no delivery postcode was sent."))
+            if s["geo_none"] or s["ship_other"]:
+                print("  !! Some readings did not come from a German connection or show a different delivery postcode; see EBAY_WEB_GEO_MODE.", file=sys.stderr)
+        if s["english"]:
+            print(f"  !! eBay answered in ENGLISH {s['english']} time(s); those pages were refused and retried (an English page translates the keyword).")
         st = bright_data.STATS
         if st["requests"] or st["timeouts"]:
             avg = st["seconds"] / max(1, st["requests"] + st["timeouts"])

@@ -119,6 +119,28 @@ def catch_up_due(history, now=None) -> bool:
     return not any(r.get("date") == today and r.get("source") == "web" for r in history)
 
 
+def page_language(page_html: str) -> str:
+    """
+    "de", "en" or "?" for the language eBay answered in. This matters: when eBay serves its English version it
+    TRANSLATES the keyword ("auto heber" -> "car jack", "6,700+ results") and returns a different, much bigger result list,
+    which would not match what a German shopper searching the German keyword sees.
+    """
+    m = re.search(r"<html[^>]*\blang=[\"']([a-zA-Z]{2})", page_html[:3000])
+    if m:
+        return m.group(1).lower() if m.group(1).lower() in ("de", "en") else "?"
+    head = page_html[:400000]
+    de = len(re.findall(r"Ergebnisse f\u00fcr|neuem Fenster oder Tab|Sofort-Kaufen", head))
+    en = len(re.findall(r"results for|new window or tab|Buy It Now", head))
+    return "de" if de > en else "en" if en > de else "?"
+
+
+def page_shipto(page_html: str):
+    """The delivery postcode the page shows ("Versand nach 36179"), or None. It proves eBay applied the postcode we sent."""
+    text = re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", " ", _strip_noise(page_html))))
+    m = re.search(r"Versand nach\s*(\d{5})\b", text)
+    return m.group(1) if m else None
+
+
 def result_count(page_html: str):
     """The number in "22 Ergebnisse für …" at the top of the page (how many exact matches eBay says exist), or None."""
     text = re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", " ", _strip_noise(page_html))))

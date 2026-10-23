@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import config_loader
+import ebay_web
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "data" / "config.json"
@@ -44,13 +45,14 @@ def main():
         return
     if OUT.exists():
         try:
-            if json.loads(OUT.read_text(encoding="utf-8")).get("projects") == projects:
+            old = json.loads(OUT.read_text(encoding="utf-8"))
+            if old.get("projects") == projects and old.get("ebay_postcode") == ebay_web.postcode_setting():
                 print("config.json is already up to date.")
                 return
         except (ValueError, OSError):
             pass
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps({"updated": datetime.now(timezone.utc).isoformat(timespec="seconds"), "projects": projects},
+    OUT.write_text(json.dumps({"updated": datetime.now(timezone.utc).isoformat(timespec="seconds"), "ebay_postcode": ebay_web.postcode_setting(), "projects": projects},
                               ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"config.json written: {sum(len(p['items']) for p in projects)} product(s), {n_kw} product/keyword pair(s).")
 

@@ -134,7 +134,7 @@ def api_section(keyword, country, seller, show, pages, tracked):
 def web_section(keyword, country, seller, show, pages, tracked):
     if not os.environ.get("BRIGHTDATA_API_KEY") or not os.environ.get("BRIGHTDATA_ZONE"):
         return ["## ebay.de page", "", "BRIGHTDATA_API_KEY / BRIGHTDATA_ZONE are not set, so the website view was skipped."]
-    cards, ad_elems, decoys, notes, shown = [], 0, 0, [], None
+    cards, ad_elems, decoys, notes, shown, langs = [], 0, 0, [], None, []
     ctry = None          # the country setting that worked (starts with none: eBay rejects the German-country requests with HTTP 403)
     attempts = [("no country setting", None), ("country=" + country.lower(), country)] if country else [("no country setting", None)]
     for page in range(1, pages + 1):
@@ -157,6 +157,7 @@ def web_section(keyword, country, seller, show, pages, tracked):
                 notes.append("  - start of the visible text: `" + vis.strip()[:300].replace("`", "'") + "`")
         if page == 1:
             shown = ebay_web.result_count(html)
+        langs.append(ebay_web.page_language(html))
         sig = ebay_web.ad_signals(html)
         ad_elems += sig["ad_elements"]
         decoys += sig["decoys"]
@@ -165,6 +166,7 @@ def web_section(keyword, country, seller, show, pages, tracked):
         cards.extend(got)
     lines = [f"## 2) The ebay.de results page — “{keyword}” ({country.upper()})", "",
              f"Request sent with delivery postcode **{ebay_web.postcode_setting() or 'none'}** (country id 77 = Germany). "
+             f"The page's language: **{'German' if 'de' in langs[:1] else 'ENGLISH — eBay translated the keyword, so these results are NOT a German search' if 'en' in langs[:1] else 'unclear'}**. "
              f"The page says **{shown if shown is not None else '?'} results** for the keyword. "
              f"{len(cards)} listings read from the page, in page order (as a shopper sees them). `Ad` = paid placement (“Anzeige”). `Organic #` skips ads. "
              f"{sum(1 for x in cards if x['sponsored'])} flagged as ads; ad-label elements found in the page: {ad_elems} "

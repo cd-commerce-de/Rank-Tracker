@@ -7,7 +7,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-10-21.8";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-10-23.3";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -659,6 +659,211 @@ async function copyText(text) {
   document.addEventListener("rankpop-reset", hide);
 })();
 
+// ---------- Keyword pop-up: rank history chart + "Open on <marketplace>" ----------
+const EBAY_SITES = { DE: "ebay.de", AT: "ebay.at", US: "ebay.com", GB: "ebay.co.uk", FR: "ebay.fr", IT: "ebay.it", ES: "ebay.es", NL: "ebay.nl", PL: "ebay.pl" };
+const MODAL = { keyword: null, itemKey: null, days: 30, show: { organic: true, ads: true, overall: false }, opener: null };
+
+// The page a shopper sees for this keyword: for eBay Germany the same address the tracker reads (same page size,
+// delivery postcode and country), so the positions can be compared with what the chart says.
+function marketplaceUrl(item, keyword) {
+  const plus = encodeURIComponent(keyword).replace(/%20/g, "+");
+  if (item.marketplace === "ebay") {
+    const pc = CONFIG && CONFIG.ebay_postcode !== undefined ? CONFIG.ebay_postcode : "36179";
+    return `https://www.${EBAY_SITES[item.country] || "ebay.de"}/sch/i.html?_nkw=${plus}&_sacat=0&_ipg=60&_pgn=1` + (item.country === "DE" && pc ? `&_stpos=${encodeURIComponent(pc)}&_fcid=77` : "");
+  }
+  if (item.marketplace === "otto") return `https://www.otto.de/suche/${encodeURIComponent(keyword)}/`;
+  if (item.marketplace === "kaufland") return `https://www.kaufland.de/s/?search_value=${encodeURIComponent(keyword)}`;
+  if (item.marketplace === "temu") return `https://www.temu.com/search_result.html?search_key=${encodeURIComponent(keyword)}`;
+  return null;
+}
+
+// One entry per day for this keyword: overall position, organic position, ad position, and which connection produced it.
+// For the "★ All <marketplace> products" entry each day takes the best value across that marketplace's products.
+function keywordSeries(project, itemKey, keyword) {
+  const item = project.items[itemKey];
+  const real = item.synthetic ? Object.values(project.items).filter((i) => !i.synthetic && i.marketplace === item.marketplace) : [item];
+  const nameOf = (it) => `${it.sku ? it.sku + " · " : ""}${it.product_id}`;
+  const by = {};
+  let hasOrganic = false;
+  real.forEach((it) => it.rows.forEach((r) => {
+    if (r.keyword !== keyword) return;
+    if (r.organic_rank !== undefined) hasOrganic = true;
+    const d = (by[r.date] = by[r.date] || { date: r.date, overall: null, organic: null, ad: null, found: false, blocked: true, scanned: r.results_scanned, holder: null, geo: r.page_geo, lang: r.page_lang, shipto: r.page_shipto });
+    if (r.blocked) return;
+    d.blocked = false;
+    const overall = r.rank_all !== undefined ? r.rank_all : r.rank;
+    if (overall !== null && overall !== undefined) { d.found = true; if (d.overall === null || overall < d.overall) d.overall = overall; }
+    if (r.organic_rank !== null && r.organic_rank !== undefined && (d.organic === null || r.organic_rank < d.organic)) { d.organic = r.organic_rank; d.holder = nameOf(it); }
+    if (r.promoted && r.ad_rank !== null && r.ad_rank !== undefined && (d.ad === null || r.ad_rank < d.ad)) d.ad = r.ad_rank;
+  }));
+  return { item, hasOrganic, dates: Object.keys(by).sort().map((k) => by[k]) };
+}
+
+const dayNo = (iso) => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 864e5;
+
+function chartData(series) {
+  let dates = series.dates;
+  if (MODAL.days !== "all" && dates.length) {
+    const start = shiftDate(dates[dates.length - 1].date, -(MODAL.days - 1));
+    dates = dates.filter((d) => d.date >= start);
+  }
+  return dates;
+}
+
+function chartSVG(dates, show) {
+  const W = 920, H = 330, L = 46, R = 18, T = 18, B = 40, pw = W - L - R, ph = H - T - B;
+  if (!dates.length) return "";
+  const t0 = dayNo(dates[0].date), t1 = dayNo(dates[dates.length - 1].date), span = Math.max(1, t1 - t0);
+  const X = (iso) => (dates.length === 1 ? L + pw / 2 : L + ((dayNo(iso) - t0) / span) * pw);
+  const vals = [];
+  dates.forEach((d) => { ["organic", "ad", "overall"].forEach((k) => { if (show[k] && d[k] !== null) vals.push(d[k]); }); });
+  const maxY = Math.max(10, Math.ceil((vals.length ? Math.max(...vals) : 10) * 1.1));
+  const Y = (v) => T + ((v - 1) / (maxY - 1)) * ph;
+  const rawStep = (maxY - 1) / 5, step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find((x) => x >= rawStep) || 500;
+  const ticks = [1];
+  for (let v = step; v < maxY; v += step) if (v > 1) ticks.push(v);
+  let g = ticks.map((v) => `<line class="md-grid" x1="${L}" x2="${W - R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="md-ylab" x="${L - 8}" y="${(Y(v) + 4).toFixed(1)}" text-anchor="end">${v}</text>`).join("");
+  const n = Math.min(dates.length, 8);
+  for (let k = 0; k < n; k++) {
+    const iso = n === 1 ? dates[0].date : shiftDate(dates[0].date, Math.round((k * span) / (n - 1)));
+    g += `<text class="md-xlab" x="${X(iso).toFixed(1)}" y="${H - 14}" text-anchor="middle">${esc(fmtDateShort(iso))}</text>`;
+  }
+  const series = [["organic", "md-organic"], ["ad", "md-ad"], ["overall", "md-overall"]];
+  series.forEach(([key, cls]) => {
+    if (!show[key]) return;
+    let path = "", pts = "", prev = null;
+    dates.forEach((d) => {
+      if (d[key] === null) return;
+      const x = X(d.date).toFixed(1), y = Y(d[key]).toFixed(1), tt = dayNo(d.date);
+      path += `${prev !== null && tt - prev <= 2 ? " L" : " M"}${x} ${y}`; prev = tt;
+      pts += `<circle class="${cls}-dot" cx="${x}" cy="${y}" r="3.4"/>`;
+    });
+    g += `<path class="md-line ${cls}" d="${path.trim()}"/>${pts}`;
+  });
+  dates.forEach((d) => {                      // checked, but your product was not in the results that were read
+    if (!d.found && !d.blocked) g += `<circle class="md-nf" cx="${X(d.date).toFixed(1)}" cy="${Y(maxY).toFixed(1)}" r="3.6"><title>${esc(d.date)}: not found${d.scanned ? " in the top " + d.scanned : ""}</title></circle>`;
+  });
+  const hw = Math.max(10, pw / Math.max(1, dates.length));
+  g += dates.map((d, i) => `<rect class="md-hit" data-i="${i}" x="${(X(d.date) - hw / 2).toFixed(1)}" y="${T}" width="${hw.toFixed(1)}" height="${ph}"/>`).join("");
+  g += `<line class="md-guide" id="mdGuide" y1="${T}" y2="${T + ph}" x1="0" x2="0" hidden/>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="md-svg" role="img" aria-label="Rank history">${g}</svg>`;
+}
+
+function tipHTML(d, hasOrganic) {
+  const rows = [];
+  if (hasOrganic) {
+    rows.push(`<div><i class="sw md-organic-sw"></i>Organic: <b>${d.organic !== null ? d.organic : d.found ? "— (shown as an ad)" : "not found"}</b></div>`);
+    if (d.ad !== null) rows.push(`<div><i class="sw md-ad-sw"></i>Ad slot: <b>${d.ad}</b></div>`);
+  }
+  rows.push(`<div><i class="sw md-overall-sw"></i>Overall: <b>${d.overall !== null ? d.overall : "not found" + (d.scanned ? " in the top " + d.scanned : "")}</b></div>`);
+  if (hasOrganic && d.organic !== null && d.overall !== null) rows.push(`<div class="md-tip-sub">${d.overall - d.organic} ad(s) above it</div>`);
+  if (d.holder) rows.push(`<div class="md-tip-sub">Best product: ${esc(d.holder)}</div>`);
+  const bits = [];
+  if (d.geo) bits.push(d.geo === "DE" ? "German connection ✓" : "connection from outside Germany");
+  if (d.lang) bits.push(d.lang === "de" ? "German page ✓" : `page language: ${esc(d.lang)}`);
+  if (d.shipto) bits.push(`ship-to ${esc(d.shipto)}`);
+  if (bits.length) rows.push(`<div class="md-tip-sub">${bits.join(" · ")}</div>`);
+  return `<div class="md-tip-date">${esc(fmtDateShort(d.date))}, ${esc(d.date.slice(0, 4))}</div>${rows.join("")}`;
+}
+
+function renderKeywordModal() {
+  const root = document.getElementById("kwModal");
+  const project = currentProject();
+  if (!root || !MODAL.keyword || !project || !project.items[MODAL.itemKey]) return;
+  const series = keywordSeries(project, MODAL.itemKey, MODAL.keyword);
+  const item = series.item;
+  const show = series.hasOrganic ? MODAL.show : { organic: false, ad: false, overall: true };
+  const showEff = { organic: show.organic, ad: show.ads !== undefined ? show.ads : show.ad, overall: show.overall };
+  const dates = chartData(series);
+  const last = dates[dates.length - 1];
+  const now = last ? (last.organic !== null ? last.organic : last.overall) : null;
+  const badge = now === 1 ? '<span class="kw-tag">#1</span>' : now !== null && now <= 3 ? '<span class="kw-tag">TOP 3</span>' : now !== null && now <= 10 ? '<span class="kw-tag">TOP 10</span>' : "";
+  const linkItem = item.synthetic ? Object.values(project.items).find((i) => !i.synthetic && i.marketplace === item.marketplace) : item;
+  const url = linkItem ? marketplaceUrl(linkItem, MODAL.keyword) : null;
+  const mpName = MP_LABEL[item.marketplace] || item.marketplace;
+  const items = sortedItems(project, item.marketplace);
+  const multiCountry = new Set(items.filter((i) => !i.synthetic).map((i) => i.country)).size > 1;
+  const options = items.map((i) => `<option value="${esc(i.item_key)}" ${i.item_key === MODAL.itemKey ? "selected" : ""}>${esc(itemText(i, multiCountry))}</option>`).join("");
+  const found = dates.filter((d) => d.found).length, checked = dates.filter((d) => !d.blocked).length;
+  const orgs = dates.filter((d) => d.organic !== null);
+  const bestOrg = orgs.length ? orgs.reduce((a, b) => (b.organic <= a.organic ? b : a)) : null;
+  const ranges = [["7D", 7], ["1M", 30], ["3M", 90], ["1Y", 365], ["ALL", "all"]];
+  const chips = series.hasOrganic
+    ? `<label class="md-chip md-organic-chip"><input type="checkbox" id="mdOrg" ${MODAL.show.organic ? "checked" : ""}> Organic</label>
+       <label class="md-chip md-ad-chip"><input type="checkbox" id="mdAd" ${MODAL.show.ads ? "checked" : ""}> Sponsored (ad slot)</label>
+       <label class="md-chip md-overall-chip"><input type="checkbox" id="mdAll" ${MODAL.show.overall ? "checked" : ""}> Overall (ads counted)</label>`
+    : `<span class="md-note">This marketplace gives one position per check.</span>`;
+  const stat = (label, v) => `<div class="md-stat"><span>${label}</span><b>${v}</b></div>`;
+  const hint = item.marketplace === "ebay"
+    ? `“Open on ${mpName}” opens the same search the tracker reads${item.country === "DE" || (linkItem && linkItem.country === "DE") ? " (German eBay, delivery postcode " + esc(CONFIG && CONFIG.ebay_postcode !== undefined ? CONFIG.ebay_postcode : "36179") + ")" : ""}. If eBay opens in English, switch it to German first: in English eBay translates the keyword and shows a different list.`
+    : `“Open on ${mpName}” opens the search page for this keyword.`;
+  root.innerHTML = `
+    <div class="kw-backdrop" data-close></div>
+    <div class="kw-dialog" role="dialog" aria-modal="true" aria-labelledby="mdTitle">
+      <div class="md-head">
+        <div class="md-title"><h2 id="mdTitle">${esc(MODAL.keyword)}</h2>${badge}</div>
+        <div class="md-actions">${url ? `<a class="btn" id="mdOpen" href="${esc(url)}" target="_blank" rel="noopener">↗ Open on ${esc(mpName)}</a>` : ""}<button type="button" class="md-x" id="mdClose" data-close aria-label="Close">×</button></div>
+      </div>
+      <div class="md-controls"><label class="md-label" for="mdProduct">Product</label><select id="mdProduct" class="md-select">${options}</select></div>
+      <div class="md-toolbar"><div class="md-chips">${chips}</div>
+        <div class="md-ranges">${ranges.map(([l, d]) => `<button type="button" class="md-range ${MODAL.days === d ? "active" : ""}" data-days="${d}">${l}</button>`).join("")}</div></div>
+      ${dates.length ? `<div class="md-chart" id="mdChart">${chartSVG(dates, showEff)}<div class="md-tip" id="mdTip" hidden></div></div>
+        <div class="md-stats">${stat("Latest " + (series.hasOrganic ? "organic" : "position"), last ? (series.hasOrganic ? (last.organic !== null ? last.organic : last.found ? "ad only" : "not found") : last.overall !== null ? last.overall : "not found") : "–")}
+          ${bestOrg ? stat("Best organic", `${bestOrg.organic} <small>${esc(fmtDateShort(bestOrg.date))}</small>`) : ""}${stat("Found", `${found} of ${checked} days`)}</div>`
+        : `<div class="md-empty">No readings for this keyword in the chosen period for this product.</div>`}
+      <p class="md-hint">${hint}</p>
+    </div>`;
+  MODAL.dates = dates; MODAL.hasOrganic = series.hasOrganic;
+  bindKeywordModal();
+}
+
+function bindKeywordModal() {
+  const root = document.getElementById("kwModal");
+  const redraw = () => { const focus = document.activeElement && document.activeElement.id; renderKeywordModal(); if (focus) { const el = document.getElementById(focus); if (el) el.focus(); } };
+  root.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", closeKeywordModal));
+  const sel = document.getElementById("mdProduct"); if (sel) sel.addEventListener("change", (e) => { MODAL.itemKey = e.target.value; redraw(); });
+  [["mdOrg", "organic"], ["mdAd", "ads"], ["mdAll", "overall"]].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.addEventListener("change", (e) => { MODAL.show[key] = e.target.checked; redraw(); }); });
+  root.querySelectorAll(".md-range").forEach((b) => b.addEventListener("click", () => { MODAL.days = b.dataset.days === "all" ? "all" : +b.dataset.days; redraw(); }));
+  const tip = document.getElementById("mdTip"), guide = document.getElementById("mdGuide");
+  root.querySelectorAll(".md-hit").forEach((r) => {
+    r.addEventListener("mouseover", () => {
+      const d = MODAL.dates[+r.dataset.i]; if (!d || !tip) return;
+      tip.innerHTML = tipHTML(d, MODAL.hasOrganic); tip.hidden = false;
+      const x = +r.getAttribute("x") + +r.getAttribute("width") / 2;
+      if (guide) { guide.setAttribute("x1", x); guide.setAttribute("x2", x); guide.hidden = false; }
+      tip.style.left = Math.min(Math.max((x / 920) * 100, 14), 78) + "%";
+    });
+    r.addEventListener("mouseleave", () => { if (tip) tip.hidden = true; if (guide) guide.hidden = true; });
+  });
+}
+
+function openKeywordModal(keyword, opener) {
+  MODAL.keyword = keyword; MODAL.itemKey = state.itemKey; MODAL.opener = opener || null;
+  MODAL.days = 30; MODAL.show = { organic: true, ads: true, overall: false };
+  renderKeywordModal();
+  document.getElementById("kwModal").hidden = false;
+  document.body.classList.add("modal-open");
+  const x = document.getElementById("mdClose"); if (x) x.focus();
+}
+
+function closeKeywordModal() {
+  const root = document.getElementById("kwModal"); if (!root || root.hidden) return;
+  root.hidden = true; root.innerHTML = ""; document.body.classList.remove("modal-open");
+  if (MODAL.opener && MODAL.opener.isConnected) MODAL.opener.focus();
+  MODAL.keyword = null;
+}
+
+(function initKeywordModal() {
+  const root = document.createElement("div");
+  root.id = "kwModal"; root.className = "kw-modal"; root.hidden = true;
+  document.body.appendChild(root);
+  document.addEventListener("click", (e) => { const k = e.target.closest && e.target.closest(".kw-name[data-kw]"); if (k) openKeywordModal(k.dataset.kw, k); });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !root.hidden) closeKeywordModal();
+    else if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("kw-name")) { e.preventDefault(); openKeywordModal(e.target.dataset.kw, e.target); }
+  });
+})();
+
 // ---------- The rank tables ----------
 function cellHTML(v, tip, scanned, pop) {
   if (v === undefined) return `<td class="nodata" title="${tip} — not checked">·</td>`;
@@ -690,7 +895,7 @@ function renderTable() {
   const hasCell = (id, d) => Object.prototype.hasOwnProperty.call(byEnt[id] || {}, d);
   const cell = (id, d) => byEnt[id][d];
   const labelText = (id) => id;
-  const labelHTML = (id) => `<span class="kw-name">${esc(id)}</span>`;
+  const labelHTML = (id) => `<span class="kw-name" data-kw="${esc(id)}" tabindex="0" role="button" title="Show this keyword's rank history">${esc(id)}</span>`;
 
   const dayValue = (id, d) => { if (!hasCell(id, d)) return undefined; const r = cell(id, d); return r.blocked ? "BLOCKED" : r.rank; };
   const bucketValue = (id, dates) => {
