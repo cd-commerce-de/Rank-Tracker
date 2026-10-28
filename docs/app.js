@@ -7,10 +7,199 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-10-23.3";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-10-27.1";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
+
+// ---------- Language: English / German ----------
+// Only interface text is translated. Keywords, product names, SKUs, IDs and project names come from the sheet and are
+// always shown exactly as they are there.
+const I18N = {
+  en: {
+    demoBanner: "Showing demo data — no real tracker data yet. Once the daily workflow has run, your real ranks replace this automatically.",
+    nothingTracked: "Nothing is being tracked yet.",
+    helpTitle: "Add or change what's tracked",
+    helpTabs: "Your sheet has two tabs. <b>Keywords:</b> <code>project</code>, <code>keyword</code>. <b>Products:</b> <code>project</code>, <code>marketplace</code> (ebay / otto / kaufland / temu), <code>country</code>, <code>product_id</code> (the ID from your own listing's URL), and optionally <code>name</code> and <code>source</code> (eBay only: <code>web</code> reads the real ebay.de page instead of eBay's search API).",
+    helpEvery: "Every product in a project is checked against every keyword of that project, so each keyword is written once and each product is written once. A project can have several product IDs, on one marketplace or several.",
+    helpLinked: '<a href="{url}" target="_blank" rel="noopener"><b>Open the tracking sheet</b></a> and add your rows there. They\'re picked up on the next hourly check.',
+    helpNoSheet: "No Google Sheet is linked yet. Until you link one, copy the examples in <code>config/examples</code> to <code>config/keywords.csv</code> and <code>config/products.csv</code> in your GitHub repo and edit them (see the README for linking a Google Sheet, which is easier to edit).",
+    helpNew: "A new keyword's history starts the first day it's checked. To check right away, run the workflow from your repo's <b>Actions</b> tab (<b>Track marketplace ranks → Run workflow</b>).",
+    opensSheet: "Opens your Google Sheet in a new tab",
+    addProducts: "+ Add products &amp; keywords",
+    addKeyword: "+ Add keyword",
+    lastChecked: "Last checked:",
+    versionNote: "Dashboard files version",
+    languageLabel: "Language",
+    marketplace: "Marketplace",
+    searchPh: "Search SKU or product ID…",
+    searchTitle: "Type to search by SKU, product ID or product name",
+    showAllProducts: "Show all products",
+    noProductMatch: "No product matches “{q}”",
+    bestLabel: "All {mp} products — best position",
+    nProducts: "{n} products",
+    lastDays: "Last {n} days",
+    allTime: "All time",
+    countAll: "Count: all results",
+    countOrganic: "Count: organic only",
+    countTitle: "Which positions to count: every result, or only organic ones with paid placements removed",
+    daily: "Daily", weekly: "Weekly", monthly: "Monthly",
+    rangeAll: "ALL", rangeL: "L{n}D", weekPrefix: "wk",
+    firstChecks: "first checks", noChange: "no change", vsPrev: "vs previous check", pts: " pts",
+    visibility: "Visibility", visTitle: "Share of tracked keywords where your product was found, on the latest day",
+    avgPos: "Average Position", avgTitle: "Average position across the entries where your product was found",
+    top10Label: "Keywords in Top 10", of: "of", top10Title: "How many tracked keywords have your product in the top 10 results, on the latest day",
+    distribution: "Distribution", distLast: "100+ / not found",
+    noUsable: "No usable checks in this period yet.", noData: "no data",
+    sectionFailed: "This section couldn't be drawn ({msg}).",
+    rankedFirst: "Ranked first", position: "position", organicPosition: "organic position",
+    posFor: "{basis} {rank} for “{kw}”",
+    tiedWith: "Tied with", alsoRanking: "Also ranking ({n})", plusMore: "+{n} more",
+    noOther: "No other product of yours ranks for this keyword.",
+    copySku: "Copy SKU", copyId: "Copy ID", copyAll: "Copy all",
+    pinned: "Pinned · click outside or press Esc to close", close: "Close", popLabel: "Which product ranked first",
+    copied: "Copied ✓", pressCopy: "Press Ctrl/Cmd+C",
+    copyRankedFirst: "Ranked first for “{kw}” ({date})", tied: "tied", alsoRankingColon: "Also ranking:",
+    openOn: "↗ Open on {mp}", product: "Product",
+    organic: "Organic", sponsored: "Sponsored (ad slot)", overallChip: "Overall (ads counted)",
+    onePos: "This marketplace gives one position per check.",
+    latestOrganic: "Latest organic", latestPosition: "Latest position", adOnly: "ad only", notFound: "not found",
+    bestOrganic: "Best organic", foundStat: "Found", xOfYDays: "{found} of {checked} days",
+    noReadings: "No readings for this keyword in the chosen period for this product.",
+    rankHistory: "Rank history", inTheTop: "in the top {n}",
+    tipOrganic: "Organic", tipShownAsAd: "— (shown as an ad)", tipAdSlot: "Ad slot", tipOverall: "Overall",
+    tipAdsAbove: "{n} ad(s) above it", tipBestProduct: "Best product",
+    geoDE: "German connection ✓", geoOther: "connection from outside Germany", langDE: "German page ✓", pageLang: "page language: {l}", shipTo: "ship-to {pc}",
+    r7: "7D", r30: "1M", r90: "3M", r365: "1Y", rAll: "ALL",
+    hintEbay: "“Open on {mp}” opens the same search the tracker reads{de}. If eBay opens in English, switch it to German first: in English eBay translates the keyword and shows a different list.",
+    hintDe: " (German eBay, delivery postcode {pc})",
+    hintOther: "“Open on {mp}” opens the search page for this keyword.",
+    notChecked: "not checked", blockedTip: "the marketplace blocked this check, which is not the same as falling out of the rankings",
+    notFoundTip: "not found", kwTitle: "Show this keyword's rank history",
+    thKeyword: "Keyword ({n})",
+    thNow: "Now", thNowTip: "Position at the most recent check", thBest: "Best", thBestTip: "Best position in the selected period",
+    thAvg: "Avg", thAvgTip: "Average position over the checks where it was found", thFound: "Found", thFoundTip: "Share of checks where it was found at all",
+    thChange: "Change", thChangeTip: "Change since the check before the latest one",
+    newT: "new", lostT: "lost", posAtLatest: "position at the most recent check", bestColon: "best",
+    carriedTip: "not re-checked today (nothing found in its last checks; re-checked weekly)",
+    fAll: "All", fTop3: "In the top 3", fTop10: "In the top 10", fTop100: "In the top 100", fNotFound: "Not found",
+    fImproved: "Moved up", fDropped: "Moved down", fNew: "Newly found", fLost: "Lost",
+    filterTitle: "Filter rows", filterPh: "Filter keywords…",
+    sincePrev: "Since the previous check:", mvUp: "▲ moved up", mvDown: "▼ moved down", mvNew: "● newly found", mvLost: "✕ lost",
+    movementAfter: "Movement (▲ ▼) appears after the second daily check.",
+    exportCsv: "Export CSV", noMatch: "Nothing matches this filter.", csvBlocked: "blocked",
+    legendMain: "Each column is a day; the number is where the product appears in that marketplace's search results for the keyword (1 = first).",
+    legendNf: "&gt;N not found in the top N checked", legendBlocked: "blocked by the marketplace", legendNotChecked: "not checked that day",
+    legendHint: "<b>Hover a number</b> to see which product ranked first; <b>click it</b> to pin the note and copy the SKU."
+  },
+  de: {
+    demoBanner: "Es werden Demodaten angezeigt – noch keine echten Tracker-Daten. Sobald der tägliche Workflow gelaufen ist, ersetzen die echten Rankings sie automatisch.",
+    nothingTracked: "Es wird noch nichts getrackt.",
+    helpTitle: "Getrackte Inhalte hinzufügen oder ändern",
+    helpTabs: "Ihre Tabelle hat zwei Tabs. <b>Keywords:</b> <code>project</code>, <code>keyword</code>. <b>Products:</b> <code>project</code>, <code>marketplace</code> (ebay / otto / kaufland / temu), <code>country</code>, <code>product_id</code> (die ID aus der URL Ihres eigenen Angebots) und optional <code>name</code> und <code>source</code> (nur eBay: <code>web</code> liest die echte ebay.de-Seite statt der eBay-Such-API).",
+    helpEvery: "Jedes Produkt eines Projekts wird mit jedem Keyword dieses Projekts geprüft; deshalb wird jedes Keyword und jedes Produkt nur einmal eingetragen. Ein Projekt kann mehrere Produkt-IDs haben, auf einem oder mehreren Marktplätzen.",
+    helpLinked: '<a href="{url}" target="_blank" rel="noopener"><b>Tracking-Tabelle öffnen</b></a> und dort die Zeilen ergänzen. Sie werden beim nächsten stündlichen Check übernommen.',
+    helpNoSheet: "Es ist noch keine Google-Tabelle verknüpft. Kopieren Sie bis dahin die Beispiele aus <code>config/examples</code> nach <code>config/keywords.csv</code> und <code>config/products.csv</code> in Ihrem GitHub-Repository und bearbeiten Sie sie (zum Verknüpfen einer Google-Tabelle, die sich leichter bearbeiten lässt, siehe README).",
+    helpNew: "Die Historie eines neuen Keywords beginnt am ersten Tag, an dem es geprüft wird. Für eine sofortige Prüfung den Workflow im Tab <b>Actions</b> Ihres Repositories starten (<b>Track marketplace ranks → Run workflow</b>).",
+    opensSheet: "Öffnet Ihre Google-Tabelle in einem neuen Tab",
+    addProducts: "+ Produkte &amp; Keywords hinzufügen",
+    addKeyword: "+ Keyword hinzufügen",
+    lastChecked: "Zuletzt geprüft:",
+    versionNote: "Dashboard-Dateien Version",
+    languageLabel: "Sprache",
+    marketplace: "Marktplatz",
+    searchPh: "SKU oder Produkt-ID suchen…",
+    searchTitle: "Tippen, um nach SKU, Produkt-ID oder Produktname zu suchen",
+    showAllProducts: "Alle Produkte anzeigen",
+    noProductMatch: "Kein Produkt passt zu „{q}“",
+    bestLabel: "Alle {mp}-Produkte — beste Position",
+    nProducts: "{n} Produkte",
+    lastDays: "Letzte {n} Tage",
+    allTime: "Gesamter Zeitraum",
+    countAll: "Zählung: alle Ergebnisse",
+    countOrganic: "Zählung: nur organisch",
+    countTitle: "Welche Positionen gezählt werden: alle Ergebnisse oder nur organische ohne bezahlte Platzierungen",
+    daily: "Täglich", weekly: "Wöchentlich", monthly: "Monatlich",
+    rangeAll: "ALLE", rangeL: "L{n}T", weekPrefix: "Wo.",
+    firstChecks: "erste Prüfungen", noChange: "keine Änderung", vsPrev: "ggü. letzter Prüfung", pts: " Pkt.",
+    visibility: "Sichtbarkeit", visTitle: "Anteil der getrackten Keywords, bei denen Ihr Produkt am letzten Tag gefunden wurde",
+    avgPos: "Durchschnittliche Position", avgTitle: "Durchschnittliche Position über die Einträge, bei denen Ihr Produkt gefunden wurde",
+    top10Label: "Keywords in den Top 10", of: "von", top10Title: "Bei wie vielen getrackten Keywords Ihr Produkt am letzten Tag unter den Top-10-Ergebnissen steht",
+    distribution: "Verteilung", distLast: "100+ / nicht gefunden",
+    noUsable: "In diesem Zeitraum gibt es noch keine verwertbaren Prüfungen.", noData: "keine Daten",
+    sectionFailed: "Dieser Bereich konnte nicht dargestellt werden ({msg}).",
+    rankedFirst: "Auf Platz 1", position: "Position", organicPosition: "organische Position",
+    posFor: "{basis} {rank} für „{kw}“",
+    tiedWith: "Gleichauf mit", alsoRanking: "Außerdem platziert ({n})", plusMore: "+{n} weitere",
+    noOther: "Kein anderes Ihrer Produkte rankt für dieses Keyword.",
+    copySku: "SKU kopieren", copyId: "ID kopieren", copyAll: "Alles kopieren",
+    pinned: "Fixiert · außerhalb klicken oder Esc drücken zum Schließen", close: "Schließen", popLabel: "Welches Produkt auf Platz 1 steht",
+    copied: "Kopiert ✓", pressCopy: "Strg/Cmd+C drücken",
+    copyRankedFirst: "Platz 1 für „{kw}“ ({date})", tied: "gleichauf", alsoRankingColon: "Außerdem platziert:",
+    openOn: "↗ Auf {mp} öffnen", product: "Produkt",
+    organic: "Organisch", sponsored: "Gesponsert (Anzeigenplatz)", overallChip: "Gesamt (inkl. Anzeigen)",
+    onePos: "Dieser Marktplatz liefert pro Prüfung eine Position.",
+    latestOrganic: "Aktuell organisch", latestPosition: "Aktuelle Position", adOnly: "nur Anzeige", notFound: "nicht gefunden",
+    bestOrganic: "Beste organische", foundStat: "Gefunden", xOfYDays: "{found} von {checked} Tagen",
+    noReadings: "Für dieses Keyword gibt es im gewählten Zeitraum keine Messwerte für dieses Produkt.",
+    rankHistory: "Ranking-Verlauf", inTheTop: "in den Top {n}",
+    tipOrganic: "Organisch", tipShownAsAd: "— (als Anzeige gezeigt)", tipAdSlot: "Anzeigenplatz", tipOverall: "Gesamt",
+    tipAdsAbove: "{n} Anzeige(n) darüber", tipBestProduct: "Bestes Produkt",
+    geoDE: "Deutsche Verbindung ✓", geoOther: "Verbindung von außerhalb Deutschlands", langDE: "Deutsche Seite ✓", pageLang: "Seitensprache: {l}", shipTo: "Lieferung nach {pc}",
+    r7: "7T", r30: "1M", r90: "3M", r365: "1J", rAll: "ALLE",
+    hintEbay: "„Auf {mp} öffnen“ öffnet dieselbe Suche, die der Tracker liest{de}. Öffnet sich eBay auf Englisch, stellen Sie es zuerst auf Deutsch um: Auf Englisch übersetzt eBay das Keyword und zeigt eine andere Liste.",
+    hintDe: " (eBay Deutschland, Lieferpostleitzahl {pc})",
+    hintOther: "„Auf {mp} öffnen“ öffnet die Suchseite für dieses Keyword.",
+    notChecked: "nicht geprüft", blockedTip: "der Marktplatz hat diese Prüfung blockiert; das ist nicht dasselbe wie aus dem Ranking zu fallen",
+    notFoundTip: "nicht gefunden", kwTitle: "Ranking-Verlauf dieses Keywords anzeigen",
+    thKeyword: "Keyword ({n})",
+    thNow: "Aktuell", thNowTip: "Position bei der letzten Prüfung", thBest: "Beste", thBestTip: "Beste Position im gewählten Zeitraum",
+    thAvg: "Ø", thAvgTip: "Durchschnittliche Position über die Prüfungen, bei denen es gefunden wurde", thFound: "Gefunden", thFoundTip: "Anteil der Prüfungen, bei denen es überhaupt gefunden wurde",
+    thChange: "Änderung", thChangeTip: "Änderung seit der Prüfung vor der letzten",
+    newT: "neu", lostT: "verloren", posAtLatest: "Position bei der letzten Prüfung", bestColon: "beste",
+    carriedTip: "heute nicht erneut geprüft (in den letzten Prüfungen nichts gefunden; wird wöchentlich neu geprüft)",
+    fAll: "Alle", fTop3: "In den Top 3", fTop10: "In den Top 10", fTop100: "In den Top 100", fNotFound: "Nicht gefunden",
+    fImproved: "Verbessert", fDropped: "Verschlechtert", fNew: "Neu gefunden", fLost: "Verloren",
+    filterTitle: "Zeilen filtern", filterPh: "Keywords filtern…",
+    sincePrev: "Seit der letzten Prüfung:", mvUp: "▲ verbessert", mvDown: "▼ verschlechtert", mvNew: "● neu gefunden", mvLost: "✕ verloren",
+    movementAfter: "Bewegung (▲ ▼) erscheint nach der zweiten täglichen Prüfung.",
+    exportCsv: "CSV exportieren", noMatch: "Keine Treffer für diesen Filter.", csvBlocked: "blockiert",
+    legendMain: "Jede Spalte ist ein Tag; die Zahl zeigt, an welcher Stelle das Produkt in den Suchergebnissen des Marktplatzes für das Keyword erscheint (1 = erster).",
+    legendNf: "&gt;N nicht in den geprüften Top N gefunden", legendBlocked: "blockiert vom Marktplatz", legendNotChecked: "an diesem Tag nicht geprüft",
+    legendHint: "<b>Zahl überfahren</b>, um zu sehen, welches Produkt auf Platz 1 stand; <b>anklicken</b>, um den Hinweis zu fixieren und die SKU zu kopieren."
+  },
+};
+
+function initialLang() {
+  try { const q = new URLSearchParams(location.search).get("lang"); if (q === "de" || q === "en") return q; } catch (e) { /* no URL: ignore */ }
+  try { const saved = localStorage.getItem("rt_lang"); if (saved === "de" || saved === "en") return saved; } catch (e) { /* storage blocked: ignore */ }
+  return String(navigator.language || "").toLowerCase().startsWith("de") ? "de" : "en";
+}
+let LANG = initialLang();
+const LOCALE = () => (LANG === "de" ? "de-DE" : "en-US");
+function t(key, vars) {
+  let str = (I18N[LANG] && I18N[LANG][key]) ?? I18N.en[key] ?? key;
+  if (vars) Object.keys(vars).forEach((k) => { str = str.split("{" + k + "}").join(vars[k]); });
+  return str;
+}
+// numbers: decimal comma in German
+function nf(v, dec = 1) { const x = Number(v).toFixed(dec); return LANG === "de" ? x.replace(".", ",") : x; }
+const pct = (v, dec = 0) => (LANG === "de" ? nf(v, dec) + "\u00a0%" : nf(v, dec) + "%");
+
+function langToggleHTML() {
+  return `<div class="lang-toggle" role="group" aria-label="${esc(t("languageLabel"))}"><button type="button" data-lang="en" class="${LANG === "en" ? "active" : ""}" title="English" aria-pressed="${LANG === "en"}">EN</button><button type="button" data-lang="de" class="${LANG === "de" ? "active" : ""}" title="Deutsch" aria-pressed="${LANG === "de"}">DE</button></div>`;
+}
+function setLang(code) {
+  if (code !== "en" && code !== "de") return;
+  LANG = code;
+  try { localStorage.setItem("rt_lang", code); } catch (e) { /* storage blocked: the choice just lasts for this visit */ }
+  document.documentElement.lang = code;
+  renderPage();                                        // keeps the selected project, marketplace, product, filter and sort
+  if (typeof MODAL !== "undefined" && MODAL.keyword) renderKeywordModal();
+}
+function bindLangToggle() {
+  document.querySelectorAll(".lang-toggle button").forEach((b) => b.addEventListener("click", () => setLang(b.dataset.lang)));
+}
 
 // ---------- Small helpers ----------
 function esc(s) {
@@ -30,7 +219,7 @@ function shiftDate(iso, days) {
   return d.toISOString().slice(0, 10);
 }
 function fmtDateShort(iso) {
-  return utcDate(iso).toLocaleDateString(undefined, { day: "2-digit", month: "short", timeZone: "UTC" });
+  return utcDate(iso).toLocaleDateString(LOCALE(), { day: "2-digit", month: "short", timeZone: "UTC" });
 }
 function isoWeekStart(iso) {
   const d = utcDate(iso);
@@ -40,7 +229,7 @@ function isoWeekStart(iso) {
 }
 function monthKey(iso) { return iso.slice(0, 7); }
 function monthLabel(key) {
-  return utcDate(key + "-01").toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
+  return utcDate(key + "-01").toLocaleDateString(LOCALE(), { month: "short", year: "numeric", timeZone: "UTC" });
 }
 function tierClass(rank) {
   if (rank === "BLOCKED") return "r-blocked";
@@ -139,7 +328,7 @@ function buildProjects(allRows) {
       const key = "__best__:" + mp;
       p.items[key] = {
         item_key: key, marketplace: mp, country: "", product_id: "all", synthetic: true, count: list.length,
-        label: `All ${MP_LABEL[mp] || mp} products — best position`,
+        get label() { return t("bestLabel", { mp: MP_LABEL[mp] || mp }); },
         get rows() { return bestRows(p, mp, key); },
       };
     });
@@ -213,12 +402,12 @@ function inPeriod(rows) {
   const cutoff = shiftDate(latest, -(state.days - 1));
   return rows.filter((r) => r.date >= cutoff);
 }
-const fmtFull = (iso) => utcDate(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const fmtFull = (iso) => utcDate(iso).toLocaleDateString(LOCALE(), { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 function daysBetween(a, b) { return Math.round((utcDate(b) - utcDate(a)) / 86400000); }
 const MIN_DAILY_COLUMNS = 14; // keep the table's full shape even in the first days of tracking
 
 function itemText(i, withCountry = false) {
-  if (i.synthetic) return `★ ${i.label} (${i.count} products)`;
+  if (i.synthetic) return `★ ${i.label} (${t("nProducts", { n: i.count })})`;
   const core = i.sku ? `${i.sku} · ${i.product_id}` : String(i.product_id);
   return withCountry && i.country ? `${core} · ${i.country}` : core;
 }
@@ -237,7 +426,8 @@ function heat(rank) {                       // pastel cell background + dark rea
   return { bg: toHex(c.map((v) => v + (255 - v) * 0.78)), fg: toHex(c.map((v) => v * 0.42)) };
 }
 const DIST_COLORS = [1, 7, 28, 75, 150].map((r) => toHex(heatRGB(r)));   // solid bar colours
-const DIST_LABELS = ["1-3", "4-10", "11-50", "51-100", "100+ / not found"];
+const DIST_LABELS = ["1-3", "4-10", "11-50", "51-100", ""];
+const distLabel = (i) => (i === 4 ? t("distLast") : DIST_LABELS[i]);
 const bucketOf = (rank) => (rank === null ? 4 : rank <= 3 ? 0 : rank <= 10 ? 1 : rank <= 50 ? 2 : rank <= 100 ? 3 : 4);
 
 // Draw one section; if it fails, say so in that spot but keep the rest of the page.
@@ -245,12 +435,13 @@ function safely(hostId, fn) {
   try { fn(); } catch (e) {
     console.error(e);
     const el = document.getElementById(hostId);
-    if (el) el.innerHTML = `<div class="empty-state">This section couldn't be drawn (${esc(e.message)}).</div>`;
+    if (el) el.innerHTML = `<div class="empty-state">${esc(t("sectionFailed", { msg: e.message }))}</div>`;
   }
 }
 
 // ---------- Page ----------
 async function boot() {
+  document.documentElement.lang = LANG;
   await loadData();
   const first = Object.keys(PROJECTS)[0];
   state.projectId = first || null;
@@ -262,21 +453,19 @@ async function boot() {
 // a new tab. Without a sheet link they stay buttons that open the how-to panel.
 function addButtonHTML(id, label, cls) {
   return SETTINGS.sheet_url
-    ? `<a class="btn ${cls}" id="${id}" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener" title="Opens your Google Sheet in a new tab">${label}</a>`
+    ? `<a class="btn ${cls}" id="${id}" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener" title="${esc(t("opensSheet"))}">${label}</a>`
     : `<button class="btn ${cls}" id="${id}">${label}</button>`;
 }
 
 function helpPanelHTML() {
-  const link = SETTINGS.sheet_url
-    ? `<p><a href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener"><b>Open the tracking sheet</b></a> and add your rows there. They're picked up on the next hourly check.</p>`
-    : `<p>No Google Sheet is linked yet. Until you link one, copy the examples in <code>config/examples</code> to <code>config/keywords.csv</code> and <code>config/products.csv</code> in your GitHub repo and edit them (see the README for linking a Google Sheet, which is easier to edit).</p>`;
+  const link = SETTINGS.sheet_url ? `<p>${t("helpLinked", { url: esc(SETTINGS.sheet_url) })}</p>` : `<p>${t("helpNoSheet")}</p>`;
   return `
     <div class="help-panel">
-      <b>Add or change what's tracked</b>
-      <p>Your sheet has two tabs. <b>Keywords:</b> <code>project</code>, <code>keyword</code>. <b>Products:</b> <code>project</code>, <code>marketplace</code> (ebay / otto / kaufland / temu), <code>country</code>, <code>product_id</code> (the ID from your own listing's URL), and optionally <code>name</code> and <code>source</code> (eBay only: <code>web</code> reads the real ebay.de page instead of eBay's search API).</p>
-      <p>Every product in a project is checked against every keyword of that project, so each keyword is written once and each product is written once. A project can have several product IDs, on one marketplace or several.</p>
+      <b>${t("helpTitle")}</b>
+      <p>${t("helpTabs")}</p>
+      <p>${t("helpEvery")}</p>
       ${link}
-      <p>A new keyword's history starts the first day it's checked. To check right away, run the workflow from your repo's <b>Actions</b> tab (<b>Track marketplace ranks → Run workflow</b>).</p>
+      <p>${t("helpNew")}</p>
     </div>`;
 }
 
@@ -289,7 +478,7 @@ function computeView() {
   if (dates.length) {
     const latest = dates[dates.length - 1];
     const start = state.days === "all" ? dates[0] : shiftDate(latest, -(state.days - 1));
-    rangeText = `${state.days === "all" ? "ALL" : "L" + state.days + "D"}  ${fmtFull(start)} – ${fmtFull(latest)}`;
+    rangeText = `${state.days === "all" ? t("rangeAll") : t("rangeL", { n: state.days })}  ${fmtFull(start)} – ${fmtFull(latest)}`;
   }
   VIEW = { rows, rangeText };
 }
@@ -323,7 +512,7 @@ function bindCombo(entries, selectedKey) {
     shown = terms.length ? entries.filter((e) => terms.every((t) => e.hay.includes(t))) : entries;
     list.innerHTML = shown.length
       ? shown.map((e, i) => `<li role="option" id="itemOpt${i}" data-key="${esc(e.key)}" class="${e.key === selectedKey ? "sel" : ""}"${e.title ? ` title="${esc(e.title)}"` : ""}>${markMatches(e.text, terms)}</li>`).join("")
-      : `<li class="none">No product matches “${esc(query)}”</li>`;
+      : `<li class="none">${esc(t("noProductMatch", { q: query }))}</li>`;
     // empty box: start on the current product; while typing: start on the first match
     active = shown.length ? (terms.length ? 0 : Math.max(0, shown.findIndex((e) => e.key === selectedKey))) : -1;
     paintActive();
@@ -365,15 +554,16 @@ function renderPage() {
   const projects = Object.values(PROJECTS);
 
   const demoBanner = IS_DEMO
-    ? `<div class="demo-banner">Showing demo data — no real tracker data yet. Once the daily workflow has run, your real ranks replace this automatically.</div>`
+    ? `<div class="demo-banner">${esc(t("demoBanner"))}</div>`
     : "";
 
   if (!projects.length) {
     app.innerHTML = `
       ${demoBanner}
-      <div class="topbar"><img class="brand-icon" src="logo-icon.svg" alt="CD Commerce" /><h1>Rank Tracker</h1><div class="spacer"></div></div>
+      <div class="topbar"><img class="brand-icon" src="logo-icon.svg" alt="CD Commerce" /><h1>Rank Tracker</h1><div class="spacer"></div>${langToggleHTML()}</div>
       ${helpPanelHTML()}
-      <div class="content"><div class="empty-state">Nothing is being tracked yet.</div></div>`;
+      <div class="content"><div class="empty-state">${esc(t("nothingTracked"))}</div></div>`;
+    bindLangToggle();
     return;
   }
 
@@ -394,28 +584,28 @@ function renderPage() {
   const comboEntries = items.map((i) => ({
     key: i.item_key, text: itemText(i, multiCountry), title: i.synthetic ? "" : i.label || "",
     // what typing can match: SKU, product ID, country and the product name (the name is searched but not shown)
-    hay: foldText([i.sku, i.product_id, i.country, i.synthetic ? `${i.label} all best position` : i.label].filter(Boolean).join(" ")),
+    hay: foldText([i.sku, i.product_id, i.country, i.synthetic ? `${i.label} all best position alle beste` : i.label].filter(Boolean).join(" ")),
   }));
   const selectedText = (comboEntries.find((e) => e.key === state.itemKey) || { text: "" }).text;
   const marketOptions = mps.map((m) => {
     const n = Object.values(project.items).filter((i) => !i.synthetic && i.marketplace === m).length;
     return opt(m, `${MP_LABEL[m] || m} (${n})`, m === state.marketplace);
   }).join("");
-  const periods = [[14, "Last 14 days"], [30, "Last 30 days"], [60, "Last 60 days"], [90, "Last 90 days"], ["all", "All time"]]
+  const periods = [[14, t("lastDays", { n: 14 })], [30, t("lastDays", { n: 30 })], [60, t("lastDays", { n: 60 })], [90, t("lastDays", { n: 90 })], ["all", t("allTime")]]
     .map(([v, label]) => opt(v, label, String(v) === String(state.days))).join("");
   const hasOrganic = project.rows.some((r) => r.organic_rank !== undefined);
   const basisSelect = hasOrganic
-    ? `<select id="basisSelect" title="Which positions to count: every result, or only organic ones with paid placements removed"><option value="all" ${state.basis === "all" ? "selected" : ""}>Count: all results</option><option value="organic" ${state.basis === "organic" ? "selected" : ""}>Count: organic only</option></select>`
+    ? `<select id="basisSelect" title="${esc(t("countTitle"))}"><option value="all" ${state.basis === "all" ? "selected" : ""}>${esc(t("countAll"))}</option><option value="organic" ${state.basis === "organic" ? "selected" : ""}>${esc(t("countOrganic"))}</option></select>`
     : "";
-  const rangeGroup = `${basisSelect}<div class="range-group">${["daily", "weekly", "monthly"].map((r) => `<div class="range-btn ${state.range === r ? "active" : ""}" data-range="${r}">${r[0].toUpperCase() + r.slice(1)}</div>`).join("")}</div>
+  const rangeGroup = `${basisSelect}<div class="range-group">${["daily", "weekly", "monthly"].map((r) => `<div class="range-btn ${state.range === r ? "active" : ""}" data-range="${r}">${esc(t(r))}</div>`).join("")}</div>
       <select id="periodSelect">${periods}</select><span class="range-text">${esc(VIEW.rangeText)}</span>`;
 
-  const controls = `<div class="ctrl-group"><select class="market-select" id="marketSelect" title="Marketplace">${marketOptions}</select><div class="combo" id="itemCombo">
+  const controls = `<div class="ctrl-group"><select class="market-select" id="marketSelect" title="${esc(t("marketplace"))}">${marketOptions}</select><div class="combo" id="itemCombo">
         <input type="text" class="combo-input" id="itemInput" role="combobox" aria-expanded="false" aria-controls="itemList" aria-autocomplete="list"
-               autocomplete="off" spellcheck="false" placeholder="Search SKU or product ID…" value="${esc(selectedText)}" title="Type to search by SKU, product ID or product name" />
-        <button type="button" class="combo-toggle" id="itemToggle" tabindex="-1" aria-label="Show all products">▾</button>
+               autocomplete="off" spellcheck="false" placeholder="${esc(t("searchPh"))}" value="${esc(selectedText)}" title="${esc(t("searchTitle"))}" />
+        <button type="button" class="combo-toggle" id="itemToggle" tabindex="-1" aria-label="${esc(t("showAllProducts"))}">▾</button>
         <ul class="combo-list" id="itemList" role="listbox" hidden></ul>
-      </div>${addButtonHTML("addKwBtn", "+ Add keyword", "")}</div><div class="ctrl-group">${rangeGroup}</div>`;
+      </div>${addButtonHTML("addKwBtn", t("addKeyword"), "")}</div><div class="ctrl-group">${rangeGroup}</div>`;
 
   app.innerHTML = `
     ${demoBanner}
@@ -424,8 +614,9 @@ function renderPage() {
       <h1>Rank Tracker</h1>
       <select class="project-select" id="projectSelect">${projectOptions}</select>
       <div class="spacer"></div>
-      <span class="updated">Last checked: ${esc(new Date(lastChecked).toLocaleString())}</span>
-      ${addButtonHTML("helpBtn", "+ Add products &amp; keywords", "primary")}
+      ${langToggleHTML()}
+      <span class="updated">${esc(t("lastChecked"))} ${esc(new Date(lastChecked).toLocaleString(LOCALE()))}</span>
+      ${addButtonHTML("helpBtn", t("addProducts"), "primary")}
     </div>
     ${state.helpOpen ? helpPanelHTML() : ""}
     <div class="content">
@@ -434,10 +625,11 @@ function renderPage() {
       <div class="table-toolbar" id="tableToolbar"></div>
       <div class="grid-legend" id="gridLegend"></div>
       <div class="grid-wrap"><table class="rankgrid" id="rankGrid"></table></div>
-      <div class="version-note">Dashboard files version ${APP_VERSION}</div>
+      <div class="version-note">${esc(t("versionNote"))} ${APP_VERSION}</div>
     </div>`;
 
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  bindLangToggle();
   on("projectSelect", "change", (e) => { state.projectId = e.target.value; state.marketplace = null; state.itemKey = null; renderPage(); });
   on("marketSelect", "change", (e) => { state.marketplace = e.target.value; state.itemKey = null; renderPage(); });
   bindCombo(comboEntries, state.itemKey);
@@ -474,12 +666,12 @@ function computeSeries(rows) {
 }
 
 const CW = 320, CH = 126, CL = 6, CT = 10, CB = 24;
-function fmtTick(v) { return Math.abs(v) >= 10 || Number.isInteger(v) ? String(Math.round(v)) : v.toFixed(1); }
+function fmtTick(v) { return Math.abs(v) >= 10 || Number.isInteger(v) ? String(Math.round(v)) : nf(v, 1); }
 
 function lineSVG(dates, values, o = {}) {
   const R = 44, pw = CW - CL - R, ph = CH - CT - CB;
   const nums = values.filter((v) => v !== null && v !== undefined);
-  if (!nums.length) return `<svg viewBox="0 0 ${CW} ${CH}" class="chart"><text x="${CW / 2}" y="${CH / 2}" text-anchor="middle" class="ax">no data</text></svg>`;
+  if (!nums.length) return `<svg viewBox="0 0 ${CW} ${CH}" class="chart"><text x="${CW / 2}" y="${CH / 2}" text-anchor="middle" class="ax">${esc(t("noData"))}</text></svg>`;
   let lo = o.min ?? Math.min(...nums), hi = o.max ?? Math.max(...nums);
   if (o.min === undefined || o.max === undefined) { const pad = (hi - lo) * 0.12 || 1; if (o.min === undefined) lo = Math.max(0, lo - pad); if (o.max === undefined) hi += pad; }
   if (hi === lo) hi = lo + 1;
@@ -521,7 +713,7 @@ function distSVG(dates, dist) {
       if (!count) return;
       const h = (count / maxTotal) * ph;
       yTop -= h;
-      bars += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${DIST_COLORS[b]}"><title>${esc(fmtDateShort(dates[i]))} · ${DIST_LABELS[b]}: ${count}</title></rect>`;
+      bars += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${DIST_COLORS[b]}"><title>${esc(fmtDateShort(dates[i]))} · ${distLabel(b)}: ${count}</title></rect>`;
     });
   });
   return `<svg viewBox="0 0 ${CW} ${CH}" class="chart" role="img">${bars}<text x="${L}" y="${CH - 4}" class="ax">${esc(fmtDateShort(dates[0]))}</text><text x="${CW - R}" y="${CH - 4}" text-anchor="end" class="ax">${esc(fmtDateShort(dates[n - 1]))}</text></svg>`;
@@ -530,40 +722,40 @@ function distSVG(dates, dist) {
 function renderSummaryCards(rows) {
   const wrap = document.getElementById("summaryGrid");
   const S = computeSeries(rows);
-  if (!S.dates.length) { wrap.innerHTML = `<div class="card wide"><div class="label">No usable checks in this period yet.</div></div>`; return; }
+  if (!S.dates.length) { wrap.innerHTML = `<div class="card wide"><div class="label">${esc(t("noUsable"))}</div></div>`; return; }
   const n = S.dates.length, last = n - 1;
   const counts = S.dist[last], total = counts.reduce((a, b) => a + b, 0);
   const delta = (cur, prev, goodWhenUp, unit, dec = 0) => {
-    if (n < 2 || prev === null || prev === undefined || cur === null || cur === undefined) return `<span class="delta flat">first checks</span>`;
+    if (n < 2 || prev === null || prev === undefined || cur === null || cur === undefined) return `<span class="delta flat">${esc(t("firstChecks"))}</span>`;
     const d = cur - prev;
-    if (Math.abs(d) < 0.05) return `<span class="delta flat">no change</span>`;
+    if (Math.abs(d) < 0.05) return `<span class="delta flat">${esc(t("noChange"))}</span>`;
     const good = goodWhenUp ? d > 0 : d < 0;
-    return `<span class="delta ${good ? "good" : "bad"}"><i>${d > 0 ? "▲" : "▼"}</i> ${Math.abs(d).toFixed(dec)}${unit} vs previous check</span>`;
+    return `<span class="delta ${good ? "good" : "bad"}"><i>${d > 0 ? "▲" : "▼"}</i> ${nf(Math.abs(d), dec)}${unit} ${esc(t("vsPrev"))}</span>`;
   };
   wrap.innerHTML = `
-    <div class="card" title="Share of tracked keywords where your product was found, on the latest day">
-      <div class="label">Visibility</div>
-      <div class="value">${S.vis[last].toFixed(1)}%</div>
-      ${delta(S.vis[last], S.vis[last - 1], true, " pts", 1)}
+    <div class="card" title="${esc(t("visTitle"))}">
+      <div class="label">${esc(t("visibility"))}</div>
+      <div class="value">${pct(S.vis[last], 1)}</div>
+      ${delta(S.vis[last], S.vis[last - 1], true, t("pts"), 1)}
       ${lineSVG(S.dates, S.vis, { min: 0, max: 100, fmt: (v) => Math.round(v) })}
     </div>
-    <div class="card" title="Average position across the entries where your product was found">
-      <div class="label">Average Position</div>
-      <div class="value">${S.avg[last] !== null ? S.avg[last].toFixed(1) : "–"}</div>
+    <div class="card" title="${esc(t("avgTitle"))}">
+      <div class="label">${esc(t("avgPos"))}</div>
+      <div class="value">${S.avg[last] !== null ? nf(S.avg[last], 1) : "–"}</div>
       ${delta(S.avg[last], S.avg[last - 1], false, "", 1)}
       ${lineSVG(S.dates, S.avg, { reverse: true })}
     </div>
-    <div class="card" title="How many tracked keywords have your product in the top 10 results, on the latest day">
-      <div class="label">Keywords in Top 10</div>
-      <div class="value">${S.top10[last]} <span class="of">of ${total}</span></div>
+    <div class="card" title="${esc(t("top10Title"))}">
+      <div class="label">${esc(t("top10Label"))}</div>
+      <div class="value">${S.top10[last]} <span class="of">${esc(t("of"))} ${total}</span></div>
       ${delta(S.top10[last], S.top10[last - 1], true, "")}
       ${lineSVG(S.dates, S.top10, { min: 0, max: Math.max(2, Math.ceil(Math.max(...S.top10) / 2) * 2), fmt: (v) => Math.round(v) })}
     </div>
     <div class="card">
-      <div class="label">Distribution</div>
+      <div class="label">${esc(t("distribution"))}</div>
       <div class="dist-wrap">
         <div class="dist-chart">${distSVG(S.dates, S.dist)}</div>
-        <div class="dist-legend">${DIST_LABELS.map((l, i) => `<div><span class="dot" style="background:${DIST_COLORS[i]}"></span>${l}<b>${counts[i]}</b></div>`).reverse().join("")}</div>
+        <div class="dist-legend">${DIST_LABELS.map((_, i) => `<div><span class="dot" style="background:${DIST_COLORS[i]}"></span>${esc(distLabel(i))}<b>${counts[i]}</b></div>`).reverse().join("")}</div>
       </div>
     </div>`;
 }
@@ -571,24 +763,24 @@ function renderSummaryCards(rows) {
 // ---------- Pop-up note on the "best position" table ----------
 let POP = {};
 function popHTML(p) {
-  const basis = state.basis === "organic" ? "organic position" : "position";
-  const more = p.tied.length ? `<div class="pop-more">Tied with ${esc(p.tied.join(", "))}</div>` : "";
+  const basis = state.basis === "organic" ? t("organicPosition") : t("position");
+  const more = p.tied.length ? `<div class="pop-more">${esc(t("tiedWith"))} ${esc(p.tied.join(", "))}</div>` : "";
   const others = p.others.length
-    ? `<div class="pop-more">Also ranking (${p.others.length}): ${p.others.slice(0, 4).map((o) => `${esc(o.who)} <i>#${o.rank}</i>`).join(", ")}${p.others.length > 4 ? ` +${p.others.length - 4} more` : ""}</div>`
-    : (p.tied.length ? "" : `<div class="pop-more">No other product of yours ranks for this keyword.</div>`);
+    ? `<div class="pop-more">${esc(t("alsoRanking", { n: p.others.length }))}: ${p.others.slice(0, 4).map((o) => `${esc(o.who)} <i>#${o.rank}</i>`).join(", ")}${p.others.length > 4 ? ` ${esc(t("plusMore", { n: p.others.length - 4 }))}` : ""}</div>`
+    : (p.tied.length ? "" : `<div class="pop-more">${esc(t("noOther"))}</div>`);
   const main = p.sku ? `<b class="pop-sku">${esc(p.sku)}</b> · <span class="pop-id">${esc(p.holder.split(" · ").slice(1).join(" · "))}</span>` : `<b class="pop-sku">${esc(p.holder)}</b>`;
-  return `<div class="pop-head"><span class="pop-title">Ranked first · ${esc(fmtDateShort(p.date))}</span><button type="button" class="pop-x" data-close aria-label="Close">×</button></div>
+  return `<div class="pop-head"><span class="pop-title">${esc(t("rankedFirst"))} · ${esc(fmtDateShort(p.date))}</span><button type="button" class="pop-x" data-close aria-label="${esc(t("close"))}">×</button></div>
     <div class="pop-main">${main}</div>
-    <div class="pop-sub">${basis} ${p.rank} for “${esc(p.kw)}”</div>
-    <div class="pop-actions">${p.sku ? `<button type="button" data-copy="sku">Copy SKU</button>` : ""}<button type="button" data-copy="id">Copy ID</button><button type="button" data-copy="all">Copy all</button></div>
-    ${more}${others}<div class="pop-hint">Pinned · click outside or press Esc to close</div>`;
+    <div class="pop-sub">${esc(t("posFor", { basis, rank: p.rank, kw: p.kw }))}</div>
+    <div class="pop-actions">${p.sku ? `<button type="button" data-copy="sku">${esc(t("copySku"))}</button>` : ""}<button type="button" data-copy="id">${esc(t("copyId"))}</button><button type="button" data-copy="all">${esc(t("copyAll"))}</button></div>
+    ${more}${others}<div class="pop-hint">${esc(t("pinned"))}</div>`;
 }
 function popCopyText(p, what) {
   if (what === "sku") return p.sku;
   if (what === "id") return p.id || p.holder;
-  const lines = [`Ranked first for “${p.kw}” (${fmtDateShort(p.date)})`, `${p.holder} — ${state.basis === "organic" ? "organic position" : "position"} ${p.rank}`];
-  p.tied.forEach((t) => lines.push(`${t} — tied`));
-  if (p.others.length) { lines.push("Also ranking:"); p.others.forEach((o) => lines.push(`${o.who} — ${o.rank}`)); }
+  const lines = [t("copyRankedFirst", { kw: p.kw, date: fmtDateShort(p.date) }), `${p.holder} — ${state.basis === "organic" ? t("organicPosition") : t("position")} ${p.rank}`];
+  p.tied.forEach((x) => lines.push(`${x} — ${t("tied")}`));
+  if (p.others.length) { lines.push(t("alsoRankingColon")); p.others.forEach((o) => lines.push(`${o.who} — ${o.rank}`)); }
   return lines.join("\n");
 }
 async function copyText(text) {
@@ -600,7 +792,7 @@ async function copyText(text) {
 }
 (function initRankPop() {
   const el = document.createElement("div");
-  el.id = "rankPop"; el.className = "rank-pop"; el.hidden = true; el.setAttribute("role", "dialog"); el.setAttribute("aria-label", "Which product ranked first");
+  el.id = "rankPop"; el.className = "rank-pop"; el.hidden = true; el.setAttribute("role", "dialog");
   document.body.appendChild(el);
   let current = null, pinned = false, timer = null;
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
@@ -617,7 +809,7 @@ async function copyText(text) {
     const p = POP[td.dataset.pop];
     if (!p) return hide();
     cancel(); current = td; pinned = !!pin; el.classList.toggle("pinned", pinned);
-    el.innerHTML = popHTML(p); el.hidden = false; place();
+    el.setAttribute("aria-label", t("popLabel")); el.innerHTML = popHTML(p); el.hidden = false; place();
   };
   const cellOf = (e) => (e.target.closest ? e.target.closest("td[data-pop]") : null);
   const inPop = (e) => !!(e.target.closest && e.target.closest("#rankPop"));
@@ -641,7 +833,7 @@ async function copyText(text) {
       if (what && p) {
         const ok = await copyText(popCopyText(p, what));
         const old = btn.dataset.label || btn.textContent; btn.dataset.label = old;
-        btn.textContent = ok ? "Copied ✓" : "Press Ctrl/Cmd+C"; btn.classList.toggle("done", ok);
+        btn.textContent = ok ? t("copied") : t("pressCopy"); btn.classList.toggle("done", ok);
         setTimeout(() => { btn.textContent = old; btn.classList.remove("done"); }, 1600);
       }
       return;
@@ -741,27 +933,27 @@ function chartSVG(dates, show) {
     g += `<path class="md-line ${cls}" d="${path.trim()}"/>${pts}`;
   });
   dates.forEach((d) => {                      // checked, but your product was not in the results that were read
-    if (!d.found && !d.blocked) g += `<circle class="md-nf" cx="${X(d.date).toFixed(1)}" cy="${Y(maxY).toFixed(1)}" r="3.6"><title>${esc(d.date)}: not found${d.scanned ? " in the top " + d.scanned : ""}</title></circle>`;
+    if (!d.found && !d.blocked) g += `<circle class="md-nf" cx="${X(d.date).toFixed(1)}" cy="${Y(maxY).toFixed(1)}" r="3.6"><title>${esc(d.date)}: ${esc(t("notFound"))}${d.scanned ? " " + esc(t("inTheTop", { n: d.scanned })) : ""}</title></circle>`;
   });
   const hw = Math.max(10, pw / Math.max(1, dates.length));
   g += dates.map((d, i) => `<rect class="md-hit" data-i="${i}" x="${(X(d.date) - hw / 2).toFixed(1)}" y="${T}" width="${hw.toFixed(1)}" height="${ph}"/>`).join("");
   g += `<line class="md-guide" id="mdGuide" y1="${T}" y2="${T + ph}" x1="0" x2="0" hidden/>`;
-  return `<svg viewBox="0 0 ${W} ${H}" class="md-svg" role="img" aria-label="Rank history">${g}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="md-svg" role="img" aria-label="${esc(t("rankHistory"))}">${g}</svg>`;
 }
 
 function tipHTML(d, hasOrganic) {
   const rows = [];
   if (hasOrganic) {
-    rows.push(`<div><i class="sw md-organic-sw"></i>Organic: <b>${d.organic !== null ? d.organic : d.found ? "— (shown as an ad)" : "not found"}</b></div>`);
-    if (d.ad !== null) rows.push(`<div><i class="sw md-ad-sw"></i>Ad slot: <b>${d.ad}</b></div>`);
+    rows.push(`<div><i class="sw md-organic-sw"></i>${esc(t("tipOrganic"))}: <b>${d.organic !== null ? d.organic : d.found ? esc(t("tipShownAsAd")) : esc(t("notFound"))}</b></div>`);
+    if (d.ad !== null) rows.push(`<div><i class="sw md-ad-sw"></i>${esc(t("tipAdSlot"))}: <b>${d.ad}</b></div>`);
   }
-  rows.push(`<div><i class="sw md-overall-sw"></i>Overall: <b>${d.overall !== null ? d.overall : "not found" + (d.scanned ? " in the top " + d.scanned : "")}</b></div>`);
-  if (hasOrganic && d.organic !== null && d.overall !== null) rows.push(`<div class="md-tip-sub">${d.overall - d.organic} ad(s) above it</div>`);
-  if (d.holder) rows.push(`<div class="md-tip-sub">Best product: ${esc(d.holder)}</div>`);
+  rows.push(`<div><i class="sw md-overall-sw"></i>${esc(t("tipOverall"))}: <b>${d.overall !== null ? d.overall : esc(t("notFound")) + (d.scanned ? " " + esc(t("inTheTop", { n: d.scanned })) : "")}</b></div>`);
+  if (hasOrganic && d.organic !== null && d.overall !== null) rows.push(`<div class="md-tip-sub">${esc(t("tipAdsAbove", { n: d.overall - d.organic }))}</div>`);
+  if (d.holder) rows.push(`<div class="md-tip-sub">${esc(t("tipBestProduct"))}: ${esc(d.holder)}</div>`);
   const bits = [];
-  if (d.geo) bits.push(d.geo === "DE" ? "German connection ✓" : "connection from outside Germany");
-  if (d.lang) bits.push(d.lang === "de" ? "German page ✓" : `page language: ${esc(d.lang)}`);
-  if (d.shipto) bits.push(`ship-to ${esc(d.shipto)}`);
+  if (d.geo) bits.push(esc(d.geo === "DE" ? t("geoDE") : t("geoOther")));
+  if (d.lang) bits.push(d.lang === "de" ? esc(t("langDE")) : esc(t("pageLang", { l: d.lang })));
+  if (d.shipto) bits.push(esc(t("shipTo", { pc: d.shipto })));
   if (bits.length) rows.push(`<div class="md-tip-sub">${bits.join(" · ")}</div>`);
   return `<div class="md-tip-date">${esc(fmtDateShort(d.date))}, ${esc(d.date.slice(0, 4))}</div>${rows.join("")}`;
 }
@@ -787,30 +979,31 @@ function renderKeywordModal() {
   const found = dates.filter((d) => d.found).length, checked = dates.filter((d) => !d.blocked).length;
   const orgs = dates.filter((d) => d.organic !== null);
   const bestOrg = orgs.length ? orgs.reduce((a, b) => (b.organic <= a.organic ? b : a)) : null;
-  const ranges = [["7D", 7], ["1M", 30], ["3M", 90], ["1Y", 365], ["ALL", "all"]];
+  const ranges = [[t("r7"), 7], [t("r30"), 30], [t("r90"), 90], [t("r365"), 365], [t("rAll"), "all"]];
   const chips = series.hasOrganic
-    ? `<label class="md-chip md-organic-chip"><input type="checkbox" id="mdOrg" ${MODAL.show.organic ? "checked" : ""}> Organic</label>
-       <label class="md-chip md-ad-chip"><input type="checkbox" id="mdAd" ${MODAL.show.ads ? "checked" : ""}> Sponsored (ad slot)</label>
-       <label class="md-chip md-overall-chip"><input type="checkbox" id="mdAll" ${MODAL.show.overall ? "checked" : ""}> Overall (ads counted)</label>`
-    : `<span class="md-note">This marketplace gives one position per check.</span>`;
+    ? `<label class="md-chip md-organic-chip"><input type="checkbox" id="mdOrg" ${MODAL.show.organic ? "checked" : ""}> ${esc(t("organic"))}</label>
+       <label class="md-chip md-ad-chip"><input type="checkbox" id="mdAd" ${MODAL.show.ads ? "checked" : ""}> ${esc(t("sponsored"))}</label>
+       <label class="md-chip md-overall-chip"><input type="checkbox" id="mdAll" ${MODAL.show.overall ? "checked" : ""}> ${esc(t("overallChip"))}</label>`
+    : `<span class="md-note">${esc(t("onePos"))}</span>`;
   const stat = (label, v) => `<div class="md-stat"><span>${label}</span><b>${v}</b></div>`;
+  const pc = CONFIG && CONFIG.ebay_postcode !== undefined ? CONFIG.ebay_postcode : "36179";
   const hint = item.marketplace === "ebay"
-    ? `“Open on ${mpName}” opens the same search the tracker reads${item.country === "DE" || (linkItem && linkItem.country === "DE") ? " (German eBay, delivery postcode " + esc(CONFIG && CONFIG.ebay_postcode !== undefined ? CONFIG.ebay_postcode : "36179") + ")" : ""}. If eBay opens in English, switch it to German first: in English eBay translates the keyword and shows a different list.`
-    : `“Open on ${mpName}” opens the search page for this keyword.`;
+    ? t("hintEbay", { mp: esc(mpName), de: item.country === "DE" || (linkItem && linkItem.country === "DE") ? t("hintDe", { pc: esc(pc) }) : "" })
+    : t("hintOther", { mp: esc(mpName) });
   root.innerHTML = `
     <div class="kw-backdrop" data-close></div>
     <div class="kw-dialog" role="dialog" aria-modal="true" aria-labelledby="mdTitle">
       <div class="md-head">
         <div class="md-title"><h2 id="mdTitle">${esc(MODAL.keyword)}</h2>${badge}</div>
-        <div class="md-actions">${url ? `<a class="btn" id="mdOpen" href="${esc(url)}" target="_blank" rel="noopener">↗ Open on ${esc(mpName)}</a>` : ""}<button type="button" class="md-x" id="mdClose" data-close aria-label="Close">×</button></div>
+        <div class="md-actions">${url ? `<a class="btn" id="mdOpen" href="${esc(url)}" target="_blank" rel="noopener">${esc(t("openOn", { mp: mpName }))}</a>` : ""}<button type="button" class="md-x" id="mdClose" data-close aria-label="${esc(t("close"))}">×</button></div>
       </div>
-      <div class="md-controls"><label class="md-label" for="mdProduct">Product</label><select id="mdProduct" class="md-select">${options}</select></div>
+      <div class="md-controls"><label class="md-label" for="mdProduct">${esc(t("product"))}</label><select id="mdProduct" class="md-select">${options}</select></div>
       <div class="md-toolbar"><div class="md-chips">${chips}</div>
         <div class="md-ranges">${ranges.map(([l, d]) => `<button type="button" class="md-range ${MODAL.days === d ? "active" : ""}" data-days="${d}">${l}</button>`).join("")}</div></div>
       ${dates.length ? `<div class="md-chart" id="mdChart">${chartSVG(dates, showEff)}<div class="md-tip" id="mdTip" hidden></div></div>
-        <div class="md-stats">${stat("Latest " + (series.hasOrganic ? "organic" : "position"), last ? (series.hasOrganic ? (last.organic !== null ? last.organic : last.found ? "ad only" : "not found") : last.overall !== null ? last.overall : "not found") : "–")}
-          ${bestOrg ? stat("Best organic", `${bestOrg.organic} <small>${esc(fmtDateShort(bestOrg.date))}</small>`) : ""}${stat("Found", `${found} of ${checked} days`)}</div>`
-        : `<div class="md-empty">No readings for this keyword in the chosen period for this product.</div>`}
+        <div class="md-stats">${stat(esc(series.hasOrganic ? t("latestOrganic") : t("latestPosition")), last ? (series.hasOrganic ? (last.organic !== null ? last.organic : last.found ? esc(t("adOnly")) : esc(t("notFound"))) : last.overall !== null ? last.overall : esc(t("notFound"))) : "–")}
+          ${bestOrg ? stat(esc(t("bestOrganic")), `${bestOrg.organic} <small>${esc(fmtDateShort(bestOrg.date))}</small>`) : ""}${stat(esc(t("foundStat")), esc(t("xOfYDays", { found, checked })))}</div>`
+        : `<div class="md-empty">${esc(t("noReadings"))}</div>`}
       <p class="md-hint">${hint}</p>
     </div>`;
   MODAL.dates = dates; MODAL.hasOrganic = series.hasOrganic;
@@ -866,15 +1059,15 @@ function closeKeywordModal() {
 
 // ---------- The rank tables ----------
 function cellHTML(v, tip, scanned, pop) {
-  if (v === undefined) return `<td class="nodata" title="${tip} — not checked">·</td>`;
-  if (v === "BLOCKED") return `<td class="rank-cell r-blocked" title="${tip} — the marketplace blocked this check, which is not the same as falling out of the rankings">?</td>`;
-  if (v === null) return `<td class="rank-cell r-nf" title="${tip} — not found">${scanned ? `&gt;${scanned}` : "–"}</td>`;
+  if (v === undefined) return `<td class="nodata" title="${tip} — ${esc(t("notChecked"))}">·</td>`;
+  if (v === "BLOCKED") return `<td class="rank-cell r-blocked" title="${tip} — ${esc(t("blockedTip"))}">?</td>`;
+  if (v === null) return `<td class="rank-cell r-nf" title="${tip} — ${esc(t("notFoundTip"))}">${scanned ? `&gt;${scanned}` : "–"}</td>`;
   const h = heat(v);
   if (pop) return `<td class="rank-cell has-pop" style="background:${h.bg};color:${h.fg}" data-pop="${pop}" tabindex="0">${v}</td>`;
   return `<td class="rank-cell" style="background:${h.bg};color:${h.fg}" title="${tip}">${v}</td>`;
 }
 function dayHeaderHTML(label) {
-  const m = /^(\d+)\s+(.*)$/.exec(label) || /^(.*?)\s+(\d+)$/.exec(label);
+  const m = /^(\d+)\.?\s+(.*)$/.exec(label) || /^(.*?)\s+(\d+)$/.exec(label);   // "23. Okt." (German) or "Oct 23" (English)
   return m ? `<div class="d">${esc(m[1].length <= 2 ? m[1] : m[2])}</div><div class="mon">${esc(m[1].length <= 2 ? m[2] : m[1])}</div>` : esc(label);
 }
 
@@ -895,7 +1088,7 @@ function renderTable() {
   const hasCell = (id, d) => Object.prototype.hasOwnProperty.call(byEnt[id] || {}, d);
   const cell = (id, d) => byEnt[id][d];
   const labelText = (id) => id;
-  const labelHTML = (id) => `<span class="kw-name" data-kw="${esc(id)}" tabindex="0" role="button" title="Show this keyword's rank history">${esc(id)}</span>`;
+  const labelHTML = (id) => `<span class="kw-name" data-kw="${esc(id)}" tabindex="0" role="button" title="${esc(t("kwTitle"))}">${esc(id)}</span>`;
 
   const dayValue = (id, d) => { if (!hasCell(id, d)) return undefined; const r = cell(id, d); return r.blocked ? "BLOCKED" : r.rank; };
   const bucketValue = (id, dates) => {
@@ -919,7 +1112,7 @@ function renderTable() {
     const buckets = {};
     const keyOf = state.range === "weekly" ? isoWeekStart : monthKey;
     rawDates.forEach((d) => { (buckets[keyOf(d)] = buckets[keyOf(d)] || []).push(d); });
-    columns = Object.keys(buckets).sort().reverse().map((k) => ({ key: k, label: state.range === "weekly" ? "wk " + fmtDateShort(k) : monthLabel(k) }));
+    columns = Object.keys(buckets).sort().reverse().map((k) => ({ key: k, label: state.range === "weekly" ? t("weekPrefix") + " " + fmtDateShort(k) : monthLabel(k) }));
     getValue = (id, k) => bucketValue(id, buckets[k]);
   }
 
@@ -981,29 +1174,29 @@ function renderTable() {
 
   // toolbar: filter + search on the left, movement chips in the middle, export on the right
   const chip = (f, text, n) => `<button class="mv ${state.filter === f ? "on" : ""}" data-f="${f}"${n ? "" : " disabled"}>${text} <b>${n}</b></button>`;
-  const fopts = [["all", "All"], ["top3", "In the top 3"], ["top10", "In the top 10"], ["top100", "In the top 100"], ["notfound", "Not found"], ["improved", "Moved up"], ["dropped", "Moved down"], ["new", "Newly found"], ["lost", "Lost"]]
-    .map(([v, l]) => `<option value="${v}" ${state.filter === v ? "selected" : ""}>${l}</option>`).join("");
+  const fopts = [["all", t("fAll")], ["top3", t("fTop3")], ["top10", t("fTop10")], ["top100", t("fTop100")], ["notfound", t("fNotFound")], ["improved", t("fImproved")], ["dropped", t("fDropped")], ["new", t("fNew")], ["lost", t("fLost")]]
+    .map(([v, l]) => `<option value="${v}" ${state.filter === v ? "selected" : ""}>${esc(l)}</option>`).join("");
   document.getElementById("tableToolbar").innerHTML = `
-    <div class="ctrl-group"><select id="filterSelect" title="Filter rows">${fopts}</select>
-      <input class="search-input" id="kwSearch" placeholder="Filter keywords…" value="${esc(state.q)}" /></div>
+    <div class="ctrl-group"><select id="filterSelect" title="${esc(t("filterTitle"))}">${fopts}</select>
+      <input class="search-input" id="kwSearch" placeholder="${esc(t("filterPh"))}" value="${esc(state.q)}" /></div>
     <div class="movers">${anyPrev
-      ? `<span class="mv-label">Since the previous check:</span>${chip("improved", "▲ moved up", kinds.improved)}${chip("dropped", "▼ moved down", kinds.dropped)}${chip("new", "● newly found", kinds.new)}${chip("lost", "✕ lost", kinds.lost)}`
-      : `<span class="mv-label">Movement (▲ ▼) appears after the second daily check.</span>`}</div>
-    <div class="ctrl-group"><button class="btn" id="exportBtn">Export CSV</button></div>`;
+      ? `<span class="mv-label">${esc(t("sincePrev"))}</span>${chip("improved", esc(t("mvUp")), kinds.improved)}${chip("dropped", esc(t("mvDown")), kinds.dropped)}${chip("new", esc(t("mvNew")), kinds.new)}${chip("lost", esc(t("mvLost")), kinds.lost)}`
+      : `<span class="mv-label">${esc(t("movementAfter"))}</span>`}</div>
+    <div class="ctrl-group"><button class="btn" id="exportBtn">${esc(t("exportCsv"))}</button></div>`;
   document.getElementById("filterSelect").addEventListener("change", (e) => { state.filter = e.target.value; renderTable(); });
   document.getElementById("kwSearch").addEventListener("input", (e) => { state.q = e.target.value; renderTable(); const s = document.getElementById("kwSearch"); s.focus(); s.setSelectionRange(s.value.length, s.value.length); });
   document.getElementById("exportBtn").addEventListener("click", exportCSV);
   document.querySelectorAll("#tableToolbar .mv").forEach((b) => b.addEventListener("click", () => { state.filter = state.filter === b.dataset.f ? "all" : b.dataset.f; renderTable(); }));
 
-  document.getElementById("gridLegend").innerHTML = legendHTML() + (bestView ? ` <span class="legend-hint">· <b>Hover a number</b> to see which product ranked first; <b>click it</b> to pin the note and copy the SKU.</span>` : "");
+  document.getElementById("gridLegend").innerHTML = legendHTML() + (bestView ? ` <span class="legend-hint">· ${t("legendHint")}</span>` : "");
 
   const arrow = (k) => (state.sort.key === k ? (state.sort.dir === 1 ? " ▲" : " ▼") : "");
   const th = (k, text, tip, extra = "") => `<th class="metric sortable ${extra}" data-sort="${k}" title="${tip}">${text}${arrow(k)}</th>`;
   const head = `<thead><tr>
-    <th class="kwcol sortable" data-sort="name">Keyword (${ids.length})${arrow("name")}</th>
-    ${th("now", "Now", "Position at the most recent check")}${th("best", "Best", "Best position in the selected period")}
-    ${th("avg", "Avg", "Average position over the checks where it was found")}${th("found", "Found", "Share of checks where it was found at all")}
-    ${th("change", "Change", "Change since the check before the latest one", "metric-last")}
+    <th class="kwcol sortable" data-sort="name">${esc(t("thKeyword", { n: ids.length }))}${arrow("name")}</th>
+    ${th("now", esc(t("thNow")), esc(t("thNowTip")))}${th("best", esc(t("thBest")), esc(t("thBestTip")))}
+    ${th("avg", esc(t("thAvg")), esc(t("thAvgTip")))}${th("found", esc(t("thFound")), esc(t("thFoundTip")))}
+    ${th("change", esc(t("thChange")), esc(t("thChangeTip")), "metric-last")}
     ${columns.map((c) => `<th class="day">${state.range === "daily" ? dayHeaderHTML(c.label) : esc(c.label)}</th>`).join("")}</tr></thead>`;
 
   POP = {};
@@ -1019,23 +1212,23 @@ function renderTable() {
     const s = st[id];
     const nowN = s.now === undefined ? 9999 : s.now === null ? 9999 : s.now;
     const tag = nowN === 1 ? '<span class="kw-tag">#1</span>' : nowN <= 3 ? '<span class="kw-tag">TOP 3</span>' : "";
-    const nowCell = s.now === undefined ? `<td class="metric nodata">·</td>` : cellHTML(s.now, `${esc(labelText(id))} · position at the most recent check`, s.scanned, s.now === null ? null : popFor(id, s.nowDate)).replace("<td ", '<td data-m="now" ').replace('class="rank-cell', 'class="metric rank-cell');
-    const change = s.kind === "new" ? `<span class="trend-down"><i>●</i> new</span>` : s.kind === "lost" ? `<span class="trend-up"><i>✕</i> lost</span>`
+    const nowCell = s.now === undefined ? `<td class="metric nodata">·</td>` : cellHTML(s.now, `${esc(labelText(id))} · ${esc(t("posAtLatest"))}`, s.scanned, s.now === null ? null : popFor(id, s.nowDate)).replace("<td ", '<td data-m="now" ').replace('class="rank-cell', 'class="metric rank-cell');
+    const change = s.kind === "new" ? `<span class="trend-down"><i>●</i> ${esc(t("newT"))}</span>` : s.kind === "lost" ? `<span class="trend-up"><i>✕</i> ${esc(t("lostT"))}</span>`
       : s.kind === "improved" ? `<span class="trend-down"><i>▲</i> ${s.delta}</span>` : s.kind === "dropped" ? `<span class="trend-up"><i>▼</i> ${-s.delta}</span>`
       : s.kind === "same" ? `<span class="trend-flat">=</span>` : `<span class="trend-flat">–</span>`;
     const cells = columns.map((c) => {
       const v = getValue(id, c.key);
       const r0 = state.range === "daily" && hasCell(id, c.key) ? cell(id, c.key) : null;
       const carried = state.range === "daily" && hasCell(id, c.key) && cell(id, c.key).carried;
-      const tip = esc(labelText(id) + " · " + c.key + (r0 && r0.holder ? " · best: " + r0.holder : "") + (carried ? " · not re-checked today (nothing found in its last checks; re-checked weekly)" : ""));
+      const tip = esc(labelText(id) + " · " + c.key + (r0 && r0.holder ? " · " + t("bestColon") + ": " + r0.holder : "") + (carried ? " · " + t("carriedTip") : ""));
       return cellHTML(v, tip, state.range === "daily" && v === null ? cell(id, c.key).results_scanned : null, state.range === "daily" && typeof v === "number" ? popFor(id, c.key) : null);
     }).join("");
     return `<tr><td class="kwcol">${labelHTML(id)}${tag}</td>${nowCell}
-      ${(() => { const pk = s.best === null ? null : popFor(id, s.bestDate); return `<td class="metric${pk ? " has-pop" : ""}"${pk ? ` data-pop="${pk}" tabindex="0"` : ""}>${s.best === null ? "–" : s.best}</td>`; })()}<td class="metric">${s.avg === null ? "–" : s.avg.toFixed(1)}</td>
-      <td class="metric">${s.found === null ? "–" : Math.round(s.found) + "%"}</td><td class="metric metric-last">${change}</td>${cells}</tr>`;
+      ${(() => { const pk = s.best === null ? null : popFor(id, s.bestDate); return `<td class="metric${pk ? " has-pop" : ""}"${pk ? ` data-pop="${pk}" tabindex="0"` : ""}>${s.best === null ? "–" : s.best}</td>`; })()}<td class="metric">${s.avg === null ? "–" : nf(s.avg, 1)}</td>
+      <td class="metric">${s.found === null ? "–" : pct(Math.round(s.found))}</td><td class="metric metric-last">${change}</td>${cells}</tr>`;
   }).join("");
 
-  document.getElementById("rankGrid").innerHTML = head + `<tbody>${body || `<tr><td class="kwcol" colspan="${columns.length + 6}">Nothing matches this filter.</td></tr>`}</tbody>`;
+  document.getElementById("rankGrid").innerHTML = head + `<tbody>${body || `<tr><td class="kwcol" colspan="${columns.length + 6}">${esc(t("noMatch"))}</td></tr>`}</tbody>`;
   document.querySelectorAll("#rankGrid th.sortable").forEach((h) => h.addEventListener("click", () => {
     const k = h.dataset.sort;
     state.sort = state.sort.key === k ? { key: k, dir: -state.sort.dir } : { key: k, dir: SORT_DEFAULT_DIR[k] };
@@ -1045,8 +1238,8 @@ function renderTable() {
 
 function legendHTML() {
   const chips = [2, 7, 25, 70, 200].map((r, i) => { const h = heat(r); return `<span class="chip" style="background:${h.bg};color:${h.fg}">${["1–3", "4–10", "11–50", "51–100", ">100"][i]}</span>`; }).join("");
-  return `Each column is a day; the number is where the product appears in that marketplace's search results for the keyword (1 = first). ${chips}
-    <span class="chip r-nf">&gt;N not found in the top N checked</span><span class="chip r-blocked">?</span> blocked by the marketplace &nbsp;·&nbsp; <b>·</b> not checked that day`;
+  return `${esc(t("legendMain"))} ${chips}
+    <span class="chip r-nf">${t("legendNf")}</span><span class="chip r-blocked">?</span> ${esc(t("legendBlocked"))} &nbsp;·&nbsp; <b>·</b> ${esc(t("legendNotChecked"))}`;
 }
 
 // ---------- CSV export ----------
@@ -1057,7 +1250,7 @@ function buildCsv() {
   entities.forEach((e) => {
     const vals = columns.map((c) => {
       const v = getValue(e.id, c.key);
-      return v === undefined || v === null ? "" : v === "BLOCKED" ? "blocked" : v;
+      return v === undefined || v === null ? "" : v === "BLOCKED" ? t("csvBlocked") : v;
     });
     lines.push([q(e.label), ...vals].join(","));
   });

@@ -180,7 +180,15 @@ Here, 4 products x the keywords above = every keyword checked for every product.
 - **`sku`** (optional): your own SKU / identifier for the product. It is shown first in the dashboard's
   product dropdown as "SKU · product ID", e.g. "WGH30-3T · 184137378691". Header spellings that work:
   `SKU`, `Seller SKU`. **`name`** (optional) is the product name; `Product name`, `Title` and `Label` also work.
-  **Click a keyword in the table to open its rank history.** The pop-up shows a chart of the keyword's Organic position
+  **Language: English or German.** The **EN | DE** switch in the top bar changes all interface text, plus dates (e.g. "23. Okt.")
+and numbers (decimal comma, "61,5 %"). The choice is remembered in the browser; the first visit follows the browser's
+language, and a link ending in `?lang=de` (or `?lang=en`) forces one. **Keywords, product names, SKUs, product IDs and
+project names are never translated**: they are shown exactly as in the sheet. Marketplace names stay as brand names, and
+the sheet's column names (`project`, `keyword`, …) and GitHub's own button names stay in English because they are code
+or GitHub's wording. The wording lives in the `I18N` block at the top of `docs/app.js` (one entry per text, English and
+German side by side); to change a German phrase, edit it there.
+
+**Click a keyword in the table to open its rank history.** The pop-up shows a chart of the keyword's Organic position
 (blue), Sponsored / ad-slot position (orange) and, if ticked, Overall position with ads counted (grey dashed), with a
 product selector (including "★ All … products — best position"), range buttons (7D, 1M, 3M, 1Y, ALL) and hover details
 for each day (ads above, and whether the reading came from a German connection and a German page). Days where the
