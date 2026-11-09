@@ -7,9 +7,9 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-10-27.1";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-11-09.2";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
-let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false };
+let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false, view: "ranks", compKw: null, compDate: null, compDays: 30 };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
 
 // ---------- Language: English / German ----------
@@ -90,7 +90,30 @@ const I18N = {
     exportCsv: "Export CSV", noMatch: "Nothing matches this filter.", csvBlocked: "blocked",
     legendMain: "Each column is a day; the number is where the product appears in that marketplace's search results for the keyword (1 = first).",
     legendNf: "&gt;N not found in the top N checked", legendBlocked: "blocked by the marketplace", legendNotChecked: "not checked that day",
-    legendHint: "<b>Hover a number</b> to see which product ranked first; <b>click it</b> to pin the note and copy the SKU."
+    legendHint: "<b>Hover a number</b> to see which product ranked first; <b>click it</b> to pin the note and copy the SKU.",
+    tabRanks: "Ranks", tabCompetitors: "Competitors",
+    compLoading: "Loading competitor data…",
+    compNone: "No competitor data yet. It is saved from the next tracker run onwards, for eBay keywords read through the website.",
+    compEbayOnly: "Competitor data is captured for eBay only for now. Switch to a project with eBay products.",
+    compNoKw: "No data for this keyword on this day.", compNoKeywords: "This project has no eBay keywords yet.",
+    compKeyword: "Keyword", compDay: "Day", compTrend: "Trend period",
+    compTitleKw: "Top listings for “{kw}”",
+    kpiSellers: "Sellers in the top 10", kpiSellersSub: "{n} named · {m} slots without a name",
+    kpiAds: "Ads in the top 10", kpiAdsSub: "of 10 slots",
+    kpiMedian: "Median price, top 10", kpiYourPrice: "Yours {p} ({d} vs median)", kpiNoPrice: "no price shown",
+    kpiYourPos: "Your best position", kpiYourPosSub: "organic {o}", kpiNotInTop: "not in the top {n}",
+    priceByPos: "Price by position, top 10", median: "median",
+    thPos: "#", thListing: "Listing", thSeller: "Seller", thFeedback: "Feedback", thPrice: "Price", thDelivery: "Delivery", thSold: "Sold", thSoldSince: "Since last day",
+    freeDelivery: "free", adBadge: "Ad", yoursBadge: "Yours", youBadge: "You", unnamedSeller: "private / unnamed", imageSlot: "(image-only slot)", withCoupon: "with coupon", atLeast: "at least",
+    sovTitle: "Seller share of voice — this project, {date}",
+    sovHint: "A top-10 slot earns 11 minus its position (position 1 = 10 points). Share = a seller's points divided by all points on this project's keywords.",
+    thShare: "Share", thSlots: "Top-10 slots", thTop3: "Top-3 slots", thKeywords: "Keywords", thAsAd: "As ad", thTrendCol: "Trend",
+    othersRow: "Other sellers (private or unnamed)",
+    salesTitle: "Fastest-selling listings (estimated)",
+    salesHint: "Estimated from the change in a listing's sold count between the first and the last day it was seen in the period. Counts shown as “88+” are left out. A rough guide only: listings with variations and eBay's rounding blur it.",
+    thSoldPeriod: "Sold in period", thPerDay: "≈ per day", noSales: "Not enough days of data yet to estimate sales (the same listing is needed on at least two days).",
+    compNote: "Seller names are shown for business sellers only. Positions are as eBay Germany showed them to the tracker, ads included. Sold counts are cumulative per listing.",
+    openCompetitors: "Competitors",
   },
   de: {
     demoBanner: "Es werden Demodaten angezeigt – noch keine echten Tracker-Daten. Sobald der tägliche Workflow gelaufen ist, ersetzen die echten Rankings sie automatisch.",
@@ -166,7 +189,30 @@ const I18N = {
     exportCsv: "CSV exportieren", noMatch: "Keine Treffer für diesen Filter.", csvBlocked: "blockiert",
     legendMain: "Jede Spalte ist ein Tag; die Zahl zeigt, an welcher Stelle das Produkt in den Suchergebnissen des Marktplatzes für das Keyword erscheint (1 = erster).",
     legendNf: "&gt;N nicht in den geprüften Top N gefunden", legendBlocked: "blockiert vom Marktplatz", legendNotChecked: "an diesem Tag nicht geprüft",
-    legendHint: "<b>Zahl überfahren</b>, um zu sehen, welches Produkt auf Platz 1 stand; <b>anklicken</b>, um den Hinweis zu fixieren und die SKU zu kopieren."
+    legendHint: "<b>Zahl überfahren</b>, um zu sehen, welches Produkt auf Platz 1 stand; <b>anklicken</b>, um den Hinweis zu fixieren und die SKU zu kopieren.",
+    tabRanks: "Rankings", tabCompetitors: "Wettbewerber",
+    compLoading: "Wettbewerbsdaten werden geladen…",
+    compNone: "Noch keine Wettbewerbsdaten. Sie werden ab dem nächsten Tracker-Lauf gespeichert, für eBay-Keywords, die über die Webseite gelesen werden.",
+    compEbayOnly: "Wettbewerbsdaten werden vorerst nur für eBay erfasst. Wechseln Sie zu einem Projekt mit eBay-Produkten.",
+    compNoKw: "Für dieses Keyword gibt es an diesem Tag keine Daten.", compNoKeywords: "Dieses Projekt hat noch keine eBay-Keywords.",
+    compKeyword: "Keyword", compDay: "Tag", compTrend: "Trendzeitraum",
+    compTitleKw: "Top-Angebote für „{kw}“",
+    kpiSellers: "Verkäufer in den Top 10", kpiSellersSub: "{n} benannt · {m} Plätze ohne Namen",
+    kpiAds: "Anzeigen in den Top 10", kpiAdsSub: "von 10 Plätzen",
+    kpiMedian: "Medianpreis, Top 10", kpiYourPrice: "Ihr Preis {p} ({d} ggü. Median)", kpiNoPrice: "kein Preis angezeigt",
+    kpiYourPos: "Ihre beste Position", kpiYourPosSub: "organisch {o}", kpiNotInTop: "nicht in den Top {n}",
+    priceByPos: "Preis nach Position, Top 10", median: "Median",
+    thPos: "#", thListing: "Angebot", thSeller: "Verkäufer", thFeedback: "Bewertung", thPrice: "Preis", thDelivery: "Versand", thSold: "Verkauft", thSoldSince: "Seit letztem Tag",
+    freeDelivery: "gratis", adBadge: "Anz.", yoursBadge: "Ihr Angebot", youBadge: "Sie", unnamedSeller: "privat / unbenannt", imageSlot: "(reiner Bild-Platz)", withCoupon: "mit Gutschein", atLeast: "mindestens",
+    sovTitle: "Sichtbarkeitsanteil der Verkäufer — dieses Projekt, {date}",
+    sovHint: "Ein Top-10-Platz bringt 11 minus Position (Platz 1 = 10 Punkte). Anteil = Punkte eines Verkäufers geteilt durch alle Punkte der Keywords dieses Projekts.",
+    thShare: "Anteil", thSlots: "Top-10-Plätze", thTop3: "Top-3-Plätze", thKeywords: "Keywords", thAsAd: "Als Anzeige", thTrendCol: "Verlauf",
+    othersRow: "Andere Verkäufer (privat oder unbenannt)",
+    salesTitle: "Am schnellsten verkaufte Angebote (geschätzt)",
+    salesHint: "Geschätzt aus der Änderung des Verkaufszählers eines Angebots zwischen dem ersten und dem letzten Tag, an dem es im Zeitraum gesehen wurde. Zähler wie „88+“ bleiben außen vor. Nur ein grober Anhaltspunkt: Angebote mit Varianten und Rundungen von eBay verfälschen ihn.",
+    thSoldPeriod: "Verkauft im Zeitraum", thPerDay: "≈ pro Tag", noSales: "Noch nicht genug Tage mit Daten, um Verkäufe zu schätzen (dasselbe Angebot wird an mindestens zwei Tagen benötigt).",
+    compNote: "Verkäufernamen werden nur für gewerbliche Verkäufer angezeigt. Positionen so, wie eBay Deutschland sie dem Tracker gezeigt hat, inklusive Anzeigen. Verkaufszähler sind pro Angebot kumuliert.",
+    openCompetitors: "Wettbewerber",
   },
 };
 
@@ -442,7 +488,7 @@ function safely(hostId, fn) {
 // ---------- Page ----------
 async function boot() {
   document.documentElement.lang = LANG;
-  await loadData();
+  await Promise.all([loadData(), probeCompetitors()]);
   const first = Object.keys(PROJECTS)[0];
   state.projectId = first || null;
   state.helpOpen = !first; // nothing tracked yet -> show how to add products straight away
@@ -550,6 +596,7 @@ function bindCombo(entries, selectedKey) {
 }
 
 function renderPage() {
+  if (state.view === "competitors" && !COMP.available) state.view = "ranks";
   const app = document.getElementById("app");
   const projects = Object.values(PROJECTS);
 
@@ -620,16 +667,18 @@ function renderPage() {
     </div>
     ${state.helpOpen ? helpPanelHTML() : ""}
     <div class="content">
-      <div class="controls-row">${controls}</div>
+      ${COMP.available ? `<div class="view-tabs" role="tablist"><button type="button" class="view-tab ${state.view === "ranks" ? "active" : ""}" data-view="ranks" role="tab">${esc(t("tabRanks"))}</button><button type="button" class="view-tab ${state.view === "competitors" ? "active" : ""}" data-view="competitors" role="tab">${esc(t("tabCompetitors"))}</button></div>` : ""}
+      ${state.view === "competitors" ? `<div id="compRoot"></div>` : `<div class="controls-row">${controls}</div>
       <div class="summary-grid" id="summaryGrid"></div>
       <div class="table-toolbar" id="tableToolbar"></div>
       <div class="grid-legend" id="gridLegend"></div>
-      <div class="grid-wrap"><table class="rankgrid" id="rankGrid"></table></div>
+      <div class="grid-wrap"><table class="rankgrid" id="rankGrid"></table></div>`}
       <div class="version-note">${esc(t("versionNote"))} ${APP_VERSION}</div>
     </div>`;
 
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   bindLangToggle();
+  document.querySelectorAll(".view-tab").forEach((b) => b.addEventListener("click", () => { if (state.view !== b.dataset.view) { state.view = b.dataset.view; renderPage(); } }));
   on("projectSelect", "change", (e) => { state.projectId = e.target.value; state.marketplace = null; state.itemKey = null; renderPage(); });
   on("marketSelect", "change", (e) => { state.marketplace = e.target.value; state.itemKey = null; renderPage(); });
   bindCombo(comboEntries, state.itemKey);
@@ -641,6 +690,7 @@ function renderPage() {
   }
   document.querySelectorAll(".range-btn").forEach((b) => b.addEventListener("click", () => { state.range = b.dataset.range; renderPage(); }));
 
+  if (state.view === "competitors") { safely("compRoot", renderCompetitors); loadCompetitors(); return; }
   safely("summaryGrid", () => renderSummaryCards(VIEW.rows));
   safely("rankGrid", renderTable);
 }
@@ -995,7 +1045,7 @@ function renderKeywordModal() {
     <div class="kw-dialog" role="dialog" aria-modal="true" aria-labelledby="mdTitle">
       <div class="md-head">
         <div class="md-title"><h2 id="mdTitle">${esc(MODAL.keyword)}</h2>${badge}</div>
-        <div class="md-actions">${url ? `<a class="btn" id="mdOpen" href="${esc(url)}" target="_blank" rel="noopener">${esc(t("openOn", { mp: mpName }))}</a>` : ""}<button type="button" class="md-x" id="mdClose" data-close aria-label="${esc(t("close"))}">×</button></div>
+        <div class="md-actions">${item.marketplace === "ebay" && COMP.available ? `<button type="button" class="btn" id="mdComp">${esc(t("openCompetitors"))}</button>` : ""}${url ? `<a class="btn" id="mdOpen" href="${esc(url)}" target="_blank" rel="noopener">${esc(t("openOn", { mp: mpName }))}</a>` : ""}<button type="button" class="md-x" id="mdClose" data-close aria-label="${esc(t("close"))}">×</button></div>
       </div>
       <div class="md-controls"><label class="md-label" for="mdProduct">${esc(t("product"))}</label><select id="mdProduct" class="md-select">${options}</select></div>
       <div class="md-toolbar"><div class="md-chips">${chips}</div>
@@ -1014,6 +1064,13 @@ function bindKeywordModal() {
   const root = document.getElementById("kwModal");
   const redraw = () => { const focus = document.activeElement && document.activeElement.id; renderKeywordModal(); if (focus) { const el = document.getElementById(focus); if (el) el.focus(); } };
   root.querySelectorAll("[data-close]").forEach((el) => el.addEventListener("click", closeKeywordModal));
+  const goComp = document.getElementById("mdComp");
+  if (goComp) goComp.addEventListener("click", () => {
+    const project = currentProject(), it = project.items[MODAL.itemKey];
+    const real = it.synthetic ? Object.values(project.items).find((i) => !i.synthetic && i.marketplace === it.marketplace) : it;
+    state.compKw = `${(real && real.country) || "DE"}|${MODAL.keyword}`; state.view = "competitors";
+    closeKeywordModal(); renderPage();
+  });
   const sel = document.getElementById("mdProduct"); if (sel) sel.addEventListener("change", (e) => { MODAL.itemKey = e.target.value; redraw(); });
   [["mdOrg", "organic"], ["mdAd", "ads"], ["mdAll", "overall"]].forEach(([id, key]) => { const el = document.getElementById(id); if (el) el.addEventListener("change", (e) => { MODAL.show[key] = e.target.checked; redraw(); }); });
   root.querySelectorAll(".md-range").forEach((b) => b.addEventListener("click", () => { MODAL.days = b.dataset.days === "all" ? "all" : +b.dataset.days; redraw(); }));
@@ -1056,6 +1113,231 @@ function closeKeywordModal() {
     else if ((e.key === "Enter" || e.key === " ") && e.target.classList && e.target.classList.contains("kw-name")) { e.preventDefault(); openKeywordModal(e.target.dataset.kw, e.target); }
   });
 })();
+
+// ---------- Competitors view ----------
+// Data comes from docs/data/competitors/YYYY-MM.json (see scripts/competitors.py), loaded only when this view is opened.
+const COMP = { status: "idle", shards: {}, items: {}, dates: [], rows: new Map(), available: false, index: null };
+
+// Is there any competitor data at all? Until the tracker has saved some (it is off by default), the Competitors tab and the
+// pop-up button stay hidden, so nothing about it shows. One tiny file is checked at start-up; the data itself loads only on demand.
+async function probeCompetitors() {
+  COMP.index = await fetchJSON("data/competitors/index.json");
+  COMP.available = !!(COMP.index && Array.isArray(COMP.index.months) && COMP.index.months.length);
+}
+
+async function loadCompetitors() {
+  if (COMP.status !== "idle") return;
+  COMP.status = "loading";
+  const idx = COMP.index || (await fetchJSON("data/competitors/index.json"));
+  const months = idx && Array.isArray(idx.months) ? idx.months.slice(-2) : [];
+  const shards = await Promise.all(months.map((m) => fetchJSON(`data/competitors/${m}.json`)));
+  const dates = new Set();
+  shards.forEach((sh) => {                                   // oldest month first, so newer details win
+    if (!sh || !sh.days) return;
+    COMP.shards[sh.month] = sh;
+    Object.entries(sh.items || {}).forEach(([id, m]) => {
+      COMP.items[id] = { title: m[0], seller: m[1] >= 0 ? (sh.sellers || [])[m[1]] || null : null, biz: m[2], fb: m[3], fbn: m[4], top: m[5] };
+    });
+    Object.keys(sh.days).forEach((d) => dates.add(d));
+  });
+  COMP.dates = [...dates].sort();
+  COMP.status = COMP.dates.length ? "ready" : "empty";
+  if (state.view === "competitors") { safely("compRoot", renderCompetitors); }
+}
+
+function compRows(date, key) {
+  const ck = date + "|" + key;
+  if (COMP.rows.has(ck)) return COMP.rows.get(ck);
+  const sh = COMP.shards[date.slice(0, 7)], raw = sh && sh.days[date] && sh.days[date][key];
+  const rows = raw ? raw.map((r) => ({ pos: r[0], id: r[1], ad: !!(r[2] & 1), plus: !!(r[2] & 2), price: r[3], coupon: r[4], ship: r[5], sold: r[6] })) : [];
+  COMP.rows.set(ck, rows);
+  return rows;
+}
+
+// this project's eBay keywords ("DE|keyword") and its own listing IDs
+function compScope(project) {
+  const ebay = Object.values(project.items).filter((i) => !i.synthetic && i.marketplace === "ebay");
+  const keys = [], labels = {}, own = {};
+  ebay.forEach((it) => {
+    own[String(it.product_id)] = it.sku || "";
+    uniq(it.rows.map((r) => r.keyword)).forEach((k) => { const key = `${it.country || "DE"}|${k}`; if (!(key in labels)) { labels[key] = k; keys.push(key); } });
+  });
+  keys.sort((a, b) => labels[a].localeCompare(labels[b], LOCALE()));
+  return { ebay, keys, labels, own };
+}
+const sellerOf = (id) => (COMP.items[id] && COMP.items[id].seller) || "";
+function ownSellers(scope) {
+  const set = new Set(Array.isArray(SETTINGS.own_sellers) ? SETTINGS.own_sellers : []);
+  Object.keys(scope.own).forEach((id) => { if (sellerOf(id)) set.add(sellerOf(id)); });
+  return set;
+}
+const eur = (cents) => (cents / 100).toLocaleString(LOCALE(), { style: "currency", currency: "EUR" });
+const median = (nums) => { if (!nums.length) return null; const a = [...nums].sort((x, y) => x - y), m = a.length >> 1; return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; };
+
+function sovFor(date, keys) {
+  const per = {};
+  let total = 0;
+  keys.forEach((k) => compRows(date, k).forEach((r) => {
+    if (r.pos > 10) return;
+    const pts = 11 - r.pos, name = sellerOf(r.id);
+    total += pts;
+    const e = (per[name] = per[name] || { name, pts: 0, slots: 0, top3: 0, ads: 0, kws: new Set() });
+    e.pts += pts; e.slots++; if (r.pos <= 3) e.top3++; if (r.ad) e.ads++; e.kws.add(k);
+  }));
+  return { per, total };
+}
+
+// units sold per listing: the change in its (exact) sold count between the first and the last day it was seen
+function salesEstimates(keys, dates) {
+  const first = {}, last = {}, latest = {};
+  dates.forEach((d) => keys.forEach((k) => compRows(d, k).forEach((r) => {
+    if (r.price != null && (!latest[r.id] || d >= latest[r.id].d)) latest[r.id] = { d, price: r.price };
+    if (r.sold == null || r.plus) return;
+    if (!first[r.id]) first[r.id] = { d, v: r.sold };
+    if (!last[r.id] || d > last[r.id].d || (d === last[r.id].d && r.sold > last[r.id].v)) last[r.id] = { d, v: r.sold };
+  })));
+  const out = [];
+  Object.keys(first).forEach((id) => {
+    const days = daysBetween(first[id].d, last[id].d), delta = last[id].v - first[id].v;
+    if (days >= 1 && delta > 0) out.push({ id, delta, perDay: delta / days, days, price: latest[id] ? latest[id].price : null });
+  });
+  return out.sort((a, b) => b.perDay - a.perDay || b.delta - a.delta);
+}
+
+function previousSold(date, key, id) {
+  const i = COMP.dates.indexOf(date);
+  for (let j = i - 1; j >= Math.max(0, i - 14); j--) {
+    const r = compRows(COMP.dates[j], key).find((x) => x.id === id && x.sold != null && !x.plus);
+    if (r) return r.sold;
+  }
+  return null;
+}
+
+function sparkSVG(vals, w = 96, h = 24) {
+  const nums = vals.filter((v) => v !== null);
+  if (vals.length < 2 || !nums.length) return "";
+  const hi = Math.max(...nums, 1e-9);
+  let path = "", pen = false;
+  vals.forEach((v, i) => {
+    if (v === null) { pen = false; return; }
+    path += `${pen ? " L" : " M"}${(2 + (i / (vals.length - 1)) * (w - 4)).toFixed(1)} ${(h - 3 - (v / hi) * (h - 6)).toFixed(1)}`; pen = true;
+  });
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" aria-hidden="true"><path d="${path.trim()}"/></svg>`;
+}
+
+function priceBarsSVG(rows, own, med) {
+  const top = rows.filter((r) => r.pos <= 10), prices = top.map((r) => r.price).filter((v) => v !== null && v !== undefined);
+  if (!prices.length) return "";
+  const W = 480, H = 160, L = 8, R = 8, T = 16, B = 22, pw = W - L - R, ph = H - T - B, hi = Math.max(...prices, med || 0) * 1.12;
+  const Y = (v) => T + ph - (v / hi) * ph, slot = pw / 10, bw = slot * 0.62;
+  let g = "";
+  for (let p = 1; p <= 10; p++) {
+    const r = top.find((x) => x.pos === p), cx = L + (p - 0.5) * slot;
+    if (r && r.price !== null && r.price !== undefined) g += `<rect class="pb ${r.ad ? "pb-ad" : "pb-org"}${own[r.id] !== undefined ? " pb-own" : ""}" x="${(cx - bw / 2).toFixed(1)}" y="${Y(r.price).toFixed(1)}" width="${bw.toFixed(1)}" height="${(T + ph - Y(r.price)).toFixed(1)}"><title>#${p}: ${esc(eur(r.price))}</title></rect>`;
+    g += `<text class="pb-x" x="${cx.toFixed(1)}" y="${H - 7}" text-anchor="middle">${p}</text>`;
+  }
+  if (med) g += `<line class="pb-med" x1="${L}" x2="${W - R}" y1="${Y(med).toFixed(1)}" y2="${Y(med).toFixed(1)}"/><text class="pb-medl" x="${W - R}" y="${(Y(med) - 4).toFixed(1)}" text-anchor="end">${esc(t("median"))} ${esc(eur(med))}</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" class="pb-svg" role="img" aria-label="${esc(t("priceByPos"))}">${g}</svg>`;
+}
+
+function renderCompetitors() {
+  const root = document.getElementById("compRoot");
+  if (!root) return;
+  const project = currentProject(), scope = compScope(project);
+  if (!scope.ebay.length) { root.innerHTML = `<div class="empty-state">${esc(t("compEbayOnly"))}</div>`; return; }
+  if (COMP.status === "idle" || COMP.status === "loading") { root.innerHTML = `<div class="empty-state">${esc(t("compLoading"))}</div>`; return; }
+  if (COMP.status === "empty") { root.innerHTML = `<div class="empty-state">${esc(t("compNone"))}</div>`; return; }
+  if (!scope.keys.length) { root.innerHTML = `<div class="empty-state">${esc(t("compNoKeywords"))}</div>`; return; }
+
+  const datesDesc = [...COMP.dates].reverse();
+  if (!state.compDate || !COMP.dates.includes(state.compDate)) state.compDate = datesDesc[0];
+  const date = state.compDate;
+  if (!state.compKw || !scope.keys.includes(state.compKw)) state.compKw = scope.keys.find((k) => compRows(date, k).length) || scope.keys[0];
+  const key = state.compKw, kw = scope.labels[key], country = key.split("|")[0];
+  const rows = compRows(date, key), top10 = rows.filter((r) => r.pos <= 10);
+  const mine = ownSellers(scope);
+  const multiCountry = new Set(scope.keys.map((k) => k.split("|")[0])).size > 1;
+  const startDate = shiftDate(date, -(state.compDays - 1));
+  const rangeDates = COMP.dates.filter((d) => d >= startDate && d <= date);
+
+  // ---- the selected keyword on the selected day
+  const named = top10.filter((r) => sellerOf(r.id)), distinct = new Set(named.map((r) => sellerOf(r.id))).size;
+  const ads = top10.filter((r) => r.ad).length;
+  const med = median(top10.map((r) => r.price).filter((v) => v !== null && v !== undefined));
+  const ownRows = rows.filter((r) => scope.own[r.id] !== undefined);
+  const best = ownRows.length ? ownRows.reduce((a, b) => (b.pos < a.pos ? b : a)) : null;
+  const bestOrganic = best ? rows.filter((r) => r.pos <= best.pos && !r.ad).length : null;
+  const yourPrice = best && best.price != null && med ? { p: eur(best.price), d: (best.price >= med ? "+" : "−") + pct(Math.abs(best.price / med - 1) * 100, 0) } : null;
+  const card = (label, value, sub) => `<div class="card"><div class="label">${esc(label)}</div><div class="value">${value}</div>${sub ? `<div class="comp-sub">${sub}</div>` : ""}</div>`;
+  const kpis = rows.length ? `<div class="summary-grid comp-kpis">
+      ${card(t("kpiSellers"), distinct, esc(t("kpiSellersSub", { n: named.length, m: top10.length - named.length })))}
+      ${card(t("kpiAds"), `${ads} <span class="of">${esc(t("kpiAdsSub"))}</span>`, "")}
+      ${card(t("kpiMedian"), med !== null ? esc(eur(med)) : "–", yourPrice ? esc(t("kpiYourPrice", yourPrice)) : esc(best ? t("kpiNoPrice") : ""))}
+      ${card(t("kpiYourPos"), best ? best.pos : "–", best ? esc(t("kpiYourPosSub", { o: bestOrganic })) : esc(t("kpiNotInTop", { n: rows.length || 20 })))}
+    </div>` : "";
+
+  // ---- the listing table
+  const listing = rows.map((r) => {
+    const m = COMP.items[r.id], isOwn = scope.own[r.id] !== undefined, seller = sellerOf(r.id);
+    const prev = r.sold != null && !r.plus ? previousSold(date, key, r.id) : null;
+    const since = prev !== null ? (r.sold - prev >= 0 ? "+" : "−") + Math.abs(r.sold - prev) : "–";
+    const title = m ? esc(m.title) : `<span class="comp-muted">${esc(t("imageSlot"))}</span>`;
+    return `<tr class="${isOwn ? "own" : ""}${r.ad ? " is-ad" : ""}">
+      <td class="pos">${r.pos}${r.ad ? ` <span class="badge-ad">${esc(t("adBadge"))}</span>` : ""}</td>
+      <td class="lst"><a href="https://www.${EBAY_SITES[country] || "ebay.de"}/itm/${esc(r.id)}" target="_blank" rel="noopener">${title}</a>${isOwn ? ` <span class="badge-own">${esc(t("yoursBadge"))}${scope.own[r.id] ? " · " + esc(scope.own[r.id]) : ""}</span>` : ""}</td>
+      <td>${seller ? `${esc(seller)}${mine.has(seller) ? ` <span class="badge-own">${esc(t("youBadge"))}</span>` : ""}` : `<span class="comp-muted">${esc(t("unnamedSeller"))}</span>`}</td>
+      <td class="num">${m && m.fb != null ? esc(pct(m.fb / 10, 1)) + (m.fbn != null ? ` <span class="comp-muted">(${esc(m.fbn.toLocaleString(LOCALE()))})</span>` : "") : "–"}</td>
+      <td class="num">${r.price != null ? esc(eur(r.price)) : "–"}${r.coupon != null ? `<div class="comp-muted">${esc(eur(r.coupon))} ${esc(t("withCoupon"))}</div>` : ""}</td>
+      <td class="num">${r.ship === 0 ? esc(t("freeDelivery")) : r.ship != null ? "+" + esc(eur(r.ship)) : "–"}</td>
+      <td class="num">${r.sold != null ? (r.plus ? esc(t("atLeast")) + " " : "") + esc(r.sold.toLocaleString(LOCALE())) : "–"}</td>
+      <td class="num">${esc(since)}</td></tr>`;
+  }).join("");
+  const listingHTML = rows.length
+    ? `<div class="comp-panel"><div class="comp-head"><h3>${esc(t("compTitleKw", { kw }))}</h3></div>
+        <div class="comp-split"><div class="comp-chart">${priceBarsSVG(rows, scope.own, med)}</div></div>
+        <div class="grid-wrap"><table class="comp-table"><thead><tr><th>${esc(t("thPos"))}</th><th>${esc(t("thListing"))}</th><th>${esc(t("thSeller"))}</th><th class="num">${esc(t("thFeedback"))}</th><th class="num">${esc(t("thPrice"))}</th><th class="num">${esc(t("thDelivery"))}</th><th class="num">${esc(t("thSold"))}</th><th class="num">${esc(t("thSoldSince"))}</th></tr></thead><tbody>${listing}</tbody></table></div></div>`
+    : `<div class="empty-state">${esc(t("compNoKw"))}</div>`;
+
+  // ---- seller share of voice across the project's keywords
+  const today = sovFor(date, scope.keys);
+  const series = rangeDates.map((d) => sovFor(d, scope.keys));
+  const names = Object.values(today.per).filter((e) => e.name).sort((a, b) => b.pts - a.pts);
+  const shown = names.slice(0, 12), others = today.per[""];
+  const share = (e, tot) => (tot ? (e.pts / tot) * 100 : 0);
+  const sovRow = (e) => {
+    const trend = series.map((s) => (s.per[e.name] && s.total ? (s.per[e.name].pts / s.total) * 100 : series.length ? 0 : null));
+    return `<tr class="${mine.has(e.name) ? "own" : ""}"><td>${esc(e.name)}${mine.has(e.name) ? ` <span class="badge-own">${esc(t("youBadge"))}</span>` : ""}</td>
+      <td class="num"><div class="bar"><i style="width:${Math.min(100, share(e, today.total)).toFixed(1)}%"></i></div> ${esc(pct(share(e, today.total), 1))}</td>
+      <td class="num">${e.slots}</td><td class="num">${e.top3}</td><td class="num">${e.kws.size}</td><td class="num">${e.ads}</td><td>${sparkSVG(trend)}</td></tr>`;
+  };
+  const sovHTML = today.total
+    ? `<div class="comp-panel"><div class="comp-head"><h3>${esc(t("sovTitle", { date: fmtFull(date) }))}</h3></div><p class="comp-note">${esc(t("sovHint"))}</p>
+        <div class="grid-wrap"><table class="comp-table"><thead><tr><th>${esc(t("thSeller"))}</th><th class="num">${esc(t("thShare"))}</th><th class="num">${esc(t("thSlots"))}</th><th class="num">${esc(t("thTop3"))}</th><th class="num">${esc(t("thKeywords"))}</th><th class="num">${esc(t("thAsAd"))}</th><th>${esc(t("thTrendCol"))}</th></tr></thead>
+        <tbody>${shown.map(sovRow).join("")}${others ? `<tr class="others"><td>${esc(t("othersRow"))}</td><td class="num">${esc(pct(share(others, today.total), 1))}</td><td class="num">${others.slots}</td><td class="num">${others.top3}</td><td class="num">${others.kws.size}</td><td class="num">${others.ads}</td><td></td></tr>` : ""}</tbody></table></div></div>`
+    : "";
+
+  // ---- estimated sales
+  const sales = salesEstimates(scope.keys, rangeDates).slice(0, 10);
+  const salesRows = sales.map((s) => `<tr class="${scope.own[s.id] !== undefined ? "own" : ""}"><td class="lst"><a href="https://www.${EBAY_SITES[country] || "ebay.de"}/itm/${esc(s.id)}" target="_blank" rel="noopener">${COMP.items[s.id] ? esc(COMP.items[s.id].title) : esc(s.id)}</a>${scope.own[s.id] !== undefined ? ` <span class="badge-own">${esc(t("yoursBadge"))}</span>` : ""}</td>
+      <td>${sellerOf(s.id) ? esc(sellerOf(s.id)) : `<span class="comp-muted">${esc(t("unnamedSeller"))}</span>`}</td><td class="num">${esc(s.delta.toLocaleString(LOCALE()))}</td><td class="num">${esc(nf(s.perDay, 1))}</td><td class="num">${s.price != null ? esc(eur(s.price)) : "–"}</td></tr>`).join("");
+  const salesHTML = `<div class="comp-panel"><div class="comp-head"><h3>${esc(t("salesTitle"))}</h3></div><p class="comp-note">${esc(t("salesHint"))}</p>
+      ${sales.length ? `<div class="grid-wrap"><table class="comp-table"><thead><tr><th>${esc(t("thListing"))}</th><th>${esc(t("thSeller"))}</th><th class="num">${esc(t("thSoldPeriod"))}</th><th class="num">${esc(t("thPerDay"))}</th><th class="num">${esc(t("thPrice"))}</th></tr></thead><tbody>${salesRows}</tbody></table></div>` : `<div class="empty-state small">${esc(t("noSales"))}</div>`}</div>`;
+
+  const kwOptions = scope.keys.map((k) => `<option value="${esc(k)}" ${k === key ? "selected" : ""}>${esc(scope.labels[k])}${multiCountry ? " · " + esc(k.split("|")[0]) : ""}</option>`).join("");
+  const dateOptions = datesDesc.slice(0, 90).map((d) => `<option value="${d}" ${d === date ? "selected" : ""}>${esc(fmtFull(d))}</option>`).join("");
+  const periodOptions = [14, 30, 90].map((n) => `<option value="${n}" ${n === state.compDays ? "selected" : ""}>${esc(t("lastDays", { n }))}</option>`).join("");
+  const link = marketplaceUrl({ marketplace: "ebay", country }, kw);
+  root.innerHTML = `<div class="comp-controls">
+      <label class="md-label" for="compKw">${esc(t("compKeyword"))}</label><select id="compKw" class="comp-select">${kwOptions}</select>
+      <label class="md-label" for="compDate">${esc(t("compDay"))}</label><select id="compDate">${dateOptions}</select>
+      <label class="md-label" for="compDays">${esc(t("compTrend"))}</label><select id="compDays">${periodOptions}</select>
+      ${link ? `<a class="btn" href="${esc(link)}" target="_blank" rel="noopener">${esc(t("openOn", { mp: "eBay" }))}</a>` : ""}</div>
+    ${kpis}${listingHTML}${sovHTML}${salesHTML}<p class="comp-note">${esc(t("compNote"))}</p>`;
+  const again = () => safely("compRoot", renderCompetitors);
+  document.getElementById("compKw").addEventListener("change", (e) => { state.compKw = e.target.value; again(); });
+  document.getElementById("compDate").addEventListener("change", (e) => { state.compDate = e.target.value; again(); });
+  document.getElementById("compDays").addEventListener("change", (e) => { state.compDays = Number(e.target.value); again(); });
+}
 
 // ---------- The rank tables ----------
 function cellHTML(v, tip, scanned, pop) {

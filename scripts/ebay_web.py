@@ -180,8 +180,11 @@ def _strip_noise(page_html: str) -> str:
     return re.sub(r"<!--.*?-->", " ", page_html, flags=re.S)
 
 
-def parse_cards(page_html: str):
-    """Listings on one results page, in page order: [{"id", "sponsored", "labelled", "text"}]."""
+def parse_cards(page_html: str, details: bool = False):
+    """
+    Listings on one results page, in page order: [{"id", "sponsored", "labelled", "text"}].
+    With details=True each card also carries "info": what the card shows about the listing (see card_info).
+    """
     page_html = _strip_noise(page_html)
     ad_ids = ad_label_ids(page_html)
     scheme = bool(_LABEL_SCHEME_RE.search(page_html))   # eBay's disguised-label layout (decoy text on every card)
@@ -203,8 +206,79 @@ def parse_cards(page_html: str):
         else:
             sponsored = bool(LEGACY_AD_RE.search(segment))  # simple pages: the label is just in the card
             labelled = sponsored
-        cards.append({"id": item_id, "sponsored": sponsored, "labelled": labelled, "text": _visible_text(segment)[:160]})
+        full = _visible_text(segment)
+        card = {"id": item_id, "sponsored": sponsored, "labelled": labelled, "text": full[:160]}
+        if details:
+            card["info"] = card_info(full)
+        cards.append(card)
     return cards
+
+
+_TITLE_MARK = "Wird in neuem Fenster oder Tab geöffnet"
+_NUM = r"\d{1,3}(?:\.\d{3})*,\d{2}"
+_PRICE_RE = re.compile(r"(UVP\s+)?(Ab\s+)?EUR\s?(" + _NUM + r")(?:\s+bis\s+EUR\s?(" + _NUM + r"))?(\s+mit\s+Gutschein)?")
+_SELLER_RE = re.compile(r"(\S+)\s+(\d{1,3}(?:[.,]\d+)?)\s?%\s+positiv\s*\(([\d.,]+)\)")
+_SELLER2_RE = re.compile(r"(\S+)\s+\(([\d.,]+)\)\s+(\d{1,3}(?:[.,]\d+)?)\s?%")      # the other layout: "name (23.885) 99,8%"
+_SOLD_RE = re.compile(r"(\d{1,3}(?:[.,]\d{3})*)(\+)?\s+verkauft")
+
+
+def _cents(num: str) -> int:
+    return int(num.replace(".", "").replace(",", ""))
+
+
+def card_info(text: str) -> dict:
+    """
+    What one German eBay result card shows about a listing, from its visible text. Every field is None when the card
+    does not show it (image-only carousel tiles show nothing at all):
+      title, price (cents; the lower end of a "von bis" range), price_hi, coupon (cents, "mit Gutschein"), list_price (UVP),
+      ship (delivery cost in cents, 0 = free), sold (units), sold_plus (True for "88+ verkauft"), seller (username),
+      fb (positive feedback in tenths of a percent), fbn (feedback count), biz (1 business, 0 private), top (eBay Top-Service).
+    """
+    out = {k: None for k in ("title", "price", "price_hi", "coupon", "list_price", "ship", "sold", "sold_plus", "seller", "fb", "fbn", "biz", "top")}
+    if _TITLE_MARK not in text:
+        return out
+    head, _, tail = text.partition(_TITLE_MARK)
+    head = re.sub(r"^.*Exit fullscreen\s*", "", head).strip()          # video-player text in front of a title
+    head = re.sub(r"^(Neues Angebot|Anzeige)\s+", "", head)
+    out["title"] = head[:110] or None
+    if re.search(r"\|\s*Gewerblich", tail):
+        out["biz"] = 1
+    elif re.search(r"\|\s*Privat", tail):
+        out["biz"] = 0
+    for m in _PRICE_RE.finditer(tail):
+        before = tail[m.start() - 1] if m.start() else ""
+        if before == "(":                                                # "(EUR 25,98/Einheit)": a unit price
+            continue
+        cents = _cents(m.group(3))
+        if before == "+":                                                # "+EUR 6,01 Versand": delivery
+            if out["ship"] is None:
+                out["ship"] = cents
+        elif m.group(1):                                                 # "UVP EUR 179,95": the list price
+            out["list_price"] = out["list_price"] or cents
+        elif m.group(5):                                                 # "EUR 156,99 mit Gutschein": price with coupon
+            out["coupon"] = out["coupon"] or cents
+        elif out["price"] is None:
+            out["price"] = cents
+            out["price_hi"] = _cents(m.group(4)) if m.group(4) else None
+    if out["ship"] is None and re.search(r"Gratis|Kostenlose[rs]? (?:Versand|Lieferung)", tail):
+        out["ship"] = 0
+    m = _SOLD_RE.search(tail)
+    if m:
+        out["sold"] = int(re.sub(r"[.,]", "", m.group(1)))
+        out["sold_plus"] = bool(m.group(2))
+    m = _SELLER_RE.search(tail)
+    if m:
+        out["seller"] = m.group(1).strip("·,;:()")
+        out["fb"] = int(round(float(m.group(2).replace(",", ".")) * 10))
+        out["fbn"] = int(re.sub(r"[.,]", "", m.group(3)))
+    else:
+        m = _SELLER2_RE.search(tail)
+        if m:
+            out["seller"] = m.group(1).strip("·,;:()")
+            out["fbn"] = int(re.sub(r"[.,]", "", m.group(2)))
+            out["fb"] = int(round(float(m.group(3).replace(",", ".")) * 10))
+    out["top"] = 1 if re.search(r"eBay Top-Service|Top-bewerteter Verkäufer|Top-Verkäufer", tail) else 0
+    return out
 
 
 def ad_signals(page_html: str) -> dict:

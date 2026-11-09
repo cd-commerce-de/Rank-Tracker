@@ -29,6 +29,7 @@ import requests
 
 import bright_data
 import config_loader
+import competitors
 import ebay_web
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -60,6 +61,7 @@ class StopRun(Exception):
 _PAGE_CACHE = {}
 _ERRORS = {}   # (keyword, country, page) -> the error a page ended with this run (never retried for other products)
 _LOCK = threading.Lock()
+_COMP = {}      # (country, keyword) -> the first page's cards with their details, for the competitor snapshot
 _SHIPTO = {}   # (keyword, country, page) -> the delivery postcode the page showed ("Versand nach ..."), or None
 _GEOS = {}    # (keyword, country, page) -> "DE" if the German exit produced the page that was read, "none" if the no-country one did
 _LANGS = {}   # (keyword, country, page) -> "de" / "?" : the language of the page that was read (English pages are refused)
@@ -142,7 +144,11 @@ def _fetch_page(key, keyword: str, country: str, page: int):
     _GEOS[key] = used_geo if used_geo else "none"
     with _LOCK:
         _AD_STATS["geo_de" if used_geo else "geo_none"] += 1
-    cards = ebay_web.parse_cards(html)
+    want_details = page == 1 and competitors.top_n() > 0
+    cards = ebay_web.parse_cards(html, details=want_details)
+    if want_details:
+        with _LOCK:
+            _COMP[(country, keyword)] = cards[:competitors.top_n()]
     _COUNTS[key] = ebay_web.result_count(html)
     _PAGE_CACHE[key] = cards
     sig = ebay_web.ad_signals(html)
@@ -363,6 +369,15 @@ def main():
         _stop_message()
     finally:
         save_json(DATA_PATH, history)
+    if _COMP:
+        # the competitor snapshot is extra: if it cannot be saved, the rankings above are already saved and unaffected
+        try:
+            own_ids = {str(i.get("ebay_item_id")) for p in projects for i in p.get("items", []) if i.get("marketplace") == "ebay" and i.get("ebay_item_id")}
+            r = competitors.save_day(today, _COMP, own_ids)
+            print(f"Competitors: saved the top {competitors.top_n()} for {r['keywords']} keyword(s) ({r['rows']} rows) into {Path(r['path']).name}: "
+                  f"{r['items']} listings, {r['sellers']} business sellers, {r['bytes'] / 1e6:.1f} MB for the month so far.")
+        except Exception as e:
+            print(f"  ! The competitor snapshot could not be saved ({type(e).__name__}: {e}); your rankings were saved normally.", file=sys.stderr)
     if prefetch_stopped:
         _stop_message()
     s = _AD_STATS

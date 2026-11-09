@@ -87,6 +87,13 @@ def _page_ids(url: str, country: str, first: bool = False) -> list[str]:
     return ps.fetch_ids(url, country, extract_ordered_product_ids, _PAGE_CACHE, _PAGE_ERRORS, first)
 
 
+_SCANNED = {}   # (country, keyword) -> how many results were actually read today (never an assumed number)
+# A page that holds well under a full page of tiles is a PARTIAL page: Otto shows only the first tiles in the page itself and
+# loads the rest while you scroll. The next page's offset would then skip the unseen tiles, so reading on would give wrong
+# positions. We stop there and report exactly how many results were read.
+PARTIAL_PAGE_BELOW = 0.8
+
+
 def find_rank(keyword: str, target_product_id: str, country: str):
     query = urllib.parse.quote(keyword)
     all_ids: list[str] = []
@@ -99,6 +106,8 @@ def find_rank(keyword: str, target_product_id: str, country: str):
         all_ids.extend(ids)
         if target_product_id in all_ids:
             break
+        if len(ids) < OFFSET_STEP * PARTIAL_PAGE_BELOW:
+            break
 
     # De-dupe while preserving order, in case pages overlap
     seen = set()
@@ -108,6 +117,7 @@ def find_rank(keyword: str, target_product_id: str, country: str):
             seen.add(pid)
             ordered.append(pid)
 
+    _SCANNED[(country, keyword)] = len(ordered)
     if target_product_id in ordered:
         return ordered.index(target_product_id) + 1
     return None
@@ -173,7 +183,7 @@ def main():
                             "date": today, "checked_at": datetime.now(timezone.utc).isoformat(), "project_id": project_id,
                             "project_name": project_name, "item_key": item_key, "marketplace": "otto", "country": country,
                             "keyword": keyword, "rank": None, "item_id": target_id, "item_label": item.get("label"),
-                            "item_sku": item.get("sku"), "title": None, "results_scanned": OFFSET_STEP * MAX_PAGES,
+                            "item_sku": item.get("sku"), "title": None, "results_scanned": None,
                             "carried": True,    # not re-checked today: nothing of yours was found in its last checks
                         })
                         continue
@@ -208,7 +218,7 @@ def main():
                     "item_label": item.get("label"),
                     "item_sku": item.get("sku"),
                         "title": None,
-                        "results_scanned": OFFSET_STEP * MAX_PAGES,
+                        "results_scanned": _SCANNED.get((country, keyword)),
                     }
                     history.append(row)
                     print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}")
@@ -218,6 +228,9 @@ def main():
               "Stopping here so a blocked marketplace cannot keep spending Bright Data credit.", file=sys.stderr)
     finally:
         save_json(DATA_PATH, history)
+    partial = sorted({n for n in _SCANNED.values() if 0 < n < OFFSET_STEP * PARTIAL_PAGE_BELOW})
+    if partial:
+        print(f"otto: some pages held only {partial[0]}-{partial[-1]} results (Otto loads the rest while scrolling), so only those were read; ranks beyond them show as not found in the top N read.")
     print(f"otto: {len(_PAGE_CACHE) - pages_before} results page(s) requested, up to {MAX_PAGES} per keyword; "
           f"{len(skipped_dormant)} keyword(s) skipped as dormant (re-checked every {ps.env_int('DORMANT_RECHECK_DAYS', 7, 1, 60)} days).")
     print(f"Saved {len(history)} total rows to {DATA_PATH}")

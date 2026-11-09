@@ -90,6 +90,10 @@ listings that were actually looked at (the dashboard shows it as `>N`). To look 
   accordance with robots.txt") and asked for its KYC verification form (brightdata.com/cp/kyc), which an account owner
   completes. That is a permission on the account, not something the tracker can work around. The run makes one request,
   saves nothing, and says so in the log; run the "Check an Otto or Kaufland keyword" test again once access is granted.
+  **Otto shows only its first tiles (about 18, per third-party reports) in the page itself and loads the rest while you scroll.**
+  The tracker therefore stops at a *partial* page instead of jumping to the next offset (which would skip the unseen tiles and
+  give wrong positions), and records the real number of results read, so a product that is missing reads "not found in the
+  top 18", never an assumed 120. Reading deeper needs a rendering route (Bright Data's Scraper Studio or Browser API).
   Otto, a different case, answers with Kasada's bot-protection page (a `KPSDK` / `ips.js` script) that the zone did not
   get past. A failing page is not requested again for the other
   products, and a run stops after 5 keywords in a row fail.
@@ -180,7 +184,27 @@ Here, 4 products x the keywords above = every keyword checked for every product.
 - **`sku`** (optional): your own SKU / identifier for the product. It is shown first in the dashboard's
   product dropdown as "SKU · product ID", e.g. "WGH30-3T · 184137378691". Header spellings that work:
   `SKU`, `Seller SKU`. **`name`** (optional) is the product name; `Product name`, `Title` and `Label` also work.
-  **Language: English or German.** The **EN | DE** switch in the top bar changes all interface text, plus dates (e.g. "23. Okt.")
+  **Competitors view (eBay) — built, switched OFF by default.** Nothing about it shows until you turn it on: the tracker does not
+capture competitor data, and the dashboard shows no Competitors tab (and no pop-up shortcut) while no competitor data exists.
+To switch it on: (1) in `.github/workflows/track-ranks.yml`, on the eBay website tracking step, add the environment value
+`EBAY_COMPETITOR_TOP: "20"` (how many positions per keyword to keep; 0 = off); (2) make sure the commit step includes
+`docs/data/competitors` (`if [ -d docs/data/competitors ]; then git add docs/data/competitors; fi` under `git add docs/data/ranks.json`).
+After the next run the **Competitors** tab appears by itself.
+What it does once on: the tracker already downloads eBay's results page for your rankings, so it costs **no extra Bright Data
+requests**; for each keyword it also saves the top listings into one compact file per month,
+`docs/data/competitors/YYYY-MM.json` (about 11 MB a month for 300 keywords), which the dashboard loads only when the tab is
+opened. The view shows, for the chosen keyword and day: the top listings (seller, feedback, price and coupon price,
+delivery, sold count, change since the previous day, ad flag, your own listings highlighted), the number of sellers and ads
+in the top 10, the median price against yours, and a price-by-position chart; for the whole project: each seller's **share
+of voice** (a top-10 slot earns 11 minus its position, so position 1 = 10 points) with a trend line; and the
+**fastest-selling listings**, estimated from the change in each listing's sold count between the first and last day it was
+seen (counts shown as "88+" are left out; a rough guide only). Privacy: seller names are saved only for business sellers
+(the card says "Gewerblich", or the same name is known as a business, or it is one of your own tracked listings); private
+sellers are counted but never named (`EBAY_COMPETITOR_NAMES=none` saves no names at all). Your own seller account is found from
+your tracked listings; add `"own_sellers": ["your_account"]` to `docs/settings.json` to mark more. Otto, Kaufland and Temu are
+not covered, as they cannot be read at the moment.
+
+**Language: English or German.** The **EN | DE** switch in the top bar changes all interface text, plus dates (e.g. "23. Okt.")
 and numbers (decimal comma, "61,5 %"). The choice is remembered in the browser; the first visit follows the browser's
 language, and a link ending in `?lang=de` (or `?lang=en`) forces one. **Keywords, product names, SKUs, product IDs and
 project names are never translated**: they are shown exactly as in the sheet. Marketplace names stay as brand names, and

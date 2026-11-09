@@ -274,3 +274,40 @@ body.modal-open { overflow: hidden; }
 .lang-toggle button { border: none; background: none; padding: 6px 11px; border-radius: 8px; font-family: var(--font-body); font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--neutral-500); cursor: pointer; }
 .lang-toggle button:hover { color: var(--color-primary); }
 .lang-toggle button.active { background: var(--color-white); color: var(--color-primary); box-shadow: 0 1px 2px rgba(15, 23, 42, .14); }
+
+/* ---------- Ranks / Competitors tabs and the Competitors view ---------- */
+.view-tabs { display: flex; gap: 4px; margin: 0 0 14px; border-bottom: 1px solid var(--neutral-200); }
+.view-tab { border: none; background: none; padding: 10px 16px; font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--neutral-500); cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.view-tab:hover { color: var(--color-primary); }
+.view-tab.active { color: var(--color-primary); border-bottom-color: var(--color-accent); }
+.comp-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 16px; }
+.comp-select { min-width: 240px; max-width: 100%; }
+.comp-kpis { margin-bottom: 16px; }
+.comp-sub { font-size: 12.5px; color: var(--neutral-500); margin-top: 4px; }
+.comp-panel { background: var(--color-white); border: 1px solid var(--neutral-200); border-radius: 14px; padding: 16px 18px; margin-bottom: 16px; }
+.comp-head h3 { margin: 0 0 8px; font-family: var(--font-heading); font-size: 16px; color: var(--color-primary); }
+.comp-note { font-size: 12.5px; color: var(--neutral-500); line-height: 1.5; margin: 4px 0 12px; }
+.comp-split { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 10px; }
+.comp-chart { flex: 1 1 380px; max-width: 560px; }
+.pb-svg { width: 100%; height: auto; display: block; }
+.pb { fill: #3F6FE0; } .pb-ad { fill: #E8903F; } .pb-own { stroke: var(--color-primary); stroke-width: 2; }
+.pb-x { font-size: 11px; fill: var(--neutral-500); } .pb-medl { font-size: 11px; fill: var(--neutral-500); }
+.pb-med { stroke: var(--neutral-400); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.comp-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.comp-table th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--neutral-500); padding: 8px 10px; border-bottom: 1px solid var(--neutral-200); white-space: nowrap; }
+.comp-table td { padding: 8px 10px; border-bottom: 1px solid var(--neutral-100); vertical-align: top; }
+.comp-table .num { text-align: right; white-space: nowrap; }
+.comp-table .pos { font-weight: 700; white-space: nowrap; }
+.comp-table .lst { max-width: 380px; }
+.comp-table .lst a { color: var(--color-primary); text-decoration: none; }
+.comp-table .lst a:hover { text-decoration: underline; }
+.comp-table tr.own { background: #FDF3EE; }
+.comp-table tr.others td { color: var(--neutral-500); }
+.comp-muted { color: var(--neutral-500); font-size: 12px; }
+.badge-ad, .badge-own { display: inline-block; font-size: 10.5px; font-weight: 700; border-radius: 6px; padding: 1px 6px; vertical-align: middle; }
+.badge-ad { background: #FBE5D2; color: #9A4F12; }
+.badge-own { background: var(--color-accent); color: var(--color-white); }
+.bar { display: inline-block; width: 90px; height: 8px; background: var(--neutral-100); border-radius: 4px; vertical-align: middle; overflow: hidden; margin-right: 6px; }
+.bar i { display: block; height: 100%; background: var(--color-accent); }
+.spark { display: block; } .spark path { fill: none; stroke: var(--color-accent); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.empty-state.small { padding: 18px 0; }
