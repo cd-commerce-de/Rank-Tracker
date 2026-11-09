@@ -45,6 +45,7 @@ from pathlib import Path
 
 import bright_data
 import config_loader
+import history_store
 from playwright.async_api import async_playwright
 import asyncio
 
@@ -136,7 +137,7 @@ def save_json(path: Path, data):
 
 def main():
     projects = config_loader.load_projects()
-    history = load_json(DATA_PATH, [])
+    history = history_store.load(DATA_PATH)
     today = date.today().isoformat()
     seen_today = {
         (r["project_id"], r["item_key"], r["keyword"])
@@ -197,8 +198,7 @@ def main():
                     print(f"  [{project_name} / {item_key}] {keyword!r} -> {status}")
 
     finally:
-        save_json(DATA_PATH, history)
-    print(f"Saved {len(history)} total rows to {DATA_PATH}")
+        history_store.save_and_report(DATA_PATH, history)
 
 
 if __name__ == "__main__":

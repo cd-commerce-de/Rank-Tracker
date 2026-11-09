@@ -184,7 +184,18 @@ Here, 4 products x the keywords above = every keyword checked for every product.
 - **`sku`** (optional): your own SKU / identifier for the product. It is shown first in the dashboard's
   product dropdown as "SKU · product ID", e.g. "WGH30-3T · 184137378691". Header spellings that work:
   `SKU`, `Seller SKU`. **`name`** (optional) is the product name; `Product name`, `Title` and `Label` also work.
-  **Competitors view (eBay) — built, switched OFF by default.** Nothing about it shows until you turn it on: the tracker does not
+  **Where the history is stored (monthly files).** The old single `docs/data/ranks.json` grew about 1.5 MB a day (42 MB after a
+month) and GitHub rejects files over 100 MB. With `RANK_STORAGE: "monthly"` in the workflow's job environment, the history lives in
+`docs/data/ranks/YYYY-MM.json` (one compact file per month) plus `docs/data/ranks/index.json`: about 12 times smaller (3.5 MB for
+the first 40 days of data, about 0.12 MB a day), and past months are never rewritten, so each run changes only the current
+month's file. The first run converts everything and leaves the old `ranks.json` untouched (delete it whenever you like; Git keeps
+its history). Nothing is lost: every field of every row is kept, only the fractions of a second in `checked_at` are dropped.
+Safety: before writing, each month is decoded again and compared with the original rows; if that ever fails, the run saves the
+old way instead and says so in the log. Once `docs/data/ranks/index.json` exists the monthly files are THE history whatever the
+setting says, so history can never split in two. The dashboard reads the monthly files when they exist and `ranks.json` otherwise.
+The workflow's commit step must add `docs/data/ranks` (see `.github/workflows/track-ranks.yml`).
+
+**Competitors view (eBay) — built, switched OFF by default.** Nothing about it shows until you turn it on: the tracker does not
 capture competitor data, and the dashboard shows no Competitors tab (and no pop-up shortcut) while no competitor data exists.
 To switch it on: (1) in `.github/workflows/track-ranks.yml`, on the eBay website tracking step, add the environment value
 `EBAY_COMPETITOR_TOP: "20"` (how many positions per keyword to keep; 0 = off); (2) make sure the commit step includes
@@ -468,6 +479,11 @@ each page returned (the real page size), warns if page 2 just repeats page 1, an
 comparing with your own search on otto.de or kaufland.de. If a page has no products it lists every request it made (the
 country setting, no country setting, and for Otto the old `?o=0` address), says what each returned (empty, bot check, a
 script-only shell...), shows the first characters of a small page and Bright Data's own response headers.
+Since 2026-11-09.4 it asks Bright Data for debug details on every request and shows, per request, whether it was **billed**,
+which **country it exited from** and whether it was **browser-rendered**. For page 1 it tries the plain request, then without a
+country, then Bright Data's **browser rendering** (`render`, slower, same per-request billing). The report starts with Bright
+Data's own **success rate for your requests to that domain over the last 7 days**, and ends with a plain-language verdict
+(rendering worked / even rendering failed, so use Scraper Studio or the Browser API / failed requests were billed).
 
 **For Otto, Kaufland and Temu: before trusting the daily numbers, pick one
 keyword whose rank you know by searching yourself, and compare.** If the

@@ -54,7 +54,7 @@ def scraping_browser_ws_url() -> str:
     return f"wss://{auth}@brd.superproxy.io:9222"
 
 
-def fetch_response(url: str, country: str | None = None) -> requests.Response:
+def fetch_response(url: str, country: str | None = None, render: bool = False, debug: bool = False) -> requests.Response:
     """
     Fetch a URL through Bright Data's Web Unlocker and return the full response (status, headers, body).
 
@@ -73,6 +73,10 @@ def fetch_response(url: str, country: str | None = None) -> requests.Response:
     payload = {"zone": zone, "url": url, "format": "raw"}
     if country:
         payload["country"] = country.lower()
+    if render:
+        payload["render"] = "true"        # force a real browser: slower, but runs a page's JavaScript before answering
+    if debug:
+        payload["debug"] = True           # adds the x-brd-debug response header (see parse_debug)
 
     # One retry if Bright Data does not answer in time: a second attempt usually goes out through a
     # different exit address. (Bright Data bills successful requests only.)
@@ -101,3 +105,33 @@ def fetch_response(url: str, country: str | None = None) -> requests.Response:
 def fetch_html(url: str, country: str | None = None) -> str:
     """Fetch a URL through Bright Data's Web Unlocker and return its raw HTML (see fetch_response)."""
     return fetch_response(url, country).text
+
+
+def parse_debug(headers) -> dict:
+    """
+    The fields of Bright Data's x-brd-debug header (only present when the request was sent with debug=True), e.g.
+    {"req_id": "hl_...", "billed": "false", "peer_country": "de", "render": "false", "captcha_solved": "false", "bytes_down": "562418"}.
+    """
+    raw = ""
+    for k, v in (headers or {}).items():
+        if str(k).lower() == "x-brd-debug":
+            raw = str(v)
+    out = {}
+    for part in raw.split(";"):
+        if "=" in part:
+            k, _, v = part.strip().partition("=")
+            out[k.strip()] = v.strip()
+    return out
+
+
+def success_rate(domain: str) -> dict:
+    """
+    Bright Data's own statistics for YOUR requests to a domain over the last 7 days: {"otto.de": 0.97, "time_p90": 3347.9}
+    (success rate between 0 and 1, and the 90th-percentile response time in milliseconds). {} when there were none.
+    """
+    api_key = os.environ.get("BRIGHTDATA_API_KEY")
+    if not api_key:
+        raise RuntimeError("BRIGHTDATA_API_KEY not set")
+    resp = requests.get(f"https://api.brightdata.com/unblocker/success_rate/{domain}", headers={"Authorization": f"Bearer {api_key}"}, timeout=120)
+    resp.raise_for_status()
+    return resp.json()

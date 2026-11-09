@@ -36,6 +36,7 @@ from pathlib import Path
 
 import bright_data
 import config_loader
+import history_store
 import page_savings as ps
 import requests
 
@@ -113,7 +114,7 @@ def save_json(path: Path, data):
 
 def main():
     projects = config_loader.load_projects()
-    history = load_json(DATA_PATH, [])
+    history = history_store.load(DATA_PATH)
     today = date.today().isoformat()
     seen_today = {
         (r["project_id"], r["item_key"], r["keyword"])
@@ -202,10 +203,9 @@ def main():
         print(f"  !! Stopping the kaufland run: it cannot continue (see the message above). "
               "Stopping here so a blocked marketplace cannot keep spending Bright Data credit.", file=sys.stderr)
     finally:
-        save_json(DATA_PATH, history)
+        history_store.save_and_report(DATA_PATH, history)
     print(f"kaufland: {len(_PAGE_CACHE) - pages_before} results page(s) requested, up to {MAX_PAGES} per keyword; "
           f"{len(skipped_dormant)} keyword(s) skipped as dormant (re-checked every {ps.env_int('DORMANT_RECHECK_DAYS', 7, 1, 60)} days).")
-    print(f"Saved {len(history)} total rows to {DATA_PATH}")
 
 
 if __name__ == "__main__":

@@ -66,9 +66,9 @@ def raw_start(html: str, n: int = 700) -> str:
 def attempts_for(marketplace: str, keyword: str, page: int, country: str):
     """The requests tried for one page, in order, stopping at the first that returns product IDs. First pages get more variants."""
     url = page_url(marketplace, keyword, page)
-    seq = [(url, country, f"country={country.lower()}"), (url, None, "no country setting")]
-    if marketplace == "otto" and page == 1:       # the old tracker address, to see whether the '?o=0' form behaves differently
-        seq.append((otto.SEARCH_URL.format(query=urllib.parse.quote(keyword), offset=0), country, f"old address with ?o=0, country={country.lower()}"))
+    seq = [(url, country, f"country={country.lower()}", False), (url, None, "no country setting", False)]
+    if page == 1:                                  # last resort: have Bright Data load the page in a real browser (slower)
+        seq.append((url, country, f"browser rendering, country={country.lower()}", True))
     return seq
 
 
@@ -76,10 +76,10 @@ def fetch_page(marketplace: str, keyword: str, page: int, country: str, extracto
     """Returns (html, ids, attempts); each attempt is a dict describing one request."""
     log = []
     html, ids = "", []
-    for url, c, label in attempts_for(marketplace, keyword, page, country):
+    for url, c, label, render in attempts_for(marketplace, keyword, page, country):
         t0 = time.monotonic()
         try:
-            resp = bright_data.fetch_response(url, country=c)
+            resp = bright_data.fetch_response(url, country=c, render=render, debug=True)
         except requests.RequestException as e:
             log.append({"label": label, "url": url, "status": "failed", "chars": 0, "secs": time.monotonic() - t0, "ids": 0,
                         "what": f"request failed: {type(e).__name__}: {str(e)[:100]}", "hdr": "", "raw": ""})
@@ -87,8 +87,11 @@ def fetch_page(marketplace: str, keyword: str, page: int, country: str, extracto
         h = resp.text
         i = extractor(h) if h.strip() else []
         hdr = "; ".join(f"{k}: {str(v)[:100]}" for k, v in resp.headers.items() if k.lower().startswith(("x-brd", "x-luminati")))
+        dbg = bright_data.parse_debug(resp.headers)
         log.append({"label": label, "url": url, "status": resp.status_code, "chars": len(h), "secs": time.monotonic() - t0, "ids": len(i),
-                    "what": describe(h, i), "hdr": hdr, "raw": raw_start(h) if (h.strip() and not i and len(h) < 6000) else ""})
+                    "what": describe(h, i), "hdr": hdr, "raw": raw_start(h) if (h.strip() and not i and len(h) < 6000) else "",
+                    "billed": dbg.get("billed", "?"), "exit": (dbg.get("peer_country") or "?").upper(), "rendered": dbg.get("render", "?"),
+                    "captcha": dbg.get("captcha_solved", "?"), "req": dbg.get("req_id", "")})
         html, ids = h, i
         if i or ps.refusal(h):          # results found, or Bright Data refused outright: other variants cannot change that
             break
@@ -127,6 +130,13 @@ def main():
     lines = [f"# {a.marketplace.capitalize()} check — “{a.keyword}”", "",
              f"Reads up to {pages} results page(s) through your Bright Data zone, exactly as the daily tracker does. "
              f"Products found in your sheet for {a.marketplace}" + (f" (projects containing “{a.project}”)" if a.project else "") + f": **{len(tracked)}**.", ""]
+    domain = {"otto": "otto.de", "kaufland": "kaufland.de"}[a.marketplace]
+    try:
+        sr = bright_data.success_rate(domain)
+        rate = sr.get(domain)
+        lines += [f"Bright Data's own statistics for your requests to **{domain}** over the last 7 days: " + (f"**{rate * 100:.0f}% succeeded**, 90% finished within {sr.get('time_p90', 0) / 1000:.1f} s." if rate is not None else "no requests recorded yet."), ""]
+    except Exception as e:
+        lines += [f"(Bright Data's success statistics for {domain} could not be read: {type(e).__name__}.)", ""]
     ordered, per_page, attempts_all = [], [], []
     for page in range(1, pages + 1):
         html, ids, log = fetch_page(a.marketplace, a.keyword, page, a.country, mod.extract_ordered_product_ids)
@@ -140,10 +150,10 @@ def main():
     lines += ["## What each page returned", "", "| Page | Characters | Product IDs on it | New (not on an earlier page) | Repeated from earlier pages |", "|--:|--:|--:|--:|--:|"]
     for page, url, n_chars, n_ids, n_new, n_overlap in per_page:
         lines.append(f"| {page} | {n_chars:,} | {n_ids} | {n_new} | {n_overlap} |")
-    lines += ["", "## Every request made", "", "| Page | Variant | HTTP | Characters | Seconds | Product IDs | What came back |", "|--:|---|--:|--:|--:|--:|---|"]
+    lines += ["", "## Every request made", "", "| Page | Variant | HTTP | Characters | Seconds | Product IDs | Billed | Exit country | Browser-rendered | What came back |", "|--:|---|--:|--:|--:|--:|---|---|---|---|"]
     for page, log in attempts_all:
         for t in log:
-            lines.append(f"| {page} | {t['label']} | {t['status']} | {t['chars']:,} | {t['secs']:.0f} | {t['ids']} | {t['what']} |")
+            lines.append(f"| {page} | {t['label']} | {t['status']} | {t['chars']:,} | {t['secs']:.0f} | {t['ids']} | {t['billed']} | {t['exit']} | {t['rendered']} | {t['what']} |")
     lines.append("")
     for page, log in attempts_all:
         for t in log:
@@ -159,6 +169,14 @@ def main():
                   "Bright Data account, not a fault in the tracker or the address. Read its message above (for sites that need it, "
                   "it asks for the KYC verification form at brightdata.com/cp/kyc, which an account owner completes). "
                   "Once approved, run this check again.", ""]
+    log1 = attempts_all[0][1] if attempts_all else []
+    rendered_ok = [t for t in log1 if "rendering" in t["label"] and t["ids"]]
+    if rendered_ok:
+        lines += ["**Browser rendering worked** where the plain requests did not. The tracker can use it for this marketplace (slower, and I would set it as an option).", ""]
+    elif log1 and not any(t["ids"] for t in log1) and any("shell" in t["what"] or "bot check" in t["what"] for t in log1):
+        lines += ["**Even browser rendering did not get past the protection.** Web Unlocker cannot read this site on your account. The next options are Bright Data's Scraper Studio (an AI-built scraper that Bright Data runs itself) or the Browser API.", ""]
+    if any(t.get("billed") == "true" and not t["ids"] for t in log1):
+        lines += ["**Note: Bright Data billed at least one request that returned no products.** Check Billing, and keep the number of such requests small.", ""]
     if per_page and per_page[0][3] == 0:
         lines += ["**Page 1 returned no product IDs in any variant.** The daily tracker treats this as a failed read: it saves nothing "
                   "for the keyword that day (never a 'not found') and stops the run after 5 such keywords in a row.", ""]

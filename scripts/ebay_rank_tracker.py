@@ -31,6 +31,7 @@ from pathlib import Path
 import requests
 
 import config_loader
+import history_store
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_PATH = ROOT / "docs" / "data" / "ranks.json"
@@ -216,7 +217,7 @@ def main():
     if skipped_web and not api_items:
         print("  NOTE: every eBay product is set to source=web, so this API step checks nothing. If the website "
               "step is missing from the workflow or the Bright Data secrets are not set, nothing is saved at all.", file=sys.stderr)
-    history = load_json(DATA_PATH, [])
+    history = history_store.load(DATA_PATH)
     today = date.today().isoformat()
     # Rows already made today by the website tracker (source=web) don't count here: if a product was
     # switched back to the API, the API result replaces them.
@@ -280,8 +281,7 @@ def main():
                     print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}{extra}")
 
     finally:
-        save_json(DATA_PATH, history)
-    print(f"Saved {len(history)} total rows to {DATA_PATH}")
+        history_store.save_and_report(DATA_PATH, history)
 
 
 if __name__ == "__main__":

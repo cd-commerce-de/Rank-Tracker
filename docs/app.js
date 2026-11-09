@@ -7,7 +7,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-11-09.2";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-11-09.4";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false, view: "ranks", compKw: null, compDate: null, compDays: 30 };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -298,8 +298,44 @@ async function fetchJSON(path) {
   }
 }
 
+// ---------- the history: monthly files (data/ranks/YYYY-MM.json) or, until those exist, the old single data/ranks.json ----------
+// A monthly file lists each repeated string once (items, keywords, page contexts) and each reading as a short list of numbers;
+// scripts/history_store.py documents the layout. This turns it back into the same row objects the old file held.
+function decodeMonth(shard) {
+  if (shard.v === 1) return shard.rows;
+  const month = shard.month, pad = (n) => String(n).padStart(2, "0"), rows = new Array(shard.rows.length);
+  for (let n = 0; n < shard.rows.length; n++) {
+    const a = shard.rows[n], row = Object.assign({}, shard.items[a[2]]);
+    row.date = `${month}-${pad(a[0])}`;
+    row.checked_at = `${row.date}T${pad((a[1] / 3600) | 0)}:${pad(((a[1] % 3600) / 60) | 0)}:${pad(a[1] % 60)}+00:00`;
+    row.keyword = shard.kws[a[3]];
+    row.rank = a[5];
+    row.results_scanned = a[6];
+    const keys = shard.shapes[a[4]];
+    for (let i = 0; i < keys.length; i++) {
+      const v = a[7 + i];
+      if (keys[i] === "@ctx") { const c = shard.ctx[v]; row.page_lang = c[0]; row.page_geo = c[1]; row.page_shipto = c[2]; }
+      else row[keys[i]] = v;
+    }
+    rows[n] = row;
+  }
+  return rows;
+}
+
+async function loadHistory() {
+  const idx = await fetchJSON("data/ranks/index.json");
+  if (idx && Array.isArray(idx.months) && idx.months.length) {
+    const shards = await Promise.all(idx.months.map((m) => fetchJSON(`data/ranks/${m}.json`)));
+    if (shards.every(Boolean)) return shards.flatMap(decodeMonth);
+    console.warn("a monthly history file could not be read; using the older single file if there is one");
+    const legacy = await fetchJSON("data/ranks.json");
+    return legacy && legacy.length ? legacy : shards.filter(Boolean).flatMap(decodeMonth);   // never show half the months silently when a complete older copy exists
+  }
+  return await fetchJSON("data/ranks.json");
+}
+
 async function loadData() {
-  let rows = await fetchJSON("data/ranks.json");
+  let rows = await loadHistory();
   IS_DEMO = false;
   if (!rows || rows.length === 0) {
     rows = await fetchJSON("data/demo-ranks.json");

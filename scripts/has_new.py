@@ -20,6 +20,7 @@ from datetime import date
 from pathlib import Path
 
 import config_loader
+import history_store
 import ebay_web
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -83,7 +84,7 @@ def main():
         return
 
     projects = config_loader.load_projects()
-    history = json.loads(DATA_PATH.read_text(encoding="utf-8")) if DATA_PATH.exists() else []
+    history = history_store.load(DATA_PATH)
     new = find_new(projects, history)
     if new:
         print(f"{len(new)} new keyword(s) to check, e.g.: {new[0]}")

@@ -29,6 +29,7 @@ import requests
 
 import bright_data
 import config_loader
+import history_store
 import competitors
 import ebay_web
 
@@ -260,7 +261,7 @@ def main():
             sys.exit(1)
         return
     projects = config_loader.load_projects()
-    history = load_json(DATA_PATH, [])
+    history = history_store.load(DATA_PATH)
     today = date.today().isoformat()
     # Only rows already made by THIS tracker count as "checked today". A row made earlier today by the
     # eBay API (before the product was switched to source=web) is replaced by the website result.
@@ -368,7 +369,7 @@ def main():
     except StopRun:
         _stop_message()
     finally:
-        save_json(DATA_PATH, history)
+        history_store.save_and_report(DATA_PATH, history)
     if _COMP:
         # the competitor snapshot is extra: if it cannot be saved, the rankings above are already saved and unaffected
         try:
@@ -399,7 +400,6 @@ def main():
         if s["scheme_pages"] and s["cards"] >= 10 and s["labelled"] < 0.5 * s["cards"]:
             print(f"  !! Only {s['labelled']} of {s['cards']} listings had a readable ad label, so eBay may have changed its "
                   "page layout and organic ranks may be wrong. Run 'Check an eBay keyword' and tell whoever maintains this.", file=sys.stderr)
-    print(f"Saved {len(history)} total rows to {DATA_PATH}")
 
 
 if __name__ == "__main__":
