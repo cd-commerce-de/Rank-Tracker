@@ -165,6 +165,9 @@ def main():
                         continue
                     try:
                         rank = find_rank(keyword, target_id, country)
+                    except ps.ChallengeBlocked as e:
+                        print(f"  !! Stopping kaufland: {e}", file=sys.stderr)
+                        raise ps.StopRun()
                     except ps.PolicyRefused as e:
                         print(f"  !! Bright Data refuses kaufland for your account, so nothing was read or saved: {e}", file=sys.stderr)
                         raise ps.StopRun()

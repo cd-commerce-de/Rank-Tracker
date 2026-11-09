@@ -31,11 +31,27 @@ class PolicyRefused(EmptyPage):
     """Bright Data refused the request itself (account policy, e.g. the site needs KYC verification): retrying cannot help."""
 
 
+class ChallengeBlocked(PolicyRefused):
+    """The site answered with a bot-protection challenge page (Kasada, DataDome, Cloudflare) instead of results."""
+
+
 class StopRun(Exception):
     """Too many keywords in a row could not be read: stop instead of paying for more failures."""
 
 
 REFUSAL_RE = re.compile(r"brightdata\.com/cp/kyc|Residential Failed|policy_\d{4,6}", re.I)
+
+
+_CHALLENGES = (("Kasada", r"KPSDK"), ("DataDome", r"datadome|captcha-delivery\.com"), ("Cloudflare", r"cf-chl|Just a moment\.\.\.|challenges\.cloudflare\.com"))
+
+
+def challenge(html: str):
+    """Name of the bot-protection whose challenge page this is (a short page carrying its fingerprint), else None."""
+    if html and len(html) < 8000:
+        for name, pat in _CHALLENGES:
+            if re.search(pat, html, re.I):
+                return name
+    return None
 
 
 def refusal(text: str):
@@ -68,6 +84,10 @@ def fetch_ids(url: str, country: str, extractor, cache: dict, errors: dict, firs
             msg = refusal(html)
             if msg:
                 raise PolicyRefused(msg)                                 # account policy: another try cannot change it
+            name = challenge(html)
+            if name:                                                     # a challenge page: another try only costs another billed request
+                raise ChallengeBlocked(f"{name} bot-protection answered with a challenge page instead of results ({len(html)} characters). "
+                                       "Bright Data may bill such a request, so the run stops here.")
             ids = extractor(html) if html.strip() else []
             if not ids and (first or not html.strip()):
                 html2 = bright_data.fetch_html(url, country=None)       # a different exit address often works

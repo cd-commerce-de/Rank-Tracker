@@ -44,6 +44,8 @@ def describe(html: str, ids: list) -> str:
         return "empty"
     if ps.refusal(html):
         return "Bright Data itself refused this request (account policy), before reaching the site"
+    if ps.challenge(html):
+        return f"a {ps.challenge(html)} bot-protection challenge page (the real results are not in it)"
     noscript = " ".join(re.findall(r"<noscript\b[^>]*>(.*?)</noscript>", html, flags=re.S | re.I))
     body = re.sub(r"<(script|style|noscript)\b.*?</\1>", " ", html, flags=re.S | re.I)
     visible = re.sub(r"\s+", " ", htmllib.unescape(re.sub(r"<[^>]+>", " ", body))).strip()
@@ -86,12 +88,12 @@ def fetch_page(marketplace: str, keyword: str, page: int, country: str, extracto
             continue
         h = resp.text
         i = extractor(h) if h.strip() else []
-        hdr = "; ".join(f"{k}: {str(v)[:100]}" for k, v in resp.headers.items() if k.lower().startswith(("x-brd", "x-luminati")))
+        hdr = "; ".join(f"{k}: {str(v)[:900] if k.lower() == 'x-brd-debug' else str(v)[:100]}" for k, v in resp.headers.items() if k.lower().startswith(("x-brd", "x-luminati")))
         dbg = bright_data.parse_debug(resp.headers)
         log.append({"label": label, "url": url, "status": resp.status_code, "chars": len(h), "secs": time.monotonic() - t0, "ids": len(i),
                     "what": describe(h, i), "hdr": hdr, "raw": raw_start(h) if (h.strip() and not i and len(h) < 6000) else "",
                     "billed": dbg.get("billed", "?"), "exit": (dbg.get("peer_country") or "?").upper(), "rendered": dbg.get("render", "?"),
-                    "captcha": dbg.get("captcha_solved", "?"), "req": dbg.get("req_id", "")})
+                    "captcha": dbg.get("captcha_solved", "not reported"), "captcha_type": dbg.get("captcha_type", ""), "req": dbg.get("req_id", "")})
         html, ids = h, i
         if i or ps.refusal(h):          # results found, or Bright Data refused outright: other variants cannot change that
             break
@@ -150,10 +152,10 @@ def main():
     lines += ["## What each page returned", "", "| Page | Characters | Product IDs on it | New (not on an earlier page) | Repeated from earlier pages |", "|--:|--:|--:|--:|--:|"]
     for page, url, n_chars, n_ids, n_new, n_overlap in per_page:
         lines.append(f"| {page} | {n_chars:,} | {n_ids} | {n_new} | {n_overlap} |")
-    lines += ["", "## Every request made", "", "| Page | Variant | HTTP | Characters | Seconds | Product IDs | Billed | Exit country | Browser-rendered | What came back |", "|--:|---|--:|--:|--:|--:|---|---|---|---|"]
+    lines += ["", "## Every request made", "", "| Page | Variant | HTTP | Characters | Seconds | Product IDs | Billed | Exit country | Browser-rendered | CAPTCHA solved | What came back |", "|--:|---|--:|--:|--:|--:|---|---|---|---|---|"]
     for page, log in attempts_all:
         for t in log:
-            lines.append(f"| {page} | {t['label']} | {t['status']} | {t['chars']:,} | {t['secs']:.0f} | {t['ids']} | {t['billed']} | {t['exit']} | {t['rendered']} | {t['what']} |")
+            lines.append(f"| {page} | {t['label']} | {t['status']} | {t['chars']:,} | {t['secs']:.0f} | {t['ids']} | {t['billed']} | {t['exit']} | {t['rendered']} | {t['captcha']}{(' (' + t['captcha_type'] + ')') if t.get('captcha_type') else ''} | {t['what']} |")
     lines.append("")
     for page, log in attempts_all:
         for t in log:

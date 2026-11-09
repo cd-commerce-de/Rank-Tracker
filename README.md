@@ -94,6 +94,8 @@ listings that were actually looked at (the dashboard shows it as `>N`). To look 
   The tracker therefore stops at a *partial* page instead of jumping to the next offset (which would skip the unseen tiles and
   give wrong positions), and records the real number of results read, so a product that is missing reads "not found in the
   top 18", never an assumed 120. Reading deeper needs a rendering route (Bright Data's Scraper Studio or Browser API).
+  **A bot-protection challenge page (Kasada, DataDome or Cloudflare) also stops the Otto / Kaufland run at the first one**: Bright
+  Data can bill such a request, so retrying only costs money (one request a day instead of about ten).
   Otto, a different case, answers with Kasada's bot-protection page (a `KPSDK` / `ips.js` script) that the zone did not
   get past. A failing page is not requested again for the other
   products, and a run stops after 5 keywords in a row fail.
