@@ -262,8 +262,9 @@ def main():
     else:
         lines += ["| Position | SKU | Product ID | Project |", "|--:|---|---|---|"]
         found = 0
-        for pid, owners in sorted(tracked.items(), key=lambda kv: ordered.index(kv[0]) if kv[0] in ordered else 10**6):
-            pos = ordered.index(pid) + 1 if pid in ordered else None
+        locate = (lambda pid: otto.position_of(ordered, pid)) if a.marketplace == "otto" else (lambda pid: ordered.index(pid) + 1 if pid in ordered else None)
+        for pid, owners in sorted(tracked.items(), key=lambda kv: locate(kv[0]) or 10**6):
+            pos = locate(pid)
             found += pos is not None
             for name, sku in owners:
                 lines.append(f"| {pos if pos else '—'} | {sku or '—'} | {pid} | {name} |")

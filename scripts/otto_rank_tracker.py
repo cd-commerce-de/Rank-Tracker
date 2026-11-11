@@ -64,6 +64,24 @@ MAX_PAGES = ps.env_int("OTTO_MAX_PAGES", 2, 1, 10)   # results pages read per ke
 PRODUCT_ID_RE = re.compile(r"/p/[\w-]+-([A-Z][A-Za-z0-9]{4,14})/")
 
 
+def id_matches(tile_id: str, target: str) -> bool:
+    """
+    Does a results tile belong to the product in your sheet? A tile links Otto's PRODUCT id (the code at the end of the
+    product address, e.g. S02H50KY). The sheet may instead hold a VARIATION id: the product id plus a short ending for the
+    colour or size (e.g. S02H50KYLF8 = S02H50KY + LF8). Both are accepted: an exact match, or a sheet id that starts with
+    the tile's product id. All variations of a product share one tile, so they share one position.
+    """
+    return tile_id == target or (len(tile_id) >= 6 and len(target) > len(tile_id) and target.startswith(tile_id))
+
+
+def position_of(ordered: list, target: str):
+    """1-based position of the tile for `target` in an ordered list of tile ids, or None."""
+    for i, tile_id in enumerate(ordered, 1):
+        if id_matches(tile_id, target):
+            return i
+    return None
+
+
 def extract_ordered_product_ids(html: str) -> list[str]:
     """Return product IDs in the order they first appear on the page."""
     seen = set()
@@ -105,7 +123,7 @@ def find_rank(keyword: str, target_product_id: str, country: str):
         if not ids:
             break
         all_ids.extend(ids)
-        if target_product_id in all_ids:
+        if position_of(all_ids, target_product_id):
             break
         if len(ids) < OFFSET_STEP * PARTIAL_PAGE_BELOW:
             break
@@ -119,9 +137,7 @@ def find_rank(keyword: str, target_product_id: str, country: str):
             ordered.append(pid)
 
     _SCANNED[(country, keyword)] = len(ordered)
-    if target_product_id in ordered:
-        return ordered.index(target_product_id) + 1
-    return None
+    return position_of(ordered, target_product_id)
 
 
 def load_json(path: Path, default):

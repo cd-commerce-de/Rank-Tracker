@@ -132,8 +132,13 @@ def build_report(a, url, got, extractor, tracked) -> str:
     else:
         lines += ["| Position | SKU | Product ID | Project |", "|--:|---|---|---|"]
         found = 0
-        for pid, owners in sorted(tracked.items(), key=lambda kv: ids.index(kv[0]) if kv[0] in ids else 10**6):
-            pos = ids.index(pid) + 1 if pid in ids else None
+        if a.marketplace == "otto":
+            import otto_rank_tracker as _otto
+            locate = lambda pid: _otto.position_of(ids, pid)
+        else:
+            locate = lambda pid: ids.index(pid) + 1 if pid in ids else None
+        for pid, owners in sorted(tracked.items(), key=lambda kv: locate(kv[0]) or 10**6):
+            pos = locate(pid)
             found += pos is not None
             for name, sku in owners:
                 lines.append(f"| {pos if pos else '—'} | {sku or '—'} | {pid} | {name} |")

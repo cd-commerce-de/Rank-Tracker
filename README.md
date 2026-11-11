@@ -90,6 +90,10 @@ listings that were actually looked at (the dashboard shows it as `>N`). To look 
   accordance with robots.txt") and asked for its KYC verification form (brightdata.com/cp/kyc), which an account owner
   completes. That is a permission on the account, not something the tracker can work around. The run makes one request,
   saves nothing, and says so in the log; run the "Check an Otto or Kaufland keyword" test again once access is granted.
+  **Otto product IDs.** A results tile links Otto's *product* id (the code at the end of the product address, e.g. `S0VCI0CR`).
+  The sheet may hold either that, or a *variation* id (product id + a short colour/size ending, e.g. `S02H50KYLF8` =
+  `S02H50KY` + `LF8`). Both work: a sheet id that starts with a tile's product id counts as that product. All variations of
+  a product share one tile and therefore one position, so listing several variations of one product gives them the same rank.
   **Otto shows only its first tiles (about 18, per third-party reports) in the page itself and loads the rest while you scroll.**
   The tracker therefore stops at a *partial* page instead of jumping to the next offset (which would skip the unseen tiles and
   give wrong positions), and records the real number of results read, so a product that is missing reads "not found in the
