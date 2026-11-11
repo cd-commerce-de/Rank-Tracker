@@ -10,10 +10,12 @@ Costs 1-2 Bright Data requests per page read (an empty answer is retried once). 
 
 import argparse
 import html as htmllib
+import json
 import os
 import re
 import sys
 import time
+import types
 import urllib.parse
 
 import bright_data
@@ -23,14 +25,47 @@ import kaufland_rank_tracker as kfl
 import otto_rank_tracker as otto
 import requests
 
-MODULES = {"otto": otto, "kaufland": kfl}
+TEMU_GOODS_RE = re.compile(r'goods_id"?[=:]\s*"?(\d{9,18})')      # the same pattern the Temu tracker uses (copied: that module needs Playwright)
+
+
+def temu_ids(page_html: str):
+    out = []
+    for m in TEMU_GOODS_RE.finditer(page_html or ""):
+        if m.group(1) not in out:
+            out.append(m.group(1))
+    return out
+
+
+MODULES = {"otto": otto, "kaufland": kfl, "temu": types.SimpleNamespace(extract_ordered_product_ids=temu_ids)}
+ID_FIELDS = {"otto": "otto_product_id", "kaufland": "kaufland_product_id", "temu": "temu_goods_id"}
+DOMAINS = {"otto": "otto.de", "kaufland": "kaufland.de", "temu": "temu.com"}
+EXPECT = {"otto": 'a[href*="/p/"]', "kaufland": 'a[href*="/product/"]', "temu": 'a[href*="goods_id"]'}   # what a REAL results page contains
 
 
 def page_url(marketplace: str, keyword: str, page: int) -> str:
     q = urllib.parse.quote(keyword)
+    if marketplace == "temu":                      # Temu has no numbered pages; the German storefront path is /de
+        return f"https://www.temu.com/de/search_result.html?search_key={q}"
     if marketplace == "otto":
         return otto.search_url(q, (page - 1) * otto.OFFSET_STEP)
     return kfl.SEARCH_URL.format(query=q, page=page)
+
+
+DIRECT_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "de-DE,de;q=0.9,en;q=0.5",
+}
+
+
+def direct_fetch(url: str):
+    """A plain request from this machine (the GitHub runner), no Bright Data and no browser: (status, html, seconds, error)."""
+    t0 = time.monotonic()
+    try:
+        r = requests.get(url, headers=DIRECT_HEADERS, timeout=30)
+        return r.status_code, r.text, time.monotonic() - t0, None
+    except requests.RequestException as e:
+        return None, "", time.monotonic() - t0, type(e).__name__
 
 
 BOT_WORDS = ("captcha", "robot", "roboter", "verify", "access denied", "zugriff", "challenge", "blocked", "unusual traffic")
@@ -68,9 +103,10 @@ def raw_start(html: str, n: int = 700) -> str:
 def attempts_for(marketplace: str, keyword: str, page: int, country: str):
     """The requests tried for one page, in order, stopping at the first that returns product IDs. First pages get more variants."""
     url = page_url(marketplace, keyword, page)
-    seq = [(url, country, f"country={country.lower()}", False), (url, None, "no country setting", False)]
-    if page == 1:                                  # last resort: have Bright Data load the page in a real browser (slower)
-        seq.append((url, country, f"browser rendering, country={country.lower()}", True))
+    seq = [(url, country, f"country={country.lower()}", False, None), (url, None, "no country setting", False, None)]
+    if page == 1:                                  # last resorts: a real browser (slower), then "keep going until real results appear"
+        seq.append((url, country, f"browser rendering, country={country.lower()}", True, None))
+        seq.append((url, country, "wait for real results (expect), rendered", True, EXPECT[marketplace]))
     return seq
 
 
@@ -78,10 +114,23 @@ def fetch_page(marketplace: str, keyword: str, page: int, country: str, extracto
     """Returns (html, ids, attempts); each attempt is a dict describing one request."""
     log = []
     html, ids = "", []
-    for url, c, label, render in attempts_for(marketplace, keyword, page, country):
+    if marketplace == "otto" and page == 1:
+        # Third-party tools report that Otto's SEARCH pages are readable with a plain request (only product pages carry the
+        # challenge), so try that first: it costs nothing and uses no Bright Data.
+        url0 = page_url(marketplace, keyword, page)
+        status, h, secs, err = direct_fetch(url0)
+        i = extractor(h) if h.strip() else []
+        log.append({"label": "direct from the GitHub runner (no Bright Data)", "url": url0, "status": status or "failed", "chars": len(h), "secs": secs, "ids": len(i),
+                    "what": (f"request failed: {err}" if err else describe(h, i)), "hdr": "", "raw": raw_start(h) if (h.strip() and not i and len(h) < 6000) else "",
+                    "billed": "no (not Bright Data)", "exit": "GitHub runner", "rendered": "no", "captcha": "—", "captcha_type": "", "req": ""})
+        html, ids = h, i
+        if i:
+            return html, ids, log
+    for url, c, label, render, expect in attempts_for(marketplace, keyword, page, country):
         t0 = time.monotonic()
         try:
-            resp = bright_data.fetch_response(url, country=c, render=render, debug=True)
+            resp = bright_data.fetch_response(url, country=c, render=render, debug=True,
+                                              extra_headers={"x-unblock-expect": json.dumps({"element": expect})} if expect else None)
         except requests.RequestException as e:
             log.append({"label": label, "url": url, "status": "failed", "chars": 0, "secs": time.monotonic() - t0, "ids": 0,
                         "what": f"request failed: {type(e).__name__}: {str(e)[:100]}", "hdr": "", "raw": ""})
@@ -96,6 +145,8 @@ def fetch_page(marketplace: str, keyword: str, page: int, country: str, extracto
                     "captcha": dbg.get("captcha_solved", "not reported"), "captcha_type": dbg.get("captcha_type", ""), "req": dbg.get("req_id", "")})
         html, ids = h, i
         if i or ps.refusal(h):          # results found, or Bright Data refused outright: other variants cannot change that
+            break
+        if marketplace == "otto" and ps.challenge(h):   # known to fail the same way with rendering too; each further try is a billed request
             break
     return html, ids, log
 
@@ -115,8 +166,8 @@ def main():
     ap.add_argument("--project", default="", help="only highlight products of projects whose name contains this text")
     a = ap.parse_args()
     mod = MODULES[a.marketplace]
-    pages = max(1, min(a.pages, 5))
-    idf = "otto_product_id" if a.marketplace == "otto" else "kaufland_product_id"
+    pages = 1 if a.marketplace == "temu" else max(1, min(a.pages, 5))
+    idf = ID_FIELDS[a.marketplace]
 
     tracked = {}
     try:
@@ -132,7 +183,7 @@ def main():
     lines = [f"# {a.marketplace.capitalize()} check — “{a.keyword}”", "",
              f"Reads up to {pages} results page(s) through your Bright Data zone, exactly as the daily tracker does. "
              f"Products found in your sheet for {a.marketplace}" + (f" (projects containing “{a.project}”)" if a.project else "") + f": **{len(tracked)}**.", ""]
-    domain = {"otto": "otto.de", "kaufland": "kaufland.de"}[a.marketplace]
+    domain = DOMAINS[a.marketplace]
     try:
         sr = bright_data.success_rate(domain)
         rate = sr.get(domain)
@@ -173,10 +224,22 @@ def main():
                   "Once approved, run this check again.", ""]
     log1 = attempts_all[0][1] if attempts_all else []
     rendered_ok = [t for t in log1 if "rendering" in t["label"] and t["ids"]]
-    if rendered_ok:
+    expect_ok = [t for t in log1 if "expect" in t["label"] and t["ids"]]
+    if expect_ok:
+        lines += ["**Waiting for real results worked** (the `expect` feature): Web Unlocker kept unlocking until product links appeared. "
+                  "Note that with Manual 'expect' elements switched on in the zone, Bright Data bills 100% of requests, failed ones included, so I would only use it for this marketplace.", ""]
+    elif rendered_ok:
         lines += ["**Browser rendering worked** where the plain requests did not. The tracker can use it for this marketplace (slower, and I would set it as an option).", ""]
-    elif log1 and not any(t["ids"] for t in log1) and any("shell" in t["what"] or "bot check" in t["what"] for t in log1):
-        lines += ["**Even browser rendering did not get past the protection.** Web Unlocker cannot read this site on your account. The next options are Bright Data's Scraper Studio (an AI-built scraper that Bright Data runs itself) or the Browser API.", ""]
+    elif log1 and not any(t["ids"] for t in log1) and any(("shell" in t["what"]) or ("bot check" in t["what"]) or ("bot-protection" in t["what"]) for t in log1):
+        if any("rendering" in t["label"] for t in log1):
+            lines += ["**Even rendering and waiting for results did not get past the protection.** If the last variant ignored its `expect` request, the feature is not switched on in the zone "
+                      "(Configuration > Advanced settings > Manual 'expect' elements). Other options: Premium domains in the zone, Scraper Studio (an AI-built scraper that Bright Data runs itself) or the Browser API.", ""]
+        else:
+            lines += ["**The challenge page came back both directly and through Web Unlocker.** The rendering and wait-for-results variants were skipped: on otto.de they have already "
+                      "failed the same way, and each one is a billed request.", ""]
+    if log1 and log1[0]["label"].startswith("direct") and log1[0]["ids"]:
+        lines += ["**A plain request from the GitHub runner worked: Otto's search page can be read with no Bright Data at all.** That would make Otto free to track. "
+                  "Caveat: GitHub's servers use well-known datacenter addresses, so Otto could block them later; this check shows how it behaves today.", ""]
     if any(t.get("billed") == "true" and not t["ids"] for t in log1):
         lines += ["**Note: Bright Data billed at least one request that returned no products.** Check Billing, and keep the number of such requests small.", ""]
     if per_page and per_page[0][3] == 0:

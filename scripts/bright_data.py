@@ -54,7 +54,7 @@ def scraping_browser_ws_url() -> str:
     return f"wss://{auth}@brd.superproxy.io:9222"
 
 
-def fetch_response(url: str, country: str | None = None, render: bool = False, debug: bool = False) -> requests.Response:
+def fetch_response(url: str, country: str | None = None, render: bool = False, debug: bool = False, extra_headers: dict | None = None) -> requests.Response:
     """
     Fetch a URL through Bright Data's Web Unlocker and return the full response (status, headers, body).
 
@@ -77,6 +77,8 @@ def fetch_response(url: str, country: str | None = None, render: bool = False, d
         payload["render"] = "true"        # force a real browser: slower, but runs a page's JavaScript before answering
     if debug:
         payload["debug"] = True           # adds the x-brd-debug response header (see parse_debug)
+    if extra_headers:
+        payload["headers"] = extra_headers   # only honoured when the zone has a Custom Web Unlocker feature switched on (then ALL requests are billed)
 
     # One retry if Bright Data does not answer in time: a second attempt usually goes out through a
     # different exit address. (Bright Data bills successful requests only.)

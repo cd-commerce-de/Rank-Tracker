@@ -475,12 +475,27 @@ and GitHub may email you; fix the sharing and it recovers by itself.
   "not found" — blocked days show as a blue **?** in the grid and are left out of the
   summary numbers.
 
+**To test a keyword through the Browser API (Otto, Kaufland or Temu): Actions → "Check a keyword with the Browser API".** Use it where
+Web Unlocker cannot read a site (Otto's Kasada protection) or for Temu. It needs the `BRIGHTDATA_BROWSER_AUTH` secret
+(`username:password` from a Browser API zone's Overview tab). It opens the search page in a real browser run by Bright Data,
+scrolls (default 6 times) so lazily loaded results appear, and reports: results page or bot-protection page, how many listings
+were seen after each scroll (how deep one visit reaches), where your products are, **how many MB the visit downloaded** and what
+that costs per month for 5 / 10 / 20 / 50 keywords at $5 to $8 per GB. Temu is opened on its German storefront path (`/de`);
+the report shows the address the browser ended up on. Saves nothing; one visit is typically a few MB.
+
 **To test Otto or Kaufland on one keyword (1–4 Bright Data requests, nothing saved): Actions → "Check an Otto or Kaufland
 keyword".** It reads your live sheet, so it works before the daily run has seen new products. It shows how many listings
 each page returned (the real page size), warns if page 2 just repeats page 1, and lists where your products are, for
 comparing with your own search on otto.de or kaufland.de. If a page has no products it lists every request it made (the
 country setting, no country setting, and for Otto the old `?o=0` address), says what each returned (empty, bot check, a
 script-only shell...), shows the first characters of a small page and Bright Data's own response headers.
+For **Otto** the test first sends a plain request from the GitHub runner itself (no Bright Data, free): a third-party Otto
+tool reports that Otto's search pages answer a plain request and that only product pages carry the Kasada challenge. If that
+returns real listings, Otto can be read with no Bright Data. If it is challenged too, one Web Unlocker request follows and the
+billed render / wait-for-results variants are skipped (they failed the same way on Otto).
+The test also covers **Temu** (German storefront path `/de`, one results page) and, as a last variant, **"wait for real results"**
+(Bright Data's `x-unblock-expect` request header, honoured only when the zone's Configuration > Advanced settings > Manual
+'expect' elements is switched on; that setting makes Bright Data bill 100% of requests, failed ones too).
 Since 2026-11-09.4 it asks Bright Data for debug details on every request and shows, per request, whether it was **billed**,
 which **country it exited from** and whether it was **browser-rendered**. For page 1 it tries the plain request, then without a
 country, then Bright Data's **browser rendering** (`render`, slower, same per-request billing). The report starts with Bright
