@@ -90,6 +90,10 @@ listings that were actually looked at (the dashboard shows it as `>N`). To look 
   accordance with robots.txt") and asked for its KYC verification form (brightdata.com/cp/kyc), which an account owner
   completes. That is a permission on the account, not something the tracker can work around. The run makes one request,
   saves nothing, and says so in the log; run the "Check an Otto or Kaufland keyword" test again once access is granted.
+  **Kaufland ads.** Kaufland marks ads in its results page: a sponsored-brand tile at the very top (its link carries `sba` /
+  `sponsored` in its class) and ordinary grid tiles carrying the label "Gesponsert". `kaufland_rank_tracker.tile_flags()` finds
+  them (a saved page of 34 tiles showed 3). The keyword test reports how many it sees; the daily tracker does not separate
+  organic from ads for Kaufland yet, so Kaufland positions are overall positions.
   **Otto product IDs.** A results tile links Otto's *product* id (the code at the end of the product address, e.g. `S0VCI0CR`).
   The sheet may hold either that, or a *variation* id (product id + a short colour/size ending, e.g. `S02H50KYLF8` =
   `S02H50KY` + `LF8`). Both work: a sheet id that starts with a tile's product id counts as that product. All variations of

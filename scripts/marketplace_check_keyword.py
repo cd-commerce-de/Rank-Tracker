@@ -190,10 +190,12 @@ def main():
         lines += [f"Bright Data's own statistics for your requests to **{domain}** over the last 7 days: " + (f"**{rate * 100:.0f}% succeeded**, 90% finished within {sr.get('time_p90', 0) / 1000:.1f} s." if rate is not None else "no requests recorded yet."), ""]
     except Exception as e:
         lines += [f"(Bright Data's success statistics for {domain} could not be read: {type(e).__name__}.)", ""]
-    ordered, per_page, attempts_all = [], [], []
+    ordered, per_page, attempts_all, ad_ids = [], [], [], set()
     for page in range(1, pages + 1):
         html, ids, log = fetch_page(a.marketplace, a.keyword, page, a.country, mod.extract_ordered_product_ids)
         new = [i for i in ids if i not in ordered]
+        if a.marketplace == "kaufland" and html:
+            ad_ids |= {p for p, is_ad in kfl.tile_flags(html) if is_ad}
         per_page.append((page, log[-1]["url"] if log else "", len(html), len(ids), len(new), len(ids) - len(new)))
         attempts_all.append((page, log))
         ordered.extend(new)
@@ -272,7 +274,11 @@ def main():
     if ordered:
         lines += ["", "## The first 15 listings read", ""]
         for i, pid in enumerate(ordered[:15], 1):
-            lines.append(f"{i}. `{pid}`" + ("  ★ yours" if pid in tracked else ""))
+            lines.append(f"{i}. `{pid}`" + ("  ★ yours" if pid in tracked else "") + ("  (sponsored)" if pid in ad_ids else ""))
+        if a.marketplace == "kaufland":
+            ad_pos = [i for i, pid in enumerate(ordered, 1) if pid in ad_ids]
+            lines += ["", f"Sponsored tiles detected in the page's markup: **{len(ad_pos)}**" + (f", at positions {ad_pos} of {len(ordered)}" if ad_pos else "")
+                      + ". (Kaufland shows a sponsored-brand tile at the top and 'Gesponsert' tiles inside the grid; the daily tracker does not separate them yet, so every position is the overall position.)"]
     t = bright_data.STATS
     lines += ["", f"Bright Data: {t['requests']} answer(s), {t['timeouts']} timeout(s)."]
 

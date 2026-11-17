@@ -52,6 +52,30 @@ MAX_PAGES = ps.env_int("KAUFLAND_MAX_PAGES", 2, 1, 10)   # results pages read pe
 PRODUCT_ID_RE = re.compile(r"/product/(\d{6,12})/")
 
 
+_TILE_TAG = re.compile(r"<a\b[^>]*?/product/(\d{6,12})/[^>]*>", re.I | re.S)
+_AD_TAG = re.compile(r"sponsored|sba-product-tile|PTW--sba", re.I)
+
+
+def tile_flags(html: str) -> list:
+    """
+    [(product id, is_ad)] in page order, one entry per distinct id (the same order as extract_ordered_product_ids).
+    Kaufland shows ads in two forms, both seen on a saved results page: a sponsored-brand tile at the very top (its link carries
+    "sba-product-tile" / "PTW--sba" / "sponsored" in its class or test id) and ordinary grid tiles that carry the label
+    "Gesponsert" ("Weitere Informationen zur Anzeige") inside the tile. Report-only for now.
+    """
+    tags = list(_TILE_TAG.finditer(html or ""))
+    seen, out = set(), []
+    for i, m in enumerate(tags):
+        pid = m.group(1)
+        if pid in seen:
+            continue
+        seen.add(pid)
+        close = html.find("</a>", m.end())                       # the tile's OWN link: its label sits inside it, never between tiles
+        block = html[m.start():(close if close != -1 else m.start() + 8000)]
+        out.append((pid, bool(_AD_TAG.search(m.group(0))) or "Gesponsert" in block or "Weitere Informationen zur Anzeige" in block))
+    return out
+
+
 def extract_ordered_product_ids(html: str) -> list[str]:
     seen = set()
     ordered = []
