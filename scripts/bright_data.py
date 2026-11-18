@@ -120,9 +120,9 @@ def fetch_response(url: str, country: str | None = None, render: bool = False, d
         return resp
 
 
-def fetch_html(url: str, country: str | None = None) -> str:
-    """Fetch a URL through Bright Data's Web Unlocker and return its raw HTML (see fetch_response)."""
-    return fetch_response(url, country).text
+def fetch_html(url: str, country: str | None = None, render: bool = False) -> str:
+    """Fetch a URL through Bright Data's Web Unlocker and return its raw HTML (see fetch_response). render=True: real browser."""
+    return fetch_response(url, country, render=render).text
 
 
 def parse_debug(headers) -> dict:

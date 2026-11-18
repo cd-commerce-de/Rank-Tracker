@@ -90,6 +90,14 @@ listings that were actually looked at (the dashboard shows it as `>N`). To look 
   accordance with robots.txt") and asked for its KYC verification form (brightdata.com/cp/kyc), which an account owner
   completes. That is a permission on the account, not something the tracker can work around. The run makes one request,
   saves nothing, and says so in the log; run the "Check an Otto or Kaufland keyword" test again once access is granted.
+  **Temu through Web Unlocker (built; replaces the Browser API route when the Temu zone is set).** A test on the German storefront
+  (`www.temu.com/de/search_result.html`) showed that Temu answers many Web Unlocker requests with `page_block` (empty, NOT billed)
+  and others with the full page (billed once). `scripts/temu_unlocker_tracker.py` therefore asks for browser rendering
+  (`render`) and retries a keyword up to `TEMU_ATTEMPTS` times (default 4), each time from a new German exit address. A page holds
+  about 24 listings (more load only on scrolling), so a product beyond them is recorded as "not found in the top 24", and a keyword
+  that could not be read after every attempt as BLOCKED ("?"), never as "not found". The run stops after 5 unreadable keywords in a
+  row. It is selected automatically when `BRIGHTDATA_ZONE_TEMU` is set (the workflow's Temu step passes it); `TEMU_MODE=browser`
+  forces the old Browser API route. Cost per successful read: the zone's standard rate plus the premium surcharge (+$1 per 1,000).
   **A dedicated Web Unlocker zone for Temu.** Temu is on Bright Data's premium-domain list (extra cost per request). To keep that
   separate from eBay, create a second Web Unlocker zone with Premium domains switched on and add its name as the GitHub secret
   `BRIGHTDATA_ZONE_TEMU` (and `BRIGHTDATA_ZONE_TEMU: ${{ secrets.BRIGHTDATA_ZONE_TEMU }}` in a workflow's `env:`). Every request to a

@@ -46,7 +46,6 @@ from pathlib import Path
 import bright_data
 import config_loader
 import history_store
-from playwright.async_api import async_playwright
 import asyncio
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -82,6 +81,7 @@ def looks_blocked(html: str) -> bool:
 
 
 async def fetch_ordered_async(keyword: str):
+    from playwright.async_api import async_playwright      # only the Browser API mode needs it
     """Visit Temu's search page for one keyword. Returns (goods IDs in order, blocked?)."""
     query = urllib.parse.quote(keyword)
     url = SEARCH_URL.format(query=query)
@@ -136,6 +136,11 @@ def save_json(path: Path, data):
 
 
 def main():
+    # With a dedicated Temu Web Unlocker zone (BRIGHTDATA_ZONE_TEMU) Temu is read through Web Unlocker with browser rendering:
+    # about 10 times cheaper than the Browser API and no Playwright. TEMU_MODE=browser forces the Browser API route.
+    if os.environ.get("BRIGHTDATA_ZONE_TEMU", "").strip() and os.environ.get("TEMU_MODE", "").strip().lower() != "browser":
+        import temu_unlocker_tracker
+        return temu_unlocker_tracker.main()
     projects = config_loader.load_projects()
     history = history_store.load(DATA_PATH)
     today = date.today().isoformat()

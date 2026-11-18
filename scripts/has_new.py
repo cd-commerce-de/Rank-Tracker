@@ -35,8 +35,12 @@ NEEDS = {
 }
 
 
+ALTERNATIVE_NEEDS = {"temu": [["BRIGHTDATA_API_KEY", "BRIGHTDATA_ZONE_TEMU"]]}   # Temu through a dedicated Web Unlocker zone
+
+
 def configured(marketplace: str) -> bool:
-    return all(os.environ.get(v, "").strip() for v in NEEDS.get(marketplace, ["__missing__"]))
+    groups = [NEEDS.get(marketplace, ["__missing__"])] + ALTERNATIVE_NEEDS.get(marketplace, [])
+    return any(all(os.environ.get(v, "").strip() for v in g) for g in groups)
 
 
 def item_configured(item) -> bool:

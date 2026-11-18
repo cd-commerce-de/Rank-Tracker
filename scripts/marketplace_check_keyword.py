@@ -193,10 +193,12 @@ def main():
         lines += [f"Bright Data's own statistics for your requests to **{domain}** over the last 7 days: " + (f"**{rate * 100:.0f}% succeeded**, 90% finished within {sr.get('time_p90', 0) / 1000:.1f} s." if rate is not None else "no requests recorded yet."), ""]
     except Exception as e:
         lines += [f"(Bright Data's success statistics for {domain} could not be read: {type(e).__name__}.)", ""]
-    ordered, per_page, attempts_all, ad_ids = [], [], [], set()
+    ordered, per_page, attempts_all, ad_ids, last_html = [], [], [], set(), ""
     for page in range(1, pages + 1):
         html, ids, log = fetch_page(a.marketplace, a.keyword, page, a.country, mod.extract_ordered_product_ids)
         new = [i for i in ids if i not in ordered]
+        if html:
+            last_html = html
         if a.marketplace == "kaufland" and html:
             ad_ids |= {p for p, is_ad in kfl.tile_flags(html) if is_ad}
         per_page.append((page, log[-1]["url"] if log else "", len(html), len(ids), len(new), len(ids) - len(new)))
@@ -278,6 +280,10 @@ def main():
         lines += ["", "## The first 15 listings read", ""]
         for i, pid in enumerate(ordered[:15], 1):
             lines.append(f"{i}. `{pid}`" + ("  ★ yours" if pid in tracked else "") + ("  (sponsored)" if pid in ad_ids else ""))
+        if a.marketplace == "temu" and last_html:
+            lang = re.search(r"<html[^>]*\blang=[\"']([A-Za-z-]+)", last_html[:3000])
+            lines += ["", f"Storefront check: page language **{lang.group(1) if lang else 'not stated'}**; prices shown with a euro sign {last_html.count('€')} time(s), with a dollar sign {last_html.count('$')} time(s). "
+                      "A German storefront should show euros."]
         if a.marketplace == "kaufland":
             ad_pos = [i for i, pid in enumerate(ordered, 1) if pid in ad_ids]
             lines += ["", f"Sponsored tiles detected in the page's markup: **{len(ad_pos)}**" + (f", at positions {ad_pos} of {len(ordered)}" if ad_pos else "")
