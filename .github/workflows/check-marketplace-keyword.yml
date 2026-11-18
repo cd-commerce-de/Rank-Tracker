@@ -1,6 +1,6 @@
-name: Check an Otto or Kaufland keyword
+name: Check an Otto, Kaufland or Temu keyword
 
-# Tests ONE keyword on Otto or Kaufland through your Bright Data zone, the same way the daily tracker reads it,
+# Tests ONE keyword on Otto, Kaufland or Temu through your Bright Data zone, the same way the daily tracker reads it,
 # and shows what came back (page size, pagination, product IDs) and where your products are.
 # Costs 1 to 4 Bright Data requests. Nothing is saved or changed.
 on:
@@ -11,7 +11,7 @@ on:
         required: true
         default: "otto"
         type: choice
-        options: [otto, kaufland]
+        options: [otto, kaufland, temu]
       keyword:
         description: "Keyword, exactly as in your sheet"
         required: true
@@ -34,6 +34,7 @@ jobs:
       TRACKING_SHEET_CSV_URL: ${{ secrets.TRACKING_SHEET_CSV_URL }}
       BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
       BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+      BRIGHTDATA_ZONE_TEMU: ${{ secrets.BRIGHTDATA_ZONE_TEMU }}
       MARKETPLACE: ${{ inputs.marketplace }}
       KEYWORD: ${{ inputs.keyword }}
       PROJECT: ${{ inputs.project }}
