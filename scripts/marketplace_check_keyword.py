@@ -184,6 +184,9 @@ def main():
              f"Reads up to {pages} results page(s) through your Bright Data zone, exactly as the daily tracker does. "
              f"Products found in your sheet for {a.marketplace}" + (f" (projects containing “{a.project}”)" if a.project else "") + f": **{len(tracked)}**.", ""]
     domain = DOMAINS[a.marketplace]
+    _zone, _dedicated = bright_data.zone_for(page_url(a.marketplace, a.keyword, 1))
+    lines += [f"Zone used for {a.marketplace}: " + ("a **dedicated zone** (BRIGHTDATA_ZONE_TEMU), separate from the eBay zone." if _dedicated else "the normal zone (BRIGHTDATA_ZONE)."
+              + (" For Temu you can add a dedicated zone with Premium domains switched on: set the secret BRIGHTDATA_ZONE_TEMU." if a.marketplace == "temu" else "")), ""]
     try:
         sr = bright_data.success_rate(domain)
         rate = sr.get(domain)

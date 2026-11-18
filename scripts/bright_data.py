@@ -17,6 +17,7 @@ Reference: https://docs.brightdata.com/scraping-automation/web-unlocker/send-you
 
 import os
 import time
+import urllib.parse
 
 import requests
 
@@ -54,6 +55,21 @@ def scraping_browser_ws_url() -> str:
     return f"wss://{auth}@brd.superproxy.io:9222"
 
 
+def zone_for(url: str):
+    """
+    (zone name, is it a dedicated zone?) for a URL. Temu is a "premium domain" for Web Unlocker (extra cost per request), so it can
+    have its own zone: set BRIGHTDATA_ZONE_TEMU to that zone's name and every request to a temu.* address uses it, while all
+    other sites keep using BRIGHTDATA_ZONE. A separate zone also has its own usage limit, so tests on one site cannot use up
+    the spending cap of another. Without BRIGHTDATA_ZONE_TEMU, Temu simply uses the normal zone.
+    """
+    host = (urllib.parse.urlparse(url).hostname or "").lower()
+    is_temu = "temu" in host.split(".")[:-1]                  # a whole label "temu" (www.temu.com, temu.com), not a lookalike such as notemu.com
+    special = os.environ.get("BRIGHTDATA_ZONE_TEMU", "").strip() if is_temu else ""
+    if special:
+        return special, True
+    return os.environ.get("BRIGHTDATA_ZONE"), False
+
+
 def fetch_response(url: str, country: str | None = None, render: bool = False, debug: bool = False, extra_headers: dict | None = None) -> requests.Response:
     """
     Fetch a URL through Bright Data's Web Unlocker and return the full response (status, headers, body).
@@ -63,7 +79,7 @@ def fetch_response(url: str, country: str | None = None, render: bool = False, d
     instead of silently recording "not found" for everything.
     """
     api_key = os.environ.get("BRIGHTDATA_API_KEY")
-    zone = os.environ.get("BRIGHTDATA_ZONE")
+    zone, _dedicated = zone_for(url)
     if not api_key or not zone:
         raise RuntimeError(
             "BRIGHTDATA_API_KEY / BRIGHTDATA_ZONE not set. These must be "

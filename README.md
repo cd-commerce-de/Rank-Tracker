@@ -90,6 +90,10 @@ listings that were actually looked at (the dashboard shows it as `>N`). To look 
   accordance with robots.txt") and asked for its KYC verification form (brightdata.com/cp/kyc), which an account owner
   completes. That is a permission on the account, not something the tracker can work around. The run makes one request,
   saves nothing, and says so in the log; run the "Check an Otto or Kaufland keyword" test again once access is granted.
+  **A dedicated Web Unlocker zone for Temu.** Temu is on Bright Data's premium-domain list (extra cost per request). To keep that
+  separate from eBay, create a second Web Unlocker zone with Premium domains switched on and add its name as the GitHub secret
+  `BRIGHTDATA_ZONE_TEMU` (and `BRIGHTDATA_ZONE_TEMU: ${{ secrets.BRIGHTDATA_ZONE_TEMU }}` in a workflow's `env:`). Every request to a
+  temu.* address then uses that zone; everything else keeps using `BRIGHTDATA_ZONE`. The new zone also has its own usage limit.
   **Kaufland ads.** Kaufland marks ads in its results page: a sponsored-brand tile at the very top (its link carries `sba` /
   `sponsored` in its class) and ordinary grid tiles carrying the label "Gesponsert". `kaufland_rank_tracker.tile_flags()` finds
   them (a saved page of 34 tiles showed 3). The keyword test reports how many it sees; the daily tracker does not separate

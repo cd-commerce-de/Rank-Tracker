@@ -99,6 +99,9 @@ def _page_ids(url: str, country: str, first: bool = False) -> list[str]:
     return ps.fetch_ids(url, country, extract_ordered_product_ids, _PAGE_CACHE, _PAGE_ERRORS, first)
 
 
+_SCANNED = {}   # (country, keyword) -> how many listings were actually read today (so "not found" can say "not in the top N")
+
+
 def find_rank(keyword: str, target_product_id: str, country: str):
     query = urllib.parse.quote(keyword)
     all_ids: list[str] = []
@@ -118,6 +121,7 @@ def find_rank(keyword: str, target_product_id: str, country: str):
             seen.add(pid)
             ordered.append(pid)
 
+    _SCANNED[(country, keyword)] = len(ordered)
     if target_product_id in ordered:
         return ordered.index(target_product_id) + 1
     return None
@@ -221,7 +225,7 @@ def main():
                     "item_label": item.get("label"),
                     "item_sku": item.get("sku"),
                         "title": None,
-                        "results_scanned": None,
+                        "results_scanned": _SCANNED.get((country, keyword)),
                     }
                     history.append(row)
                     print(f"  [{project_name} / {item_key}] {keyword!r} -> rank {rank}")
