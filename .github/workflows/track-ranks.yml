@@ -37,6 +37,9 @@ jobs:
       # what's new. (Manual/Sync runs and the daily run check everything.)
       # If you change the daily time above ("17 5 * * *"), change it here too.
       ONLY_NEW: ${{ github.event_name == 'schedule' && github.event.schedule != '17 5 * * *' && '1' || '' }}
+      # How the rank history is stored. "monthly" = one compact file per month in docs/data/ranks/ (about 12 times smaller; the
+      # first run converts the old docs/data/ranks.json and leaves it untouched). Without this line the old single file is used.
+      RANK_STORAGE: "monthly"
     steps:
       - uses: actions/checkout@v4
 
@@ -70,6 +73,7 @@ jobs:
           EBAY_CLIENT_SECRET: ${{ secrets.EBAY_CLIENT_SECRET }}
           BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
           BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+          BRIGHTDATA_ZONE_TEMU: ${{ secrets.BRIGHTDATA_ZONE_TEMU }}
           BRIGHTDATA_BROWSER_AUTH: ${{ secrets.BRIGHTDATA_BROWSER_AUTH }}
         run: python scripts/has_new.py
 
@@ -131,6 +135,8 @@ jobs:
         if: steps.check.outputs.run == 'true'
         continue-on-error: true
         env:
+          BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+          BRIGHTDATA_ZONE_TEMU: ${{ secrets.BRIGHTDATA_ZONE_TEMU }}
           BRIGHTDATA_BROWSER_AUTH: ${{ secrets.BRIGHTDATA_BROWSER_AUTH }}
         run: python scripts/temu_rank_tracker.py
 
@@ -139,8 +145,10 @@ jobs:
         run: |
           git config user.name "rank-tracker-bot"
           git config user.email "actions@users.noreply.github.com"
-          if [ ! -f docs/data/ranks.json ]; then echo "No data was saved in this run (nothing to commit)."; exit 0; fi
-          git add docs/data/ranks.json
+          if [ ! -f docs/data/ranks.json ] && [ ! -d docs/data/ranks ]; then echo "No data was saved in this run (nothing to commit)."; exit 0; fi
+          if [ -f docs/data/ranks.json ]; then git add docs/data/ranks.json; fi
+          if [ -d docs/data/ranks ]; then git add docs/data/ranks; fi
+          if [ -d docs/data/competitors ]; then git add docs/data/competitors; fi
           if git diff --staged --quiet && [ -z "$ONLY_NEW" ]; then
             echo "::warning title=Nothing was saved::This full run did not save any new ranks. If it is the first run of the day, check that your products have the right source (blank = the EBAY_DEFAULT_SOURCE setting above; web = ebay.de page via Bright Data; api = eBay API), that the matching secrets exist, and read each tracker step's log. A second run on the same day saves nothing because everything was already checked."
           fi
