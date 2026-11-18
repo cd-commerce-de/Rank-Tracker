@@ -49,7 +49,7 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 
 # Shown in the run logs and in the dashboard footer, so you can see whether an upload really updated the files.
-VERSION = "2026-11-18.2"
+VERSION = "2026-11-19.1"
 CONFIG_DIR = ROOT / "config"
 PRODUCTS_PATH = CONFIG_DIR / "products.csv"
 KEYWORDS_PATH = CONFIG_DIR / "keywords.csv"
@@ -90,6 +90,28 @@ def classify(fieldnames):
     return None
 
 
+def parse_marketplaces(value, known=None):
+    """
+    The optional 'marketplace' column of the Keywords tab. Returns (set of marketplaces, list of unknown names).
+    A blank cell (or "all" / "*") means every marketplace of the project, returned as None.
+    Several marketplaces are separated by commas (also ; / | or spaces): "temu, kaufland". Case and a domain ending are ignored
+    ("Kaufland.de" = kaufland).
+    """
+    text = (value or "").strip().lower()
+    if not text:
+        return None, []
+    known = set(known or ID_FIELD)
+    found, unknown = set(), []
+    for token in re.split(r"[,;/|\s]+", text):
+        token = token.strip().split(".")[0] if token.strip() else ""
+        if not token:
+            continue
+        if token in ("all", "*", "alle"):
+            return None, unknown
+        (found.add(token) if token in known else unknown.append(token))
+    return found, unknown
+
+
 class _Builder:
     def __init__(self):
         self.projects = {}   # project_id -> {project_id, project_name, items{}, keywords[]}
@@ -98,7 +120,7 @@ class _Builder:
     def project(self, name):
         pid = slugify(name)
         return self.projects.setdefault(
-            pid, {"project_id": pid, "project_name": name, "items": {}, "keywords": [], "from_products": set()}
+            pid, {"project_id": pid, "project_name": name, "items": {}, "keywords": [], "from_products": set(), "scope": {}}
         )
 
     def add_item(self, row, via_products_tab):
@@ -138,13 +160,19 @@ class _Builder:
             project["from_products"].add(item_key)
         return item
 
-    def add_keyword(self, project_name, keyword):
+    def add_keyword(self, project_name, keyword, marketplaces=None):
+        """marketplaces: None = every marketplace of the project; otherwise the set of marketplaces this keyword is limited to."""
         if not (project_name and keyword):
             self.skipped += 1
             return
-        kws = self.project(project_name)["keywords"]
+        project = self.project(project_name)
+        kws, scope = project["keywords"], project["scope"]
         if keyword not in kws:
             kws.append(keyword)
+            scope[keyword] = None if marketplaces is None else set(marketplaces)
+        elif scope.get(keyword) is not None:
+            # the same keyword listed again: a blank row means "all marketplaces" and wins; otherwise the lists are combined
+            scope[keyword] = None if marketplaces is None else scope[keyword] | set(marketplaces)
 
     def result(self):
         out = []
@@ -156,8 +184,14 @@ class _Builder:
             for key in project["from_products"]:
                 item = project["items"][key]
                 for kw in shared:
-                    if kw not in item["keywords"]:
+                    allowed = project["scope"].get(kw)
+                    if (allowed is None or item["marketplace"] in allowed) and kw not in item["keywords"]:
                         item["keywords"].append(kw)
+            for kw in shared:                  # a keyword limited to marketplaces this project has no products on would silently do nothing
+                allowed = project["scope"].get(kw)
+                if allowed is not None and project["from_products"] and not any(project["items"][k]["marketplace"] in allowed for k in project["from_products"]):
+                    print(f"  ! keyword '{kw}' in project '{project['project_name']}' is limited to {', '.join(sorted(allowed)) or '(nothing recognised)'}, "
+                          f"but the project has no products there, so it is not tracked", file=sys.stderr)
             items = [i for i in project["items"].values() if i["keywords"]]
             for i in project["items"].values():
                 if not i["keywords"]:
@@ -173,11 +207,19 @@ class _Builder:
 def build_projects(tables):
     """tables: list of (kind, [row dicts]) where kind is table/products/keywords."""
     b = _Builder()
+    known_marketplaces = {_clean(r).get("marketplace", "").lower() for kind, rows in tables if kind in ("products", "table") for r in rows} - {""}
     for kind, rows in tables:
         for raw in rows:
             row = _clean(raw)
             if kind == "keywords":
-                b.add_keyword(row.get("project", ""), row.get("keyword", ""))
+                scope, unknown = parse_marketplaces(row.get("marketplace") or row.get("marketplaces"), set(ID_FIELD) | known_marketplaces)
+                if unknown:
+                    print(f"  ! keyword '{row.get('keyword', '')}' (project '{row.get('project', '')}'): unknown marketplace name(s) "
+                          f"{', '.join(repr(u) for u in unknown)}; known: {', '.join(sorted(ID_FIELD))}. "
+                          + ("Those names are ignored." if scope else "Nothing recognised, so this keyword is not tracked anywhere."), file=sys.stderr)
+                    if scope is None:
+                        scope = set()          # only unknown names were given: do not silently widen it to "all"
+                b.add_keyword(row.get("project", ""), row.get("keyword", ""), scope)
             elif kind == "products":
                 b.add_item(row, via_products_tab=True)
             else:  # older single table
