@@ -1,0 +1,71 @@
+name: Track Temu only (no eBay)
+
+# Runs ONLY the Temu tracker (Web Unlocker mode, through the dedicated Temu zone) and saves its readings.
+# It never touches eBay, Otto or Kaufland and never uses the eBay zone, so nothing here is billed to your eBay zone.
+# Run it as often as you like: a run retries only the Temu keywords that are still blocked or not tried today
+# (failed attempts are not billed by Bright Data; a successful read costs the zone's rate plus the premium surcharge).
+on:
+  workflow_dispatch:
+    inputs:
+      attempts:
+        description: "Tries per keyword (1-12). Failed tries cost nothing, only time."
+        required: false
+        default: "6"
+      workers:
+        description: "Keywords read at the same time (1-8)"
+        required: false
+        default: "4"
+
+permissions:
+  contents: write
+
+# The same lock as the main workflow: never two runs writing the history at once.
+concurrency:
+  group: track-ranks
+  cancel-in-progress: false
+
+jobs:
+  temu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      TRACKING_SHEET_CSV_URL: ${{ secrets.TRACKING_SHEET_CSV_URL }}
+      RANK_STORAGE: "monthly"
+      BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+      BRIGHTDATA_ZONE_TEMU: ${{ secrets.BRIGHTDATA_ZONE_TEMU }}
+      TEMU_ATTEMPTS: ${{ inputs.attempts }}
+      TEMU_WORKERS: ${{ inputs.workers }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Check the Temu zone is set up
+        run: |
+          if [ -z "$BRIGHTDATA_ZONE_TEMU" ]; then
+            echo "::error title=No Temu zone::The repository secret BRIGHTDATA_ZONE_TEMU is empty or missing. Add it (the name of your Temu Web Unlocker zone) under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Run the Temu tracker
+        run: python scripts/temu_rank_tracker.py
+
+      - name: Commit the Temu readings
+        run: |
+          git config user.name "rank-tracker-bot"
+          git config user.email "actions@users.noreply.github.com"
+          if [ ! -f docs/data/ranks.json ] && [ ! -d docs/data/ranks ]; then echo "No data was saved in this run (nothing to commit)."; exit 0; fi
+          if [ -f docs/data/ranks.json ]; then git add docs/data/ranks.json; fi
+          if [ -d docs/data/ranks ]; then git add docs/data/ranks; fi
+          if git diff --staged --quiet; then
+            echo "Nothing new to save: every Temu keyword was already read today."
+          else
+            git commit -m "Update Temu ranks $(date -u +%Y-%m-%d)"
+            git pull --rebase
+            git push
+          fi
