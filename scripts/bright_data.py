@@ -45,14 +45,15 @@ def scraping_browser_ws_url() -> str:
     shown in the Browser API zone's Overview tab in the Bright Data control
     panel (the username already looks like "brd-customer-...-zone-...").
     """
-    auth = os.environ.get("BRIGHTDATA_BROWSER_AUTH")
+    auth = (os.environ.get("BRIGHTDATA_BROWSER_AUTH") or "").strip()
     if not auth or ":" not in auth:
         raise RuntimeError(
             "BRIGHTDATA_BROWSER_AUTH not set (or malformed). It must be a "
             "GitHub secret in the form 'username:password' from a Browser "
             "API zone's Overview tab."
         )
-    return f"wss://{auth}@brd.superproxy.io:9222"
+    user, password = auth.split(":", 1)       # encoded separately: a password containing @ / # or : would otherwise break the address
+    return f"wss://{urllib.parse.quote(user, safe='')}:{urllib.parse.quote(password, safe='')}@brd.superproxy.io:9222"
 
 
 def zone_for(url: str):

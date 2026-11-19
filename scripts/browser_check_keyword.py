@@ -23,7 +23,10 @@ import bright_data
 import config_loader
 import page_savings as ps
 
-PRICE_PER_GB = (5.0, 8.0)          # USD, the range third-party price lists quote for Browser API traffic; check your own plan
+PRICE_PER_GB = (8.0, 8.4)          # USD per GB, Bright Data's pay-as-you-go list prices for Browser API / Scraping Browser; a monthly plan is cheaper, check yours
+# --block: pictures, video and fonts are most of a page's weight and are billed by the GB, but a rank test only needs the product links.
+# The first way blocks by resource type (Playwright); if the remote browser does not allow that, the second blocks by file ending and image host.
+BLOCK_PATTERNS = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.avif", "*.svg", "*.ico", "*.woff", "*.woff2", "*.ttf", "*.otf", "*.mp4", "*.webm", "*://i.otto.de/*"]
 
 
 def target(marketplace: str, keyword: str, region: str):
@@ -40,10 +43,10 @@ def target(marketplace: str, keyword: str, region: str):
     return f"{base}/search_result.html?search_key={q}", m.extract_ordered_goods_ids, "temu_goods_id"
 
 
-async def visit(url: str, extractor, scrolls: int, pause: float):
+async def visit(url: str, extractor, scrolls: int, pause: float, block: bool = False, save_dir: str = ""):
     """Open the page in the remote browser. Returns a dict of what was seen."""
     from playwright.async_api import async_playwright
-    out = {"error": None, "html": "", "final_url": url, "title": "", "steps": [], "bytes": None, "seconds": 0.0}
+    out = {"error": None, "html": "", "final_url": url, "title": "", "steps": [], "bytes": None, "seconds": 0.0, "text": "", "block_how": "", "saved": []}
     t0 = time.monotonic()
     ws = bright_data.scraping_browser_ws_url()
     async with async_playwright() as pw:
@@ -51,6 +54,23 @@ async def visit(url: str, extractor, scrolls: int, pause: float):
         try:
             context = browser.contexts[0] if browser.contexts else await browser.new_context()
             page = await context.new_page()
+            if block:
+                try:
+                    async def _route(route):
+                        if route.request.resource_type in ("image", "media", "font"):
+                            await route.abort()
+                        else:
+                            await route.continue_()
+                    await context.route("**/*", _route)
+                    out["block_how"] = "by resource type (pictures, video and fonts are not downloaded)"
+                except Exception:
+                    try:
+                        cdp_b = await context.new_cdp_session(page)
+                        await cdp_b.send("Network.enable")
+                        await cdp_b.send("Network.setBlockedURLs", {"urls": BLOCK_PATTERNS})
+                        out["block_how"] = "by file ending and image host (Network.setBlockedURLs)"
+                    except Exception:
+                        out["block_how"] = "NOT possible in this browser: pictures were downloaded"
             counter = {"bytes": 0, "ok": False}
             try:
                 cdp = await context.new_cdp_session(page)
@@ -83,6 +103,23 @@ async def visit(url: str, extractor, scrolls: int, pause: float):
                 out["title"] = await page.title()
             except Exception:
                 pass
+            try:                                            # what a visitor would READ on the page: tells "Entschuldigung" from a real results page
+                out["text"] = " ".join((await page.inner_text("body", timeout=5000)).split())[:500]
+            except Exception:
+                pass
+            if save_dir:                                    # a screenshot and the page itself, for the workflow's downloadable artifact
+                os.makedirs(save_dir, exist_ok=True)
+                try:
+                    await page.screenshot(path=os.path.join(save_dir, "page.png"), timeout=15_000)
+                    out["saved"].append("page.png")
+                except Exception:
+                    pass
+                try:
+                    with open(os.path.join(save_dir, "page.html"), "w", encoding="utf-8") as fh:
+                        fh.write(out["html"])
+                    out["saved"].append("page.html")
+                except Exception:
+                    pass
             out["bytes"] = counter["bytes"] if counter["ok"] else None
         finally:
             await browser.close()
@@ -111,8 +148,15 @@ def build_report(a, url, got, extractor, tracked) -> str:
     lines += ["## What came back", "",
               f"- Final address: `{got['final_url'] or url}`" + (" (the marketplace redirected the browser)" if (got["final_url"] or url).split('?')[0].rstrip('/') != url.split('?')[0].rstrip('/') else ""),
               f"- Page title: {htmllib.unescape(got['title'] or '—')} | page language: {lang.group(1) if lang else 'not stated'} | {len(html):,} characters | {got['seconds']:.0f} s"]
+    if got.get("text"):
+        lines.append(f"- What the page says (first 500 characters a visitor would read): “{got['text']}”")
+    if a.block:
+        lines.append(f"- Pictures, video and fonts were blocked {got.get('block_how') or '(not attempted)'}.")
+    if got.get("saved"):
+        lines.append(f"- Saved for download (artifact **browser-check** on the run page): {', '.join(got['saved'])}.")
     if got["bytes"] is not None:
-        lines.append(f"- **Data downloaded for this one visit: {got['bytes'] / 1e6:.2f} MB**")
+        size = f"{got['bytes'] / 1e6:.2f} MB" if got["bytes"] >= 1e5 else f"{got['bytes'] / 1e3:.0f} KB"
+        lines.append(f"- **Data downloaded for this one visit: {size}**" + (" (pictures blocked)" if a.block else ""))
     else:
         lines.append("- Data downloaded: not measured (the browser did not expose its network log)")
     lines.append("")
@@ -147,9 +191,11 @@ def build_report(a, url, got, extractor, tracked) -> str:
         lines += ["", "## The first 15 listings read", ""] + [f"{i}. `{pid}`" + ("  ★ yours" if pid in tracked else "") for i, pid in enumerate(ids[:15], 1)]
     if got["bytes"]:
         gb = got["bytes"] / 1e9
-        lines += ["", "## What that costs (Browser API is billed per GB; list prices quoted around $5 to $8)", "", "| Keywords checked once a day | GB a month | Cost a month |", "|--:|--:|--:|"]
+        lines += ["", "## What that costs (Browser API is billed per GB of traffic, no per-request fee; pay-as-you-go list price about $8 to $8.40 per GB, a plan is cheaper)", "", "| Keywords checked once a day | GB a month | Cost a month |", "|--:|--:|--:|"]
         for n in (5, 10, 20, 50):
             lines.append(f"| {n} | {gb * n * 30:.2f} | ${gb * n * 30 * PRICE_PER_GB[0]:.2f} to ${gb * n * 30 * PRICE_PER_GB[1]:.2f} |")
+    if got["bytes"] and not a.block and got["bytes"] > 1.5e6:
+        lines += ["", "Most of that is pictures. Run the check again with **Block pictures, video and fonts** switched on to see how much cheaper a visit gets (and whether the page still works without them)."]
     report = "\n".join(lines)
     return report
 
@@ -161,6 +207,8 @@ def main():
     ap.add_argument("--project", default="")
     ap.add_argument("--scrolls", type=int, default=6)
     ap.add_argument("--pause", type=float, default=1.5, help="seconds to wait after each scroll")
+    ap.add_argument("--block", action="store_true", help="do not download pictures, video and fonts (cuts the GB that are billed)")
+    ap.add_argument("--save-dir", default="", help="folder for a screenshot and the page HTML (the workflow uploads it as an artifact)")
     ap.add_argument("--region", default="de", help="Temu storefront path (de = Germany); empty for Temu's default address")
     a = ap.parse_args()
     a.scrolls = max(0, min(a.scrolls, 15))
@@ -180,7 +228,7 @@ def main():
     except RuntimeError as e:
         print(f"Cannot start: {e}", file=sys.stderr)
         sys.exit(2)
-    got = asyncio.run(visit(url, extractor, a.scrolls, a.pause))
+    got = asyncio.run(visit(url, extractor, a.scrolls, a.pause, a.block, a.save_dir))
     report = build_report(a, url, got, extractor, tracked)
     print(report)
     path = os.environ.get("GITHUB_STEP_SUMMARY")
