@@ -311,3 +311,55 @@ body.modal-open { overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--color-accent); }
 .spark { display: block; } .spark path { fill: none; stroke: var(--color-accent); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
 .empty-state.small { padding: 18px 0; }
+
+
+/* ---------- Marketplace dropdown: logo, counts and the latest numbers for each marketplace of the project ---------- */
+.mp-picker { position: relative; }
+.mp-trigger { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 5px 11px 5px 8px; background: var(--color-white); border: 1px solid var(--neutral-200);
+  border-radius: var(--radius-md); font-family: var(--font-body); font-size: 14px; font-weight: 700; color: var(--color-primary); cursor: pointer; }
+.mp-trigger:hover, .mp-trigger[aria-expanded="true"] { border-color: var(--neutral-300); box-shadow: var(--shadow-sm); }
+.mp-trigger:focus-visible, .mp-card:focus-visible { outline: 2px solid var(--color-accent-muted); outline-offset: 1px; }
+.mp-logo-box { flex: none; width: 58px; height: 42px; display: flex; align-items: center; justify-content: center; background: var(--color-white);
+  border: 1px solid var(--neutral-200); border-radius: 10px; padding: 6px; }
+.mp-logo-box.sm { width: 42px; height: 26px; border: none; padding: 0; background: transparent; }
+.mp-logo-box img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.mp-badge { width: 26px; height: 26px; border-radius: 50%; background: var(--neutral-200); color: var(--neutral-700); font-family: var(--font-heading); font-weight: 700;
+  font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
+.mp-plus { background: var(--neutral-100); color: var(--neutral-500); font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
+.mp-caret { color: var(--neutral-500); font-size: 12px; transition: transform .15s; }
+.mp-trigger[aria-expanded="true"] .mp-caret { transform: rotate(180deg); }
+.mp-pop { position: absolute; z-index: 70; top: calc(100% + 8px); left: 0; width: 400px; max-width: calc(100vw - 32px); max-height: min(72vh, 680px); overflow-y: auto;
+  background: var(--color-white); border: 1px solid var(--neutral-200); border-radius: 14px; box-shadow: 0 14px 34px rgba(15, 23, 42, .16); padding: 14px; }
+.mp-pop[hidden], .mp-menu[hidden] { display: none; }
+.mp-pop-title { font-size: 13px; font-weight: 600; color: var(--neutral-400); margin: 0 2px 10px; }
+.mp-card { position: relative; display: flex; gap: 12px; align-items: flex-start; padding: 12px; margin-bottom: 10px; border: 1px solid var(--neutral-200); border-radius: 12px;
+  background: var(--color-white); cursor: pointer; outline: none; }
+.mp-card:hover { border-color: var(--neutral-300); background: var(--neutral-50); }
+.mp-card:focus-visible { border-color: var(--color-accent); }
+.mp-card.sel { border-color: var(--color-accent); background: var(--color-accent-subtle); }
+.mp-main { flex: 1; min-width: 0; padding-right: 26px; }
+.mp-title { display: flex; align-items: center; gap: 6px; font-family: var(--font-heading); font-weight: 600; font-size: 16px; }
+.mp-check { color: var(--color-accent-dark); font-size: 14px; }
+.mp-counts { margin-top: 2px; font-size: 14px; color: var(--neutral-700); display: flex; align-items: center; flex-wrap: wrap; }
+.mp-sep { width: 1px; height: 14px; background: var(--neutral-300); margin: 0 10px; }
+.mp-bar { height: 6px; border-radius: 99px; background: var(--neutral-200); margin: 10px 0 8px; overflow: hidden; }
+.mp-bar i { display: block; height: 100%; background: var(--color-accent); border-radius: 99px; }
+.mp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.mp-chip { font-size: 12px; font-weight: 600; color: var(--neutral-700); background: var(--neutral-100); border-radius: 999px; padding: 2px 9px; }
+.mp-card.sel .mp-chip { background: var(--color-white); }
+.mp-nodata { margin-top: 8px; font-size: 13px; color: var(--neutral-500); }
+.mp-foot { margin-top: 8px; font-size: 12px; color: var(--neutral-500); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mp-warn { font-weight: 700; color: #92400E; background: #FEF3C7; border-radius: 999px; padding: 1px 8px; }
+.mp-more { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border: none; background: transparent; border-radius: 8px; color: var(--neutral-500);
+  font-size: 18px; line-height: 1; cursor: pointer; }
+.mp-more:hover, .mp-more[aria-expanded="true"] { background: var(--neutral-100); color: var(--color-primary); }
+.mp-menu { position: absolute; top: 38px; right: 8px; z-index: 5; min-width: 210px; background: var(--color-white); border: 1px solid var(--neutral-200); border-radius: 10px;
+  box-shadow: var(--shadow-md); padding: 4px; }
+.mp-menu-item { display: block; width: 100%; text-align: left; padding: 8px 10px; border: none; background: none; border-radius: 8px; font-family: var(--font-body); font-size: 13px;
+  font-weight: 500; color: var(--color-primary); text-decoration: none; cursor: pointer; }
+.mp-menu-item:hover { background: var(--neutral-100); }
+.mp-add { margin-top: 2px; }
+.mp-add-link { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 6px; border: none; background: none; border-radius: 10px; font-family: var(--font-body);
+  font-size: 14px; font-weight: 600; color: var(--color-primary); text-decoration: none; cursor: pointer; }
+.mp-add-link:hover { background: var(--neutral-100); }
+.mp-add-plus { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border: 1.5px solid currentColor; border-radius: 50%; font-size: 15px; line-height: 1; }

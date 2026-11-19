@@ -2,12 +2,18 @@
 const FLAGS = { DE: "🇩🇪", US: "🇺🇸", GB: "🇬🇧", FR: "🇫🇷", IT: "🇮🇹", ES: "🇪🇸", AT: "🇦🇹", NL: "🇳🇱", PL: "🇵🇱" };
 const MP_LABEL = { ebay: "eBay", otto: "Otto", kaufland: "Kaufland", temu: "Temu" };
 const MP_ORDER = ["ebay", "otto", "kaufland", "temu"];
+const MP_SITE = {   // the storefront each marketplace is read from, shown in the marketplace dropdown
+  ebay: { domain: "ebay.de", url: "https://www.ebay.de" }, otto: { domain: "otto.de", url: "https://www.otto.de" },
+  kaufland: { domain: "kaufland.de", url: "https://www.kaufland.de" }, temu: { domain: "temu.com", url: "https://www.temu.com/de" },
+};
+const MP_LOGO = { ebay: "assets/marketplaces/ebay.png", kaufland: "assets/marketplaces/kaufland.png", temu: "assets/marketplaces/temu.png" };
+let MP_BOUND = false;
 
 let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-11-19.1";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-11-19.2";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false, view: "ranks", compKw: null, compDate: null, compDays: 30 };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -32,6 +38,12 @@ const I18N = {
     versionNote: "Dashboard files version",
     languageLabel: "Language",
     marketplace: "Marketplace",
+    mpTitle: "Project marketplaces",
+    mpProduct: "{n} product", mpProducts: "{n} products", mpKeyword: "{n} keyword", mpKeywords: "{n} keywords",
+    mpTop10: "Top 10: {a} of {b}", mpVis: "Visibility {v}", mpAvg: "Avg. position {v}",
+    mpChecked: "Last checked {when}", mpNoData: "No readings yet", mpBlocked: "{n} blocked",
+    mpAdd: "Add new marketplace", mpMore: "More", mpMenuAdd: "Add products & keywords", mpMenuVisit: "Open {site}",
+    mpOthers: "{n} more marketplace(s) in this project",
     searchPh: "Search SKU or product ID…",
     searchTitle: "Type to search by SKU, product ID or product name",
     showAllProducts: "Show all products",
@@ -131,6 +143,12 @@ const I18N = {
     versionNote: "Dashboard-Dateien Version",
     languageLabel: "Sprache",
     marketplace: "Marktplatz",
+    mpTitle: "Projekt-Marktplätze",
+    mpProduct: "{n} Produkt", mpProducts: "{n} Produkte", mpKeyword: "{n} Keyword", mpKeywords: "{n} Keywords",
+    mpTop10: "Top 10: {a} von {b}", mpVis: "Sichtbarkeit {v}", mpAvg: "Ø Position {v}",
+    mpChecked: "Zuletzt geprüft {when}", mpNoData: "Noch keine Messungen", mpBlocked: "{n} blockiert",
+    mpAdd: "Neuen Marktplatz hinzufügen", mpMore: "Mehr", mpMenuAdd: "Produkte & Keywords hinzufügen", mpMenuVisit: "{site} öffnen",
+    mpOthers: "{n} weitere(r) Marktplatz/Marktplätze in diesem Projekt",
     searchPh: "SKU oder Produkt-ID suchen…",
     searchTitle: "Tippen, um nach SKU, Produkt-ID oder Produktname zu suchen",
     showAllProducts: "Alle Produkte anzeigen",
@@ -533,6 +551,134 @@ async function boot() {
 
 // "+ Add products & keywords" and "+ Add keyword": straight to the Google Sheet (docs/settings.json -> sheet_url), opened in
 // a new tab. Without a sheet link they stay buttons that open the how-to panel.
+// ---------- Marketplace dropdown (logo + counts + the latest numbers of the Keyword Tracker, one card per marketplace) ----------
+function mpLogoHTML(mp) {
+  const label = MP_LABEL[mp] || mp;
+  return MP_LOGO[mp]
+    ? `<img src="${MP_LOGO[mp]}" alt="${esc(label)}" loading="lazy" />`
+    : `<span class="mp-badge" aria-hidden="true">${esc(String(label).charAt(0).toUpperCase())}</span>`;   // no logo file: a neutral letter badge
+}
+
+// What the dropdown shows for one marketplace of the current project: how much is tracked (from the sheet) and the latest check.
+function mpStats(project, mp) {
+  const real = Object.values(project.items).filter((i) => !i.synthetic && i.marketplace === mp);
+  const cfg = CONFIG ? ((CONFIG.projects || []).find((p) => p.project_id === project.project_id) || {}).items || [] : [];
+  const fromSheet = cfg.filter((i) => i.marketplace === mp);
+  const products = (fromSheet.length ? fromSheet : real).length;
+  const kw = new Set();
+  (fromSheet.length ? fromSheet : real).forEach((i) => (i.keywords || []).forEach((k) => kw.add(k)));
+  if (!kw.size) real.forEach((i) => i.rows.forEach((r) => kw.add(r.keyword)));
+  const out = { mp, products, keywords: kw.size, hasData: false };
+  const rows = real.length ? bestRows(project, mp, "__stats__:" + mp) : [];   // best rank per keyword and day; follows the all / organic switch
+  if (!rows.length) return out;
+  const S = computeSeries(rows), last = S.dates.length - 1;
+  const latestDay = rows.map((r) => r.date).sort().pop();
+  out.checked = rows.map((r) => r.checked_at || r.date).sort().pop();
+  out.blocked = rows.filter((r) => r.date === latestDay && r.blocked).length;       // keywords Temu / the marketplace would not show us on the latest day
+  if (last >= 0) {
+    out.hasData = true;
+    out.vis = S.vis[last]; out.avg = S.avg[last]; out.top10 = S.top10[last]; out.total = S.dist[last].reduce((a, b) => a + b, 0);
+  }
+  return out;
+}
+
+function mpPickerHTML(project, mps) {
+  const stats = mps.map((m) => mpStats(project, m));
+  const cur = state.marketplace, curName = MP_LABEL[cur] || cur;
+  const linkTo = (cls, text, act) => SETTINGS.sheet_url
+    ? `<a class="${cls}" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener" role="menuitem" data-act="${act}">${text}</a>`
+    : `<button type="button" class="${cls}" role="menuitem" data-act="help">${text}</button>`;
+  const when = (iso) => new Date(iso).toLocaleString(LOCALE(), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const plural = (n, one, many) => t(n === 1 ? one : many, { n });
+  const cards = stats.map((st) => {
+    const m = st.mp, site = MP_SITE[m] || { domain: MP_LABEL[m] || m, url: "" }, sel = m === cur;
+    const numbers = st.hasData
+      ? `<div class="mp-bar" title="${esc(t("visTitle"))}"><i style="width:${Math.max(0, Math.min(100, st.vis)).toFixed(1)}%"></i></div>
+         <div class="mp-chips"><span class="mp-chip">${esc(t("mpTop10", { a: st.top10, b: st.total }))}</span><span class="mp-chip">${esc(t("mpVis", { v: pct(st.vis, 1) }))}</span><span class="mp-chip">${esc(t("mpAvg", { v: st.avg === null ? "–" : nf(st.avg, 1) }))}</span></div>`
+      : `<div class="mp-nodata">${esc(t("mpNoData"))}</div>`;
+    const foot = st.checked ? `<div class="mp-foot">${esc(t("mpChecked", { when: when(st.checked) }))}${st.blocked ? `<span class="mp-warn" title="${esc(t("blockedTip"))}">${esc(t("mpBlocked", { n: st.blocked }))}</span>` : ""}</div>` : "";
+    return `<div class="mp-card ${sel ? "sel" : ""}" role="option" id="mpOpt-${esc(m)}" data-mp="${esc(m)}" aria-selected="${sel}" tabindex="-1">
+        <div class="mp-logo-box">${mpLogoHTML(m)}</div>
+        <div class="mp-main">
+          <div class="mp-title"><span class="mp-domain">${esc(site.domain)}</span>${sel ? `<span class="mp-check" aria-hidden="true">✓</span>` : ""}</div>
+          <div class="mp-counts">${esc(plural(st.products, "mpProduct", "mpProducts"))}<span class="mp-sep" aria-hidden="true"></span>${esc(plural(st.keywords, "mpKeyword", "mpKeywords"))}</div>
+          ${numbers}${foot}
+        </div>
+        <button type="button" class="mp-more" aria-label="${esc(t("mpMore"))}" aria-haspopup="menu" aria-expanded="false" data-mpmore="${esc(m)}">⋯</button>
+        <div class="mp-menu" role="menu" hidden>
+          ${linkTo("mp-menu-item", esc(t("mpMenuAdd")), "add")}
+          ${site.url ? `<a class="mp-menu-item" role="menuitem" href="${esc(site.url)}" target="_blank" rel="noopener">${esc(t("mpMenuVisit", { site: site.domain }))}</a>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+  return `<div class="mp-picker" id="mpPicker">
+      <button type="button" class="mp-trigger" id="mpTrigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="mpPop" title="${esc(t("marketplace"))}">
+        <span class="mp-logo-box sm">${mpLogoHTML(cur)}</span><span class="mp-trigger-name">${esc(curName)}</span>${mps.length > 1 ? `<span class="mp-plus" title="${esc(t("mpOthers", { n: mps.length - 1 }))}">+${mps.length - 1}</span>` : ""}<span class="mp-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="mp-pop" id="mpPop" role="listbox" aria-label="${esc(t("mpTitle"))}" hidden>
+        <div class="mp-pop-title">${esc(t("mpTitle"))}</div>
+        ${cards}
+        <div class="mp-add">${linkTo("mp-add-link", `<span class="mp-add-plus" aria-hidden="true">+</span> ${esc(t("mpAdd"))}`, "add")}</div>
+      </div>
+    </div>`;
+}
+
+function closeMpPicker(focusTrigger) {
+  const pop = document.getElementById("mpPop"), trg = document.getElementById("mpTrigger");
+  if (!pop || pop.hidden) return;
+  pop.hidden = true; trg.setAttribute("aria-expanded", "false");
+  pop.querySelectorAll(".mp-menu").forEach((m) => { m.hidden = true; });
+  pop.querySelectorAll(".mp-more").forEach((b) => b.setAttribute("aria-expanded", "false"));
+  if (focusTrigger) trg.focus();
+}
+
+function openMpPicker() {
+  const pop = document.getElementById("mpPop"), trg = document.getElementById("mpTrigger");
+  if (!pop) return;
+  pop.hidden = false; trg.setAttribute("aria-expanded", "true");
+  const sel = pop.querySelector(".mp-card.sel") || pop.querySelector(".mp-card");
+  if (sel) sel.focus({ preventScroll: true });
+}
+
+function bindMpPicker() {
+  const trg = document.getElementById("mpTrigger"), pop = document.getElementById("mpPop");
+  if (!trg || !pop) return;
+  const choose = (m) => { if (m && m !== state.marketplace) { state.marketplace = m; state.itemKey = null; renderPage(); } else closeMpPicker(true); };
+  trg.addEventListener("click", () => (pop.hidden ? openMpPicker() : closeMpPicker()));
+  trg.addEventListener("keydown", (e) => { if (e.key === "ArrowDown" && pop.hidden) { e.preventDefault(); openMpPicker(); } });
+  pop.addEventListener("click", (e) => {
+    const more = e.target.closest(".mp-more");
+    if (more) {                                           // the three-dot menu of one card: never selects the card
+      e.stopPropagation();
+      const menu = more.parentElement.querySelector(".mp-menu"), open = menu.hidden;
+      pop.querySelectorAll(".mp-menu").forEach((x) => { x.hidden = true; });
+      pop.querySelectorAll(".mp-more").forEach((b) => b.setAttribute("aria-expanded", "false"));
+      menu.hidden = !open; more.setAttribute("aria-expanded", String(open));
+      return;
+    }
+    const link = e.target.closest("a, button[data-act='help']");
+    if (link) {
+      if (link.dataset.act === "help") { state.helpOpen = true; renderPage(); window.scrollTo(0, 0); }
+      else closeMpPicker();                               // real links (sheet, marketplace site) open in a new tab
+      return;
+    }
+    const card = e.target.closest(".mp-card");
+    if (card) choose(card.dataset.mp);
+  });
+  pop.addEventListener("keydown", (e) => {
+    const cards = [...pop.querySelectorAll(".mp-card")], i = cards.indexOf(document.activeElement);
+    if (e.key === "Escape") { e.preventDefault(); closeMpPicker(true); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); (cards[i + 1] || cards[0]).focus(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); (cards[i - 1] || cards[cards.length - 1]).focus(); }
+    else if ((e.key === "Enter" || e.key === " ") && i >= 0 && document.activeElement.classList.contains("mp-card")) { e.preventDefault(); choose(document.activeElement.dataset.mp); }
+    else if (e.key === "Tab") closeMpPicker();
+  });
+  if (!MP_BOUND) {   // one listener for the whole page: a click anywhere outside the dropdown closes it
+    MP_BOUND = true;
+    document.addEventListener("click", (e) => { if (!(e.target.closest && e.target.closest("#mpPicker"))) closeMpPicker(); });
+  }
+}
+
 function addButtonHTML(id, label, cls) {
   return SETTINGS.sheet_url
     ? `<a class="btn ${cls}" id="${id}" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener" title="${esc(t("opensSheet"))}">${label}</a>`
@@ -670,10 +816,6 @@ function renderPage() {
     hay: foldText([i.sku, i.product_id, i.country, i.synthetic ? `${i.label} all best position alle beste` : i.label].filter(Boolean).join(" ")),
   }));
   const selectedText = (comboEntries.find((e) => e.key === state.itemKey) || { text: "" }).text;
-  const marketOptions = mps.map((m) => {
-    const n = Object.values(project.items).filter((i) => !i.synthetic && i.marketplace === m).length;
-    return opt(m, `${MP_LABEL[m] || m} (${n})`, m === state.marketplace);
-  }).join("");
   const periods = [[14, t("lastDays", { n: 14 })], [30, t("lastDays", { n: 30 })], [60, t("lastDays", { n: 60 })], [90, t("lastDays", { n: 90 })], ["all", t("allTime")]]
     .map(([v, label]) => opt(v, label, String(v) === String(state.days))).join("");
   const hasOrganic = project.rows.some((r) => r.organic_rank !== undefined);
@@ -683,7 +825,7 @@ function renderPage() {
   const rangeGroup = `${basisSelect}<div class="range-group">${["daily", "weekly", "monthly"].map((r) => `<div class="range-btn ${state.range === r ? "active" : ""}" data-range="${r}">${esc(t(r))}</div>`).join("")}</div>
       <select id="periodSelect">${periods}</select><span class="range-text">${esc(VIEW.rangeText)}</span>`;
 
-  const controls = `<div class="ctrl-group"><select class="market-select" id="marketSelect" title="${esc(t("marketplace"))}">${marketOptions}</select><div class="combo" id="itemCombo">
+  const controls = `<div class="ctrl-group">${mpPickerHTML(project, mps)}<div class="combo" id="itemCombo">
         <input type="text" class="combo-input" id="itemInput" role="combobox" aria-expanded="false" aria-controls="itemList" aria-autocomplete="list"
                autocomplete="off" spellcheck="false" placeholder="${esc(t("searchPh"))}" value="${esc(selectedText)}" title="${esc(t("searchTitle"))}" />
         <button type="button" class="combo-toggle" id="itemToggle" tabindex="-1" aria-label="${esc(t("showAllProducts"))}">▾</button>
@@ -716,7 +858,7 @@ function renderPage() {
   bindLangToggle();
   document.querySelectorAll(".view-tab").forEach((b) => b.addEventListener("click", () => { if (state.view !== b.dataset.view) { state.view = b.dataset.view; renderPage(); } }));
   on("projectSelect", "change", (e) => { state.projectId = e.target.value; state.marketplace = null; state.itemKey = null; renderPage(); });
-  on("marketSelect", "change", (e) => { state.marketplace = e.target.value; state.itemKey = null; renderPage(); });
+  bindMpPicker();
   bindCombo(comboEntries, state.itemKey);
   on("basisSelect", "change", (e) => { state.basis = e.target.value; applyBasis(ALL_ROWS); renderPage(); });
   on("periodSelect", "change", (e) => { state.days = e.target.value === "all" ? "all" : Number(e.target.value); renderPage(); });
