@@ -13,7 +13,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-11-19.6";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-11-19.7";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false, view: "ranks", compKw: null, compDate: null, compDays: 30 };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -77,6 +77,24 @@ const I18N = {
     pjDup: "Duplicate product ID {x} (listed once).", pjOttoWarn: "Otto currently blocks automatic reading, so its rows may stay empty.",
     pjEstimate: "Rough cost: about {usd} a month (one check a day; eBay, Otto and Kaufland at $1.50 per 1,000 requests and Kaufland reads 2 pages; Temu adds $1 per 1,000 successful reads).",
     pjBadImage: "That picture address is not an https link or a Google Drive link.", pjClose: "Close",
+    pjPicSave: "Save picture as {file}", pjPicSaving: "Saving…",
+    pjPicSaved: "Saved to {repo}. It is used in preference to a picture address in your sheet. GitHub Pages needs about a minute to publish it for everyone; here you already see it.",
+    pjPicNeedName: "Enter the project name first: the picture is saved under the project's ID.", pjPicNeedToken: "Connect GitHub below first (one-time setup).",
+    pjGhSummaryOff: "Save pictures right here: one-time setup", pjGhSummaryOn: "GitHub connected: pictures are saved right here",
+    pjGhIntro: "A picture is saved as one small file in your GitHub repository. For that the dashboard needs a personal access token, which stays in this browser only.",
+    pjGhIntroOn: "Pictures are saved into {repo} with the token kept in this browser.",
+    pjGhS1: "Open the page that creates the token (the link fills in the name and the permission):", pjGhS1Link: "Create token on GitHub",
+    pjGhS2: "Under “Repository access” choose “Only select repositories” and pick {repo}. Under “Repository permissions” set “Contents” to “Read and write”, and nothing else.",
+    pjGhS3: "Click “Generate token”, copy it (it starts with github_pat_) and paste it here:", pjGhTokenPh: "github_pat_…", pjGhConnect: "Connect",
+    pjGhOrgNote: "If your organization has to approve tokens, an owner must approve it before it works.",
+    pjGhRisk: "Treat it like a password: anyone who can use this browser profile can write to the repository with it. A short expiry (30 to 90 days) is safest, and you can revoke it any time in your GitHub settings.",
+    pjGhConnected: "Connected as {login}. The token stays in this browser.", pjGhRemove: "Remove the token from this browser", pjGhRemoved: "Token removed from this browser.", pjGhChecking: "Checking the token…",
+    pjGhErrBad: "GitHub did not accept this token. Check that you copied all of it and that it has not expired.", pjGhErrNet: "Could not reach GitHub. Check your connection and try again.",
+    pjGhErrHttp: "GitHub answered with an error ({status}). {message}",
+    pjGhErrForbidden: "The token is not allowed to write to {repo}. Create it for that repository with “Contents: Read and write”. {message}",
+    pjGhErrNoAccess: "GitHub cannot find {repo} for this token. When you create the token, choose that repository under “Repository access”.",
+    pjGhErrConflict: "The picture changed on GitHub while saving. Please try again.",
+    pjGhNoRepo: "The dashboard could not tell which GitHub repository it belongs to. Add \"github_repo\": \"owner/name\" to docs/settings.json.",
     searchPh: "Search SKU or product ID…",
     searchTitle: "Type to search by SKU, product ID or product name",
     showAllProducts: "Show all products",
@@ -215,6 +233,24 @@ const I18N = {
     pjDup: "Doppelte Produkt-ID {x} (nur einmal aufgeführt).", pjOttoWarn: "Otto blockiert derzeit das automatische Auslesen, die Zeilen können daher leer bleiben.",
     pjEstimate: "Grobe Kosten: etwa {usd} pro Monat (eine Prüfung täglich; eBay, Otto und Kaufland zu 1,50 $ pro 1.000 Anfragen, Kaufland liest 2 Seiten; bei Temu kommt 1 $ pro 1.000 erfolgreichen Abrufen dazu).",
     pjBadImage: "Diese Bildadresse ist weder ein https-Link noch ein Google-Drive-Link.", pjClose: "Schließen",
+    pjPicSave: "Bild als {file} speichern", pjPicSaving: "Wird gespeichert…",
+    pjPicSaved: "In {repo} gespeichert. Es hat Vorrang vor einer Bildadresse in Ihrer Tabelle. GitHub Pages braucht etwa eine Minute, um es für alle zu veröffentlichen; hier sehen Sie es schon.",
+    pjPicNeedName: "Bitte zuerst den Projektnamen eingeben: das Bild wird unter der Projekt-ID gespeichert.", pjPicNeedToken: "Bitte zuerst unten GitHub verbinden (einmalige Einrichtung).",
+    pjGhSummaryOff: "Bilder direkt hier speichern: einmalige Einrichtung", pjGhSummaryOn: "GitHub verbunden: Bilder werden direkt hier gespeichert",
+    pjGhIntro: "Ein Bild wird als kleine Datei in Ihrem GitHub-Repository gespeichert. Dafür braucht das Dashboard ein persönliches Zugriffstoken, das nur in diesem Browser bleibt.",
+    pjGhIntroOn: "Bilder werden in {repo} gespeichert, mit dem Token aus diesem Browser.",
+    pjGhS1: "Öffnen Sie die Seite zum Erstellen des Tokens (der Link füllt Name und Berechtigung aus):", pjGhS1Link: "Token auf GitHub erstellen",
+    pjGhS2: "Wählen Sie unter „Repository access“ die Option „Only select repositories“ und dort {repo}. Setzen Sie unter „Repository permissions“ den Punkt „Contents“ auf „Read and write“, sonst nichts.",
+    pjGhS3: "Klicken Sie auf „Generate token“, kopieren Sie es (es beginnt mit github_pat_) und fügen Sie es hier ein:", pjGhTokenPh: "github_pat_…", pjGhConnect: "Verbinden",
+    pjGhOrgNote: "Wenn Ihre Organisation Tokens freigeben muss, muss ein Owner es freigeben, bevor es funktioniert.",
+    pjGhRisk: "Behandeln Sie es wie ein Passwort: Wer dieses Browserprofil nutzen kann, kann damit in das Repository schreiben. Eine kurze Laufzeit (30 bis 90 Tage) ist am sichersten; in Ihren GitHub-Einstellungen können Sie es jederzeit widerrufen.",
+    pjGhConnected: "Verbunden als {login}. Das Token bleibt in diesem Browser.", pjGhRemove: "Token aus diesem Browser entfernen", pjGhRemoved: "Token aus diesem Browser entfernt.", pjGhChecking: "Token wird geprüft…",
+    pjGhErrBad: "GitHub hat dieses Token nicht akzeptiert. Prüfen Sie, ob Sie es vollständig kopiert haben und ob es noch gültig ist.", pjGhErrNet: "GitHub ist nicht erreichbar. Prüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
+    pjGhErrHttp: "GitHub hat mit einem Fehler geantwortet ({status}). {message}",
+    pjGhErrForbidden: "Das Token darf nicht in {repo} schreiben. Erstellen Sie es für dieses Repository mit „Contents: Read and write“. {message}",
+    pjGhErrNoAccess: "GitHub findet {repo} für dieses Token nicht. Wählen Sie beim Erstellen des Tokens unter „Repository access“ dieses Repository.",
+    pjGhErrConflict: "Das Bild wurde beim Speichern auf GitHub geändert. Bitte versuchen Sie es erneut.",
+    pjGhNoRepo: "Das Dashboard konnte nicht erkennen, zu welchem GitHub-Repository es gehört. Tragen Sie \"github_repo\": \"owner/name\" in docs/settings.json ein.",
     searchPh: "SKU oder Produkt-ID suchen…",
     searchTitle: "Tippen, um nach SKU, Produkt-ID oder Produktname zu suchen",
     showAllProducts: "Alle Produkte anzeigen",
@@ -714,9 +750,11 @@ function pjVisible(list) {
 // ----- small pieces
 const pjInitials = (name) => { const first = String(name).trim().split(/[\s(]+/).filter(Boolean)[0] || "?"; return first.slice(0, /\d/.test(first) || first === first.toUpperCase() ? 3 : 2).toUpperCase(); };
 function pjThumbHTML(e) {
-  const src = safeImg(e.image) || `images/projects/${e.id}.jpg`;
-  return `<div class="pj-ph" style="--h:${hashOf(e.id) % 360}">${esc(pjInitials(e.name))}</div><img class="pj-img" src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer" />`;
+  const fresh = PJ.fresh && PJ.fresh[e.id], conv = `images/projects/${e.id}.jpg`, sheet = safeImg(e.image);
+  const src = fresh || conv, fb = fresh || !sheet || sheet === conv ? "" : sheet;     // picture saved in the tool > file named after the project > the sheet's address
+  return `<div class="pj-ph" style="--h:${hashOf(e.id) % 360}">${esc(pjInitials(e.name))}</div><img class="pj-img" src="${esc(src)}"${fb ? ` data-fb="${esc(fb)}"` : ""} alt="" loading="lazy" referrerpolicy="no-referrer" />`;
 }
+function pjImgFailed(im) { const fb = im.dataset.fb; if (fb) { delete im.dataset.fb; im.src = fb; } else im.remove(); }
 function pjTagHTML(tag) {
   const k = tag.toLowerCase(), cls = /key/.test(k) ? "t-red" : /new|neu/.test(k) ? "t-amber" : "t-" + (hashOf(k) % 5);
   return `<span class="pj-tag ${cls}">${esc(tag)}</span>`;
@@ -873,7 +911,7 @@ function bindProjectsPage() {
   });
   body.addEventListener("keydown", (ev) => { if ((ev.key === "Enter" || ev.key === " ") && ev.target.matches && ev.target.matches("[data-id][role='link']")) { ev.preventDefault(); openCard(ev.target); } });
   body.addEventListener("load", (ev) => { const im = ev.target; if (im.classList && im.classList.contains("pj-img")) { im.classList.add("ok"); im.parentElement.classList.add("has-img"); } }, true);
-  body.addEventListener("error", (ev) => { const im = ev.target; if (im.classList && im.classList.contains("pj-img")) im.remove(); }, true);
+  body.addEventListener("error", (ev) => { const im = ev.target; if (im.classList && im.classList.contains("pj-img")) pjImgFailed(im); }, true);
   if (!PJ.bound) {
     PJ.bound = true;
     document.addEventListener("click", () => { closePjMenus(); closePjFilter(); });
@@ -895,7 +933,7 @@ function openPjModal(title, bodyHTML) {
   r.onclick = (ev) => { if (ev.target.closest("[data-close]")) closePjModal(); const c = ev.target.closest("[data-copy]"); if (c) pjCopy(c.dataset.copy); };
   // pictures inside a window: shown when they load, dropped (the badge stays) when they cannot be found, as on the cards
   r.addEventListener("load", (ev) => { const im = ev.target; if (im.classList && im.classList.contains("pj-img")) { im.classList.add("ok"); im.parentElement.classList.add("has-img"); } }, true);
-  r.addEventListener("error", (ev) => { const im = ev.target; if (im.classList && im.classList.contains("pj-img")) im.remove(); }, true);
+  r.addEventListener("error", (ev) => { const im = ev.target; if (im.classList && im.classList.contains("pj-img")) pjImgFailed(im); }, true);
   r.querySelector(".pj-dialog").focus();
   return r;
 }
@@ -932,6 +970,154 @@ function openPjDetails(id, tab = "products") {
   const open = r.querySelector("#pjDetOpen"); if (open) open.addEventListener("click", () => { closePjModal(); go("#/project/" + encodeURIComponent(id)); });
 }
 
+// ----- saving a project picture from the dashboard: one small file is committed into the GitHub repository (docs/images/projects/<id>.jpg)
+// with a fine-grained personal access token that the person creates once; it stays in this browser (localStorage) and is only ever sent to api.github.com.
+const GH_TOKEN_KEY = "rt_gh_token";
+PJ.fresh = {};   // project id -> data URL of a picture saved in this session: shown at once, while GitHub Pages is still publishing it
+try {
+  const saved = JSON.parse(sessionStorage.getItem("rt_fresh") || "{}") || {};
+  Object.keys(saved).forEach((k) => { if (/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(saved[k])) PJ.fresh[k] = saved[k]; });
+} catch (e) { PJ.fresh = {}; }
+function rememberFresh() { try { sessionStorage.setItem("rt_fresh", JSON.stringify(PJ.fresh)); } catch (e) { /* too big or blocked: the picture shows after publishing */ } }
+
+function ghTarget() {
+  let repo = String(SETTINGS.github_repo || "").trim();
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) {            // a GitHub Pages address https://<owner>.github.io/<repo>/ names the repository
+    const host = location.hostname.match(/^([\w-]+)\.github\.io$/i), seg = location.pathname.split("/").filter(Boolean)[0];
+    repo = host && seg ? `${host[1]}/${seg}` : "";
+  }
+  return { repo, owner: repo.split("/")[0] || "", branch: String(SETTINGS.github_branch || "main"), dir: String(SETTINGS.github_docs_dir === undefined ? "docs" : SETTINGS.github_docs_dir).replace(/^\/+|\/+$/g, "") };
+}
+const ghToken = () => lsGet(GH_TOKEN_KEY, "");
+async function ghApi(method, path, token, body) {
+  const res = await fetch("https://api.github.com" + path, {
+    method, headers: Object.assign({ Authorization: "Bearer " + token, Accept: "application/vnd.github+json" }, body ? { "Content-Type": "application/json" } : {}),
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data = null; try { data = await res.json(); } catch (e) { /* no JSON body */ }
+  return { status: res.status, ok: res.ok, data };
+}
+async function ghCheck(token) {
+  if (!ghTarget().repo) return { ok: false, why: "norepo" };
+  try {
+    const r = await ghApi("GET", "/user", token);
+    if (r.status === 401) return { ok: false, why: "bad" };
+    if (!r.ok) return { ok: false, why: "http", status: r.status, message: (r.data && r.data.message) || "" };
+    return { ok: true, login: (r.data && r.data.login) || "" };
+  } catch (e) { return { ok: false, why: "net" }; }
+}
+function blobToBase64(blob) {
+  return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1] || ""); fr.onerror = () => rej(fr.error); fr.readAsDataURL(blob); });
+}
+async function ghSavePicture(id, blob, token) {
+  const { repo, branch, dir } = ghTarget();
+  if (!repo) return { ok: false, why: "norepo" };
+  const path = `${dir ? dir + "/" : ""}images/projects/${id}.jpg`, api = `/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}`;
+  try {
+    const content = await blobToBase64(blob);
+    for (let attempt = 1; attempt <= 2; attempt++) {           // a second look if the file changed while we were saving
+      const cur = await ghApi("GET", `${api}?ref=${encodeURIComponent(branch)}`, token);
+      if (cur.status === 401) return { ok: false, why: "bad" };
+      const sha = cur.status === 200 && cur.data && cur.data.sha ? cur.data.sha : undefined;   // replacing a picture needs the old file's sha
+      const put = await ghApi("PUT", api, token, Object.assign({ message: `${sha ? "Replace" : "Add"} picture for project ${id}`, content, branch }, sha ? { sha } : {}));
+      if (put.ok) return { ok: true, dataUrl: `data:image/jpeg;base64,${content}` };
+      if (put.status === 409 || put.status === 422) continue;
+      const why = put.status === 401 ? "bad" : put.status === 403 ? "forbidden" : put.status === 404 ? "noaccess" : "http";
+      return { ok: false, why, status: put.status, message: (put.data && put.data.message) || "" };
+    }
+    return { ok: false, why: "conflict" };
+  } catch (e) { return { ok: false, why: "net" }; }
+}
+function ghErrorText(r) {
+  const { repo } = ghTarget(), msg = r.message ? String(r.message).slice(0, 160) : "";
+  switch (r.why) {
+    case "bad": return t("pjGhErrBad");
+    case "net": return t("pjGhErrNet");
+    case "norepo": return t("pjGhNoRepo");
+    case "forbidden": return t("pjGhErrForbidden", { repo, message: msg });
+    case "noaccess": return t("pjGhErrNoAccess", { repo });
+    case "conflict": return t("pjGhErrConflict");
+    default: return t("pjGhErrHttp", { status: r.status || "?", message: msg });
+  }
+}
+
+function pjPicWidgetHTML() {
+  return `<div class="pj-pic" id="pjw">
+    <label class="pj-field"><span>${esc(t("pjPicFile"))}</span><input type="file" id="pjwFile" accept="image/*" /></label>
+    <div class="pj-bad" id="pjwNoResize" hidden></div>
+    <div class="pj-dl" id="pjwActions" hidden>
+      <div class="pj-actions"><button type="button" class="btn primary" id="pjwSave"></button><a class="btn" id="pjwDl"></a></div>
+      <p class="pj-help" id="pjwHow"></p>
+    </div>
+    <div class="pj-msg" id="pjwStatus" role="status" hidden></div>
+    <details class="pj-gh" id="pjwGh"><summary id="pjwGhSum"></summary><div id="pjwGhBody"></div></details>
+  </div>`;
+}
+// getId(): the project id the picture is saved under ("" when not known yet). hooks.onBlob(): a picture was chosen; hooks.onSaved(): it was saved.
+function bindPicWidget(r, getId, hooks = {}) {
+  const q = (s) => r.querySelector(s);
+  let blob = null, busy = false;
+  const status = (kind, text) => { const el = q("#pjwStatus"); el.hidden = !text; el.className = "pj-msg " + kind; el.textContent = text || ""; };
+  function renderActions() {
+    q("#pjwActions").hidden = !blob;
+    if (!blob) return;
+    const id = getId(), file = `${id || "…"}.jpg`, dl = q("#pjwDl"), save = q("#pjwSave");
+    dl.download = file; dl.href = PJ.blob || "#"; dl.textContent = t("pjPicDownload", { file });
+    save.textContent = busy ? t("pjPicSaving") : t("pjPicSave", { file }); save.disabled = busy || !id;
+    q("#pjwHow").textContent = ghToken() ? "" : t("pjPicUpload");
+  }
+  function renderGh() {
+    const tok = ghToken(), { repo, owner } = ghTarget(), body = q("#pjwGhBody");
+    q("#pjwGhSum").textContent = t(tok ? "pjGhSummaryOn" : "pjGhSummaryOff");
+    if (!repo) { body.innerHTML = `<p class="pj-help">${esc(t("pjGhNoRepo"))}</p>`; return; }
+    if (tok) {
+      body.innerHTML = `<p class="pj-help">${esc(t("pjGhIntroOn", { repo }))}</p><button type="button" class="pj-clear" id="pjwGhRemove">${esc(t("pjGhRemove"))}</button>`;
+      q("#pjwGhRemove").addEventListener("click", () => { try { localStorage.removeItem(GH_TOKEN_KEY); } catch (e) { /* ignore */ } status("info", t("pjGhRemoved")); renderGh(); renderActions(); });
+      return;
+    }
+    const link = `https://github.com/settings/personal-access-tokens/new?name=${encodeURIComponent("Rank Tracker pictures")}&description=${encodeURIComponent("Rank Tracker dashboard: project pictures")}&target_name=${encodeURIComponent(owner)}&expires_in=90&contents=write`;
+    body.innerHTML = `<p class="pj-help">${esc(t("pjGhIntro"))}</p>
+      <ol class="pj-steps"><li>${esc(t("pjGhS1"))} <a href="${esc(link)}" target="_blank" rel="noopener">${esc(t("pjGhS1Link"))}</a></li><li>${esc(t("pjGhS2", { repo }))}</li><li>${esc(t("pjGhS3"))}</li></ol>
+      <div class="pj-token-row"><input type="password" id="pjwToken" placeholder="${esc(t("pjGhTokenPh"))}" autocomplete="off" spellcheck="false" /><button type="button" class="btn primary" id="pjwGhConnect">${esc(t("pjGhConnect"))}</button></div>
+      <p class="pj-help">${esc(t("pjGhOrgNote"))}</p><p class="pj-help">${esc(t("pjGhRisk"))}</p>`;
+    const go = async () => {
+      const v = q("#pjwToken").value.trim(); if (!v) return;
+      status("info", t("pjGhChecking"));
+      const c = await ghCheck(v);
+      if (!c.ok) { status("err", ghErrorText(c)); return; }
+      lsSet(GH_TOKEN_KEY, v); status("ok", t("pjGhConnected", { login: c.login })); renderGh(); renderActions();
+    };
+    q("#pjwGhConnect").addEventListener("click", go);
+    q("#pjwToken").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); go(); } });
+  }
+  q("#pjwFile").addEventListener("change", async (ev) => {
+    const f = ev.target.files && ev.target.files[0]; if (!f) return;
+    status("", "");
+    const b = await resizeImageFile(f);
+    if (PJ.blob) URL.revokeObjectURL(PJ.blob);
+    blob = b; PJ.blob = b ? URL.createObjectURL(b) : null;
+    const nr = q("#pjwNoResize"); nr.hidden = !!b; nr.textContent = b ? "" : t("pjPicNoResize", { file: `${getId() || "<project id>"}.jpg` });
+    renderActions();
+    if (b && hooks.onBlob) hooks.onBlob();
+  });
+  q("#pjwSave").addEventListener("click", async () => {
+    const id = getId();
+    if (!id) { status("err", t("pjPicNeedName")); return; }
+    const tok = ghToken();
+    if (!tok) { q("#pjwGh").open = true; status("err", t("pjPicNeedToken")); return; }
+    busy = true; renderActions(); status("info", t("pjPicSaving"));
+    const res = await ghSavePicture(id, blob, tok);
+    busy = false; renderActions();
+    if (!res.ok) { status("err", ghErrorText(res)); return; }
+    PJ.fresh[id] = res.dataUrl; rememberFresh();
+    status("ok", t("pjPicSaved", { repo: ghTarget().repo }));
+    if (state.page === "projects") renderProjectsBody();     // the card shows the new picture at once
+    if (hooks.onSaved) hooks.onSaved();
+  });
+  r.addEventListener("input", renderActions);               // the project name (create window) decides the file name
+  renderGh(); renderActions();
+}
+
 async function resizeImageFile(file, maxW = 640, maxH = 480, quality = 0.86) {
   // a smaller JPEG (white background) so the repository stays small; null when this browser cannot do it
   try {
@@ -948,9 +1134,7 @@ function openPjEdit(id) {
   const r = openPjModal(t("pjEditTitle"), `${pjHeadHTML(e)}
     <label class="pj-field"><span>${esc(t("pjPicUrl"))}</span><input type="text" id="pjeUrl" placeholder="${esc(t("pjPicUrlPh"))}" value="${esc(/^https?:/.test(e.image) ? e.image : "")}" /></label>
     <div class="pj-bad" id="pjeBad" hidden>${esc(t("pjBadImage"))}</div>
-    <label class="pj-field"><span>${esc(t("pjPicFile"))}</span><input type="file" id="pjeFile" accept="image/*" /></label>
-    <div class="pj-dl" id="pjeDl" hidden><a class="btn" id="pjeDlLink" download="${esc(file)}">${esc(t("pjPicDownload", { file }))}</a><p>${esc(t("pjPicUpload"))}</p></div>
-    <div class="pj-bad" id="pjeNoResize" hidden>${esc(t("pjPicNoResize", { file }))}</div>
+    ${pjPicWidgetHTML()}
     <label class="pj-field"><span>${esc(t("pjTagsLabel"))}</span><input type="text" id="pjeTags" value="${esc(e.tags.join(", "))}" /></label>
     <label class="pj-field"><span>${esc(t("pjNoteLabel"))}</span><input type="text" id="pjeNote" maxlength="280" value="${esc(e.note)}" /></label>
     <div class="pj-out"><b>${esc(t("pjCells"))}</b><table class="pj-table sm"><tbody>
@@ -961,22 +1145,18 @@ function openPjEdit(id) {
   const refresh = () => {
     const c = cell(), bad = c.img && !cleanImageJS(c.img);
     q("#pjeBad").hidden = !bad;
-    q("#pjeCellImg").textContent = c.img || (PJ.blob ? t("pjPicBlank", { file }) : "");
+    q("#pjeCellImg").textContent = c.img || (PJ.blob || PJ.fresh[id] ? t("pjPicBlank", { file }) : "");
     q("#pjeCellTags").textContent = c.tags; q("#pjeCellNote").textContent = c.note;
-    const src = !bad && c.img ? safeImg(cleanImageJS(c.img)) : PJ.blob || "";
+    const src = !bad && c.img ? safeImg(cleanImageJS(c.img)) : PJ.blob || PJ.fresh[id] || "";
     const box = q(".pj-dlg-proj .pj-imgbox");
-    if (src) { box.classList.remove("has-img"); box.innerHTML = `<div class="pj-ph" style="--h:${hashOf(e.id) % 360}">${esc(pjInitials(e.name))}</div><img class="pj-img" src="${esc(src)}" alt="" />`; const im = box.querySelector("img"); im.onload = () => { im.classList.add("ok"); box.classList.add("has-img"); }; im.onerror = () => im.remove(); }
+    if (src) {
+      box.classList.remove("has-img");
+      box.innerHTML = `<div class="pj-ph" style="--h:${hashOf(e.id) % 360}">${esc(pjInitials(e.name))}</div><img class="pj-img" src="${esc(src)}" alt="" />`;
+      const im = box.querySelector("img"); im.onload = () => { im.classList.add("ok"); box.classList.add("has-img"); }; im.onerror = () => im.remove();
+    }
   };
   r.addEventListener("input", refresh);
-  q("#pjeFile").addEventListener("change", async (ev) => {
-    const f = ev.target.files && ev.target.files[0]; if (!f) return;
-    const blob = await resizeImageFile(f);
-    q("#pjeNoResize").hidden = !!blob; q("#pjeDl").hidden = !blob;
-    if (PJ.blob) URL.revokeObjectURL(PJ.blob);
-    PJ.blob = blob ? URL.createObjectURL(blob) : null;
-    if (blob) { q("#pjeDlLink").href = PJ.blob; q("#pjeUrl").value = ""; }
-    refresh();
-  });
+  bindPicWidget(r, () => id, { onBlob: () => { q("#pjeUrl").value = ""; refresh(); }, onSaved: () => refresh() });
   q("#pjeCopy").addEventListener("click", () => { const c = cell(); pjCopy([e.name, c.img, c.tags, c.note].join("\t")); });
   refresh();
 }
@@ -1043,6 +1223,7 @@ function openPjCreate() {
     <div class="pj-formgrid"><label class="pj-field"><span>${esc(t("pjName"))} *</span><input type="text" id="pjcName" placeholder="${esc(t("pjNamePh"))}" autocomplete="off" /></label>
       <label class="pj-field"><span>${esc(t("pjCountry"))}</span><select id="pjcCountry">${countries}</select></label></div>
     <label class="pj-field"><span>${esc(t("pjImageOpt"))}</span><input type="text" id="pjcImage" placeholder="${esc(t("pjPicUrlPh"))}" /></label>
+    ${pjPicWidgetHTML()}
     <div class="pj-formgrid"><label class="pj-field"><span>${esc(t("pjTagsLabel"))}</span><input type="text" id="pjcTags" placeholder="Key Product, Tarpofix" /></label>
       <label class="pj-field"><span>${esc(t("pjNoteLabel"))}</span><input type="text" id="pjcNote" maxlength="280" /></label></div>
     <div class="pj-fgroup">${esc(t("pjMarketplaces"))}</div>${mpBox}
@@ -1065,6 +1246,7 @@ function openPjCreate() {
         ${SETTINGS.sheet_url ? `<a class="btn" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener">${esc(t("pjOpenSheet"))}</a>` : ""}</div>` : ""}`;
   };
   r.addEventListener("input", draw);
+  bindPicWidget(r, () => { const n = q("#pjcName").value.trim(); return n ? slug(n) : ""; });
   r.addEventListener("change", (ev) => {
     const c = ev.target.closest && ev.target.closest("[data-cmp]");
     if (c) { q(`[data-ids="${c.dataset.cmp}"]`).hidden = !c.checked; draw(); }
