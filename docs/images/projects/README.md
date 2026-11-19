@@ -12,7 +12,8 @@ choose "Picture, tags & note", pick a picture from your computer and click the d
 (max. 640 x 480, usually 10 to 60 KB) and named correctly; upload it here with Add file -> Upload files.
 
 A project can also use a picture from the internet instead: write an https address or a Google Drive share link
-(shared as "anyone with the link") in the `project_image` column of the sheet. A plain file name in that cell
-(for example `pool.jpg`) means the file `docs/images/projects/pool.jpg`.
+(shared as "anyone with the link") in the `image` column of the Projects tab of the sheet (one row per project; columns
+`project`, `image`, `tags`, `note`). A plain file name in that cell (for example `pool.jpg`) means the file
+`docs/images/projects/pool.jpg`. See README.md, "Projects page", for how to add that tab.
 
 Without a picture the Projects page shows a coloured badge with the project's initials.

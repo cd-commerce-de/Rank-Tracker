@@ -49,7 +49,7 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 
 # Shown in the run logs and in the dashboard footer, so you can see whether an upload really updated the files.
-VERSION = "2026-11-19.3"
+VERSION = "2026-11-19.4"
 CONFIG_DIR = ROOT / "config"
 PRODUCTS_PATH = CONFIG_DIR / "products.csv"
 KEYWORDS_PATH = CONFIG_DIR / "keywords.csv"
@@ -78,6 +78,10 @@ def _clean(raw):
     }
 
 
+# headings that mark the optional Projects tab (one row per project): a picture, tags and a short note for the Projects page
+_PROJECT_COLS = {"image", "picture", "project_image", "tags", "project_tags", "note", "notes", "description", "project_note"}
+
+
 def classify(fieldnames):
     """Which kind of table is this? Decided by its column headings."""
     cols = {(c or "").strip().lower().replace(" ", "_") for c in (fieldnames or [])}
@@ -87,6 +91,8 @@ def classify(fieldnames):
         return "products"
     if "keyword" in cols:
         return "keywords"
+    if "project" in cols and cols & _PROJECT_COLS:
+        return "projects"   # optional tab with ONE row per project: project, image, tags, note
     return None
 
 
@@ -157,14 +163,19 @@ class _Builder:
             pid, {"project_id": pid, "project_name": name, "items": {}, "keywords": [], "from_products": set(), "scope": {}, "meta": {"tags": []}}
         )
 
-    def note_meta(self, row):
-        """Project-level optional columns (project_image, project_tags, project_note) on ANY row of the project: the first picture / note
-        wins, tags from all rows are combined."""
+    def note_meta(self, row, plain=False):
+        """
+        Project-level optional values for the Projects page. On the dedicated Projects tab (plain=True) the columns are called
+        image / tags / note (also picture, notes, description); on the Products or Keywords tab only the prefixed names
+        project_image / project_tags / project_note count (a plain 'image' there could mean a product picture).
+        Several rows for one project: the first picture and note win, tags are combined.
+        """
         name = row.get("project", "")
         if not name:
             return
         meta = self.project(name)["meta"]
-        raw_image = row.get("project_image", "")
+        pick = lambda *keys: next((row[k] for k in keys if row.get(k)), "")
+        raw_image = pick("project_image", *(("image", "picture") if plain else ()))
         if raw_image and not meta.get("image"):
             img = clean_image(raw_image)
             if img:
@@ -172,10 +183,10 @@ class _Builder:
             elif not meta.get("bad_image"):
                 meta["bad_image"] = True
                 print(f"  ! project '{name}': project_image '{raw_image[:60]}' is not an https address, a Google Drive link or a plain file name; ignored", file=sys.stderr)
-        for tag in parse_tags(row.get("project_tags", "")):
+        for tag in parse_tags(pick("project_tags", *(("tags",) if plain else ()))):
             if tag.lower() not in {t.lower() for t in meta["tags"]} and len(meta["tags"]) < 8:
                 meta["tags"].append(tag)
-        note = row.get("project_note", "")
+        note = pick("project_note", *(("note", "notes", "description") if plain else ()))
         if note and not meta.get("note"):
             meta["note"] = note[:280]
 
@@ -248,6 +259,9 @@ class _Builder:
                 if allowed is not None and project["from_products"] and not any(project["items"][k]["marketplace"] in allowed for k in project["from_products"]):
                     print(f"  ! keyword '{kw}' in project '{project['project_name']}' is limited to {', '.join(sorted(allowed)) or '(nothing recognised)'}, "
                           f"but the project has no products there, so it is not tracked", file=sys.stderr)
+            if not project["items"] and (project["meta"].get("image") or project["meta"]["tags"] or project["meta"].get("note")):
+                print(f"  ! project '{project['project_name']}' is on the Projects tab but has no products yet, so there is nothing to show "
+                      f"(is its name spelled like on the Products tab?)", file=sys.stderr)
             items = [i for i in project["items"].values() if i["keywords"]]
             for i in project["items"].values():
                 if not i["keywords"]:
@@ -275,7 +289,9 @@ def build_projects(tables):
     for kind, rows in tables:
         for raw in rows:
             row = _clean(raw)
-            b.note_meta(row)
+            b.note_meta(row, plain=(kind == "projects"))
+            if kind == "projects":
+                continue
             if kind == "keywords":
                 scope, unknown = parse_marketplaces(row.get("marketplace") or row.get("marketplaces"), set(ID_FIELD) | known_marketplaces)
                 if unknown:

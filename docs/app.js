@@ -13,7 +13,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-11-19.3";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-11-19.4";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false, view: "ranks", compKw: null, compDate: null, compDays: 30 };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -60,8 +60,10 @@ const I18N = {
     pjPicFile: "Or choose a picture from your computer", pjPicDownload: "Download {file}",
     pjPicUpload: "Upload that file to the folder docs/images/projects/ of your GitHub repository (Add file → Upload files). The dashboard finds it by the project ID, so the sheet needs no change.",
     pjPicNoResize: "This browser cannot resize pictures. Save your picture as {file} yourself and upload it to docs/images/projects/.",
-    pjPicBlank: "(leave empty, or write {file})", pjTagsLabel: "Tags (separated by commas)", pjNoteLabel: "Note (short)", pjCells: "Values for your sheet", pjCopyCells: "Copy values",
-    pjCellsHow: "Put them in the project's first row of the Products tab, in the columns project_image, project_tags and project_note. Add these three columns once, at the right end of the tab.",
+    pjPicBlank: "(leave empty, or write {file})", pjTagsLabel: "Tags (separated by commas)", pjNoteLabel: "Note (short)", pjCells: "Row for the Projects tab", pjCopyCells: "Copy row",
+    pjCellsHow: "Put these values in the project's row of the Projects tab (one row per project; columns project, image, tags, note). Create that tab once, publish it as CSV like your other tabs, and add its link on a new line in the TRACKING_SHEET_CSV_URL secret.",
+    pjOutProject: "Row for the Projects tab (picture, tags, note)", pjCopyRowProject: "Copy project row",
+    pjProjectsTabHow: "Create a tab called Projects once (columns: project, image, tags, note), publish it like your other tabs and add its link to the TRACKING_SHEET_CSV_URL secret, one link per line.",
     pjCreateTitle: "Create project", pjName: "Project name", pjNamePh: "e.g. PP (Pool Covers)", pjImageOpt: "Picture address or Google Drive link (optional)",
     pjMarketplaces: "Marketplaces", pjCountry: "Country", pjIdsFor: "{mp} product IDs",
     pjIdsHelp: "One per line. Optional: add the SKU and the product name after the ID, separated by a comma or a tab.",
@@ -196,8 +198,10 @@ const I18N = {
     pjPicFile: "Oder ein Bild von Ihrem Computer wählen", pjPicDownload: "{file} herunterladen",
     pjPicUpload: "Laden Sie diese Datei in den Ordner docs/images/projects/ Ihres GitHub-Repositories hoch (Add file → Upload files). Das Dashboard findet sie über die Projekt-ID, die Tabelle muss nicht geändert werden.",
     pjPicNoResize: "Dieser Browser kann Bilder nicht verkleinern. Speichern Sie Ihr Bild selbst als {file} und laden Sie es nach docs/images/projects/ hoch.",
-    pjPicBlank: "(leer lassen oder {file} eintragen)", pjTagsLabel: "Tags (durch Kommas getrennt)", pjNoteLabel: "Notiz (kurz)", pjCells: "Werte für Ihre Tabelle", pjCopyCells: "Werte kopieren",
-    pjCellsHow: "Tragen Sie sie in der ersten Zeile des Projekts im Tab Products ein, in den Spalten project_image, project_tags und project_note. Diese drei Spalten legen Sie einmalig am rechten Ende des Tabs an.",
+    pjPicBlank: "(leer lassen oder {file} eintragen)", pjTagsLabel: "Tags (durch Kommas getrennt)", pjNoteLabel: "Notiz (kurz)", pjCells: "Zeile für den Tab Projects", pjCopyCells: "Zeile kopieren",
+    pjCellsHow: "Tragen Sie diese Werte in der Zeile des Projekts im Tab Projects ein (eine Zeile pro Projekt; Spalten project, image, tags, note). Diesen Tab legen Sie einmalig an, veröffentlichen ihn wie Ihre anderen Tabs als CSV und tragen seinen Link in einer neuen Zeile im Secret TRACKING_SHEET_CSV_URL ein.",
+    pjOutProject: "Zeile für den Tab Projects (Bild, Tags, Notiz)", pjCopyRowProject: "Projektzeile kopieren",
+    pjProjectsTabHow: "Legen Sie einmalig einen Tab namens Projects an (Spalten: project, image, tags, note), veröffentlichen Sie ihn wie Ihre anderen Tabs und tragen Sie seinen Link im Secret TRACKING_SHEET_CSV_URL ein, ein Link pro Zeile.",
     pjCreateTitle: "Projekt erstellen", pjName: "Projektname", pjNamePh: "z. B. PP (Pool Covers)", pjImageOpt: "Bildadresse oder Google-Drive-Link (optional)",
     pjMarketplaces: "Marktplätze", pjCountry: "Land", pjIdsFor: "{mp}-Produkt-IDs",
     pjIdsHelp: "Eine pro Zeile. Optional: nach der ID SKU und Produktname anfügen, getrennt durch Komma oder Tab.",
@@ -617,8 +621,9 @@ async function boot() {
 // "+ Add products & keywords" and "+ Add keyword": straight to the Google Sheet (docs/settings.json -> sheet_url), opened in
 // a new tab. Without a sheet link they stay buttons that open the how-to panel.
 // ---------- Projects page (#/projects): every project of the sheet as a card or a row ----------
-// Pictures, tags and notes come from the sheet (columns project_image, project_tags, project_note on the Products or Keywords tab) via
-// docs/data/config.json. Without a picture the page looks for docs/images/projects/<project id>.jpg, then shows a coloured badge.
+// Pictures, tags and notes come from the sheet via docs/data/config.json: an optional Projects tab (one row per project: project, image, tags, note),
+// or the columns project_image / project_tags / project_note on the Products or Keywords tab. Without a picture the page looks for
+// docs/images/projects/<project id>.jpg, then shows a coloured badge.
 const PJ = { cache: {}, basis: null, opened: {}, filterOpen: false, modalOpen: false, blob: null, bound: false };
 function lsGet(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage blocked: the choice lasts for this visit only */ } }
@@ -949,7 +954,7 @@ function openPjEdit(id) {
     <label class="pj-field"><span>${esc(t("pjTagsLabel"))}</span><input type="text" id="pjeTags" value="${esc(e.tags.join(", "))}" /></label>
     <label class="pj-field"><span>${esc(t("pjNoteLabel"))}</span><input type="text" id="pjeNote" maxlength="280" value="${esc(e.note)}" /></label>
     <div class="pj-out"><b>${esc(t("pjCells"))}</b><table class="pj-table sm"><tbody>
-      <tr><td><code>project_image</code></td><td id="pjeCellImg"></td></tr><tr><td><code>project_tags</code></td><td id="pjeCellTags"></td></tr><tr><td><code>project_note</code></td><td id="pjeCellNote"></td></tr></tbody></table>
+      <tr><td><code>project</code></td><td>${esc(e.name)}</td></tr><tr><td><code>image</code></td><td id="pjeCellImg"></td></tr><tr><td><code>tags</code></td><td id="pjeCellTags"></td></tr><tr><td><code>note</code></td><td id="pjeCellNote"></td></tr></tbody></table>
       <p class="pj-help">${esc(t("pjCellsHow"))}</p></div>
     <div class="pj-actions"><button type="button" class="btn primary" id="pjeCopy">${esc(t("pjCopyCells"))}</button>${SETTINGS.sheet_url ? `<a class="btn" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener">${esc(t("pjOpenSheet"))}</a>` : ""}</div>`);
   const q = (s) => r.querySelector(s), cell = () => ({ img: q("#pjeUrl").value.trim(), tags: q("#pjeTags").value.trim(), note: q("#pjeNote").value.trim() });
@@ -972,7 +977,7 @@ function openPjEdit(id) {
     if (blob) { q("#pjeDlLink").href = PJ.blob; q("#pjeUrl").value = ""; }
     refresh();
   });
-  q("#pjeCopy").addEventListener("click", () => { const c = cell(); pjCopy([c.img, c.tags, c.note].join("\t")); });
+  q("#pjeCopy").addEventListener("click", () => { const c = cell(); pjCopy([e.name, c.img, c.tags, c.note].join("\t")); });
   refresh();
 }
 
@@ -1008,7 +1013,7 @@ function pjBuildRows(v) {
   chosen.forEach((m) => {
     const { rows, dups } = parseIdLines(v.mps[m]); idsPer[m] = rows;
     dups.forEach((d) => warn.push(["warn", t("pjDup", { x: d })]));
-    rows.forEach((r) => { products.push([name, m, v.country, r.id, r.sku, r.name, "", first ? img : "", first ? v.tags.trim() : "", first ? v.note.trim() : ""]); first = false; });
+    rows.forEach((r) => { products.push([name, m, v.country, r.id, r.sku, r.name, ""]); first = false; });
   });
   if (chosen.length && !products.length) warn.push(["err", t("pjNeedIds")]);
   const kwSeen = new Set(), perMp = Object.fromEntries(chosen.map((m) => [m, 0]));
@@ -1026,7 +1031,8 @@ function pjBuildRows(v) {
   if (chosen.includes("otto")) warn.push(["warn", t("pjOttoWarn")]);
   if (name && projectList().some((p) => slug(p.name) === slug(name))) warn.push(["info", t("pjExists")]);
   const usd = chosen.reduce((a, m) => a + (idsPer[m] && idsPer[m].length ? perMp[m] * COST_PER_READ[m] * 30 : 0), 0);
-  return { products, keywords, warn, usd, ok: !warn.some((w) => w[0] === "err") };
+  const projectRow = img || v.tags.trim() || v.note.trim() ? [name, img, v.tags.trim(), v.note.trim()] : null;   // one row for the optional Projects tab
+  return { products, keywords, projectRow, warn, usd, ok: !warn.some((w) => w[0] === "err") };
 }
 const tsv = (rows) => rows.map((r) => r.map((c) => String(c).replace(/[\t\r\n]+/g, " ")).join("\t")).join("\n");
 function openPjCreate() {
@@ -1051,10 +1057,11 @@ function openPjCreate() {
     const b = pjBuildRows(values()), more = (rows, n) => (rows.length > n ? `<tr><td colspan="10" class="pj-help">${esc(t("pjMoreRows", { n: rows.length - n }))}</td></tr>` : "");
     const table = (rows, n) => `<div class="grid-wrap"><table class="pj-table sm"><tbody>${rows.slice(0, n).map((x) => `<tr>${x.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}${more(rows, n)}</tbody></table></div>`;
     q("#pjcOut").innerHTML = `${b.warn.map(([k, m]) => `<div class="pj-msg ${k}">${esc(m)}</div>`).join("")}
-      ${b.ok ? `<b>${esc(t("pjOutProducts"))} (${b.products.length})</b><div class="pj-help">${esc(t("pjHeaderRow"))} project, marketplace, country, product_id, sku, name, source, project_image, project_tags, project_note</div>${table(b.products, 6)}
+      ${b.ok ? `<b>${esc(t("pjOutProducts"))} (${b.products.length})</b><div class="pj-help">${esc(t("pjHeaderRow"))} project, marketplace, country, product_id, sku, name, source</div>${table(b.products, 6)}
         <b>${esc(t("pjOutKeywords"))} (${b.keywords.length})</b><div class="pj-help">${esc(t("pjHeaderRow"))} project, keyword, marketplace</div>${table(b.keywords, 6)}
+        ${b.projectRow ? `<b>${esc(t("pjOutProject"))}</b><div class="pj-help">${esc(t("pjHeaderRow"))} project, image, tags, note</div>${table([b.projectRow], 1)}<p class="pj-help">${esc(t("pjProjectsTabHow"))}</p>` : ""}
         <p class="pj-help">${esc(t("pjEstimate", { usd: "$" + nf(b.usd, 2) }))}</p><p class="pj-help">${esc(t("pjPasteHow"))}</p>
-        <div class="pj-actions"><button type="button" class="btn primary" data-copy="${esc(tsv(b.products))}">${esc(t("pjCopyRowsProducts"))}</button><button type="button" class="btn primary" data-copy="${esc(tsv(b.keywords))}">${esc(t("pjCopyRowsKeywords"))}</button>
+        <div class="pj-actions"><button type="button" class="btn primary" data-copy="${esc(tsv(b.products))}">${esc(t("pjCopyRowsProducts"))}</button><button type="button" class="btn primary" data-copy="${esc(tsv(b.keywords))}">${esc(t("pjCopyRowsKeywords"))}</button>${b.projectRow ? `<button type="button" class="btn primary" data-copy="${esc(tsv([b.projectRow]))}">${esc(t("pjCopyRowProject"))}</button>` : ""}
         ${SETTINGS.sheet_url ? `<a class="btn" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener">${esc(t("pjOpenSheet"))}</a>` : ""}</div>` : ""}`;
   };
   r.addEventListener("input", draw);
