@@ -1,0 +1,69 @@
+name: Check a keyword with the Browser API
+
+# Opens ONE keyword's search page on Otto, Kaufland or Temu in a real browser run by Bright Data (Browser API), scrolls so that
+# lazily loaded results appear, and reports what came back, where your products are, how many MB the visit downloaded and what
+# that would cost per month. Nothing is saved or changed. Needs the BRIGHTDATA_BROWSER_AUTH secret (username:password of a
+# Browser API zone). Browser API is billed per GB: one visit is typically a few MB.
+on:
+  workflow_dispatch:
+    inputs:
+      marketplace:
+        description: "Which marketplace"
+        required: true
+        default: "otto"
+        type: choice
+        options: [otto, temu, kaufland]
+      keyword:
+        description: "Keyword, exactly as in your sheet"
+        required: true
+      project:
+        description: "Only highlight products of projects whose name contains this (e.g. WGH25). Blank = all."
+        required: false
+        default: ""
+      scrolls:
+        description: "How many times to scroll down (0-15)"
+        required: false
+        default: "6"
+      block_media:
+        description: "Do not download pictures, video and fonts (billed by the GB, so this makes a visit much cheaper; try both and compare)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      TRACKING_SHEET_CSV_URL: ${{ secrets.TRACKING_SHEET_CSV_URL }}
+      BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+      BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+      BRIGHTDATA_BROWSER_AUTH: ${{ secrets.BRIGHTDATA_BROWSER_AUTH }}
+      MARKETPLACE: ${{ inputs.marketplace }}
+      KEYWORD: ${{ inputs.keyword }}
+      PROJECT: ${{ inputs.project }}
+      SCROLLS: ${{ inputs.scrolls }}
+      BLOCK_MEDIA: ${{ inputs.block_media }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - name: Install Playwright (client only, it connects to Bright Data's remote browser; no local Chromium download)
+        run: pip install playwright
+      - name: Open the search page in the Browser API
+        run: |
+          EXTRA=""
+          if [ "$BLOCK_MEDIA" = "true" ]; then EXTRA="--block"; fi
+          python scripts/browser_check_keyword.py "$MARKETPLACE" "$KEYWORD" --project "$PROJECT" --scrolls "$SCROLLS" $EXTRA --save-dir browser-check-out
+      - name: Keep the screenshot and the page (download from the run page, kept 3 days)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-check
+          path: browser-check-out
+          if-no-files-found: ignore
+          retention-days: 3
