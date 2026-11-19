@@ -29,6 +29,11 @@ on:
         required: false
         default: false
         type: boolean
+      diagnose:
+        description: "Diagnose instead of a normal check: homepage, search after the homepage, typed search, one-word search (4 visits, a few cents). Tick the box above too."
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -46,6 +51,7 @@ jobs:
       PROJECT: ${{ inputs.project }}
       SCROLLS: ${{ inputs.scrolls }}
       BLOCK_MEDIA: ${{ inputs.block_media }}
+      DIAGNOSE: ${{ inputs.diagnose }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -58,6 +64,7 @@ jobs:
         run: |
           EXTRA=""
           if [ "$BLOCK_MEDIA" = "true" ]; then EXTRA="--block"; fi
+          if [ "$DIAGNOSE" = "true" ]; then EXTRA="$EXTRA --probe"; fi
           python scripts/browser_check_keyword.py "$MARKETPLACE" "$KEYWORD" --project "$PROJECT" --scrolls "$SCROLLS" $EXTRA --save-dir browser-check-out
       - name: Keep the screenshot and the page (download from the run page, kept 3 days)
         if: always()
