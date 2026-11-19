@@ -8,6 +8,7 @@ products are, how much data the visit downloaded (Browser API is billed per GB),
 Saves nothing. Needs BRIGHTDATA_BROWSER_AUTH ("username:password" of a Browser API zone).
 
     python scripts/browser_check_keyword.py otto "wagenheber" --project WGH25
+    python scripts/browser_check_keyword.py otto "anhänger hochplane" --probe      # diagnose why Otto refuses: see probe() below
 """
 
 import argparse
@@ -127,6 +128,203 @@ async def visit(url: str, extractor, scrolls: int, pause: float, block: bool = F
     return out
 
 
+
+# ---------- diagnose mode (--probe): is the browser refused outright, or only a search page opened cold? ----------
+HOME_URL = "https://www.otto.de/"
+PROBE_WORD = "laptop"
+SEARCH_BOX = ['input[type="search"]', 'input[name="q"]', 'input[role="searchbox"]', 'input[placeholder*="uche" i]', 'input[aria-label*="uche" i]', '[data-testid*="search" i] input']
+CONSENT = re.compile(r"alle akzeptieren|akzeptieren|zustimmen|einverstanden|accept all|accept", re.I)
+
+
+def probe_urls(keyword: str, word: str):
+    return HOME_URL, f"https://www.otto.de/suche/{urllib.parse.quote(keyword)}/", f"https://www.otto.de/suche/{urllib.parse.quote(word)}/"
+
+
+def classify_page(html: str, title: str, text: str, n_links: int):
+    """(kind, plain words) for what a page turned out to be."""
+    if n_links:
+        return "real", f"a real page ({n_links} product links)"
+    ch = ps.challenge(html) if html else None
+    if ch:
+        return "challenge", f"a {ch} bot-protection challenge page"
+    low = f"{title} {text}".lower()
+    if "entschuldigung" in low or "hoppla" in low or "das hat nicht geklappt" in low:
+        return "error", "Otto's own error page (\"Entschuldigung\" / \"Hoppla\")"
+    return ("full", "a full page without product links") if len(html) > 50_000 else ("other", "a small page without product links")
+
+
+async def _setup_page(context, page, block: bool):
+    """Request blocking (optional) and a traffic counter for one page. Returns (counter, how blocking was done)."""
+    how = ""
+    if block:
+        try:
+            async def _route(route):
+                if route.request.resource_type in ("image", "media", "font"):
+                    await route.abort()
+                else:
+                    await route.continue_()
+            await context.route("**/*", _route)
+            how = "by resource type"
+        except Exception:
+            try:
+                cdp_b = await context.new_cdp_session(page)
+                await cdp_b.send("Network.enable")
+                await cdp_b.send("Network.setBlockedURLs", {"urls": BLOCK_PATTERNS})
+                how = "by file ending and image host"
+            except Exception:
+                how = "not possible in this browser"
+    counter = {"bytes": 0, "ok": False}
+    try:
+        cdp = await context.new_cdp_session(page)
+        await cdp.send("Network.enable")
+        cdp.on("Network.loadingFinished", lambda e: counter.__setitem__("bytes", counter["bytes"] + int(e.get("encodedDataLength", 0))))
+        counter["ok"] = True
+    except Exception:
+        pass
+    return counter, how
+
+
+async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: float, extractor):
+    """
+    Four visits, the way a shopper behaves, to see WHERE Otto's refusal happens:
+      1. the homepage, as the first request of a fresh browser;
+      2. the search page for the keyword, opened right after the homepage in the same browser;
+      3. the same search typed into Otto's own search box, like a person;
+      4. a plain one-word search as the first request of another fresh browser.
+    """
+    from playwright.async_api import async_playwright
+    home, search_url, word_url = probe_urls(keyword, word)
+    steps, how = [], ""
+
+    async def run(page, counter, number, label, asked, action, scroll):
+        t0, b0, err = time.monotonic(), counter["bytes"], ""
+        try:
+            await action()
+        except Exception as e:
+            err = f"{type(e).__name__}: {str(e)[:300]}"
+        await page.wait_for_timeout(int(pause * 1000))
+        for _ in range(2 if scroll else 0):
+            try:
+                await page.evaluate("window.scrollBy(0, Math.max(800, window.innerHeight))")
+                await page.wait_for_timeout(int(pause * 1000))
+            except Exception:
+                break
+        try:
+            html = await page.content()
+        except Exception:
+            html = ""
+        try:
+            title = await page.title()
+        except Exception:
+            title = ""
+        try:
+            text = " ".join((await page.inner_text("body", timeout=5000)).split())[:200]
+        except Exception:
+            text = ""
+        n_links = len(set(extractor(html))) if html else 0
+        kind, words = classify_page(html, title, text, n_links)
+        shot = ""
+        if save_dir:
+            os.makedirs(save_dir, exist_ok=True)
+            try:
+                await page.screenshot(path=os.path.join(save_dir, f"probe-{number}.png"), timeout=15_000)
+                shot = f"probe-{number}.png"
+            except Exception:
+                pass
+            try:
+                with open(os.path.join(save_dir, f"probe-{number}.html"), "w", encoding="utf-8") as fh:
+                    fh.write(html)
+            except Exception:
+                pass
+        try:
+            final = page.url
+        except Exception:
+            final = ""
+        steps.append({"n": number, "label": label, "asked": asked, "final": final, "title": title, "kind": kind, "words": words, "links": n_links, "chars": len(html),
+                      "text": text, "kb": (counter["bytes"] - b0) / 1e3 if counter["ok"] else None, "seconds": time.monotonic() - t0, "error": err, "shot": shot})
+
+    ws = bright_data.scraping_browser_ws_url()
+    async with async_playwright() as pw:
+        for session in (1, 2):
+            browser = await pw.chromium.connect_over_cdp(ws)
+            try:
+                context = browser.contexts[0] if browser.contexts else await browser.new_context()
+                page = await context.new_page()
+                counter, how = await _setup_page(context, page, block)
+                go = lambda u: (lambda: page.goto(u, wait_until="domcontentloaded", timeout=90_000))
+
+                async def typed():
+                    await page.goto(home, wait_until="domcontentloaded", timeout=90_000)
+                    await page.wait_for_timeout(1500)
+                    try:
+                        await page.get_by_role("button", name=CONSENT).first.click(timeout=3000)     # the cookie banner, if one is in the way
+                    except Exception:
+                        pass
+                    box = None
+                    for sel in SEARCH_BOX:
+                        loc = page.locator(sel).first
+                        try:
+                            await loc.wait_for(state="visible", timeout=2500)
+                            box = loc
+                            break
+                        except Exception:
+                            continue
+                    if box is None:
+                        raise RuntimeError("the search box was not found on the homepage")
+                    await box.click()
+                    await page.keyboard.type(keyword, delay=90)
+                    await page.keyboard.press("Enter")
+                    await page.wait_for_load_state("domcontentloaded", timeout=45_000)
+
+                if session == 1:
+                    await run(page, counter, 1, "The homepage, as the first request of a fresh browser", home, go(home), False)
+                    await run(page, counter, 2, "The search page for the keyword, opened right after the homepage", search_url, go(search_url), True)
+                    await run(page, counter, 3, "The keyword typed into Otto's own search box, like a shopper", home + " (typed)", typed, True)
+                else:
+                    await run(page, counter, 4, f"A plain one-word search (“{word}”) as the first request of another fresh browser", word_url, go(word_url), True)
+            finally:
+                await browser.close()
+    return steps, how
+
+
+def probe_verdict(steps):
+    by = {s["n"]: s for s in steps}
+    ok = lambda n: n in by and by[n]["kind"] == "real" and by[n]["links"] > 0
+    home_ok = 1 in by and by[1]["kind"] in ("real", "full")
+    if ok(3) and not ok(2):
+        return ("Typing the search into Otto's search box WORKS, opening the search address directly does not. A tracker can do what a shopper does (homepage, search box, results), at the cost of a slower visit per keyword.", "Next: I build the tracker on that route and we measure what a visit costs.")
+    if ok(2) and not ok(4):
+        return ("The search address works once the browser has visited the homepage first, but not as the very first request. A tracker can open the homepage once per session and then search every keyword in the same browser.", "Next: I build the tracker on that route (one browser session for many keywords, which is also cheaper).")
+    if ok(2) or ok(3) or ok(4):
+        return ("Otto returned real search results in this run. See which step worked above.", "Next: run the normal check for your real keyword (with and without pictures blocked) to measure the cost, and tell me.")
+    if home_ok:
+        return ("Otto lets the browser onto the homepage but refuses every search page, however it is opened. The search itself is what is protected.", "Next: this route is closed for search results. Options are a third-party tool (the Apify actor test) or leaving Otto out.")
+    return ("Otto refuses the browser from the FIRST request, even the homepage. So it is not the search address, the umlaut or the way the keyword is typed: Otto does not accept Bright Data's browser at all, with either of its products.", "Next: stop testing Bright Data for Otto. The remaining option is a third-party tool with other infrastructure (the Apify actor test), or leaving Otto out.")
+
+
+def build_probe_report(steps, keyword, word, block, how):
+    lines = [f"# Browser API diagnosis — otto — “{keyword}”", "",
+             "Four visits in a real browser run by Bright Data, in the order a shopper would go, to see **where** Otto's refusal happens"
+             + (f" (pictures, video and fonts blocked {how})." if block else "."), "",
+             "| # | What was done | What came back | Product links | Downloaded | Seconds |", "|--:|---|---|--:|--:|--:|"]
+    for s in steps:
+        lines.append(f"| {s['n']} | {s['label']} | {s['words']} | {s['links']} | " + (f"{s['kb']:.0f} KB" if s["kb"] is not None else "n/a") + f" | {s['seconds']:.0f} |")
+    lines += [""]
+    for s in steps:
+        lines += [f"### {s['n']}. {s['label']}", "", f"- Asked for: `{s['asked']}` | final address: `{s['final'] or '—'}` | title: {htmllib.unescape(s['title'] or '—')}",
+                  f"- What the page says: “{s['text'] or '—'}”"]
+        if s["error"]:
+            lines.append(f"- Error during this step: `{s['error']}`")
+        if s["shot"]:
+            lines.append(f"- Screenshot: {s['shot']} (artifact **browser-check**)")
+        lines.append("")
+    verdict, nxt = probe_verdict(steps)
+    total = sum(s["kb"] for s in steps if s["kb"] is not None)
+    lines += ["## What this means", "", f"**{verdict}**", "", nxt, "",
+              f"Traffic of all four visits: {total / 1e3:.2f} MB, about ${total / 1e6 * PRICE_PER_GB[0]:.3f} to ${total / 1e6 * PRICE_PER_GB[1]:.3f}."]
+    return "\n".join(lines)
+
+
 def build_report(a, url, got, extractor, tracked) -> str:
     html = got["html"]
     ids = list(dict.fromkeys(extractor(html))) if html else []
@@ -209,6 +407,8 @@ def main():
     ap.add_argument("--pause", type=float, default=1.5, help="seconds to wait after each scroll")
     ap.add_argument("--block", action="store_true", help="do not download pictures, video and fonts (cuts the GB that are billed)")
     ap.add_argument("--save-dir", default="", help="folder for a screenshot and the page HTML (the workflow uploads it as an artifact)")
+    ap.add_argument("--probe", action="store_true", help="diagnose where the refusal happens: homepage, search after homepage, typed search, one-word search (about 4 visits; use with --block)")
+    ap.add_argument("--probe-word", default=PROBE_WORD, help="the plain one-word search used as the last step of --probe")
     ap.add_argument("--region", default="de", help="Temu storefront path (de = Germany); empty for Temu's default address")
     a = ap.parse_args()
     a.scrolls = max(0, min(a.scrolls, 15))
@@ -228,6 +428,15 @@ def main():
     except RuntimeError as e:
         print(f"Cannot start: {e}", file=sys.stderr)
         sys.exit(2)
+    if a.probe:
+        steps, how = asyncio.run(probe(a.keyword, a.probe_word, a.block, a.save_dir, a.pause, extractor))
+        report = build_probe_report(steps, a.keyword, a.probe_word, a.block, how)
+        print(report)
+        path = os.environ.get("GITHUB_STEP_SUMMARY")
+        if path:
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(report + "\n")
+        return
     got = asyncio.run(visit(url, extractor, a.scrolls, a.pause, a.block, a.save_dir))
     report = build_report(a, url, got, extractor, tracked)
     print(report)
