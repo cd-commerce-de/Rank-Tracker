@@ -16,7 +16,8 @@ Settings (environment): TEMU_ATTEMPTS = tries per keyword (default 6, 1 to 12); 
 TEMU_STOP_AFTER = keywords in a row that could not be read, BEFORE any keyword has been read, after which the run stops because Temu is
 not answering at all (default 12); TEMU_STOP_AFTER_LATER = the same once at least one keyword was read (default 60: a normal run
 fails most keywords, so a streak of 12 is just bad luck); TEMU_MAX_MINUTES = time budget after which no new keyword is started
-(default 120); BRIGHTDATA_ZONE_TEMU = the zone; BRIGHTDATA_API_KEY.
+(default 15: a short slice when the tracker runs inside the main workflow, so that workflow's eBay data is committed promptly;
+the scheduled "Track Temu only" workflow passes 120); BRIGHTDATA_ZONE_TEMU = the zone; BRIGHTDATA_API_KEY.
 Keywords are worked through ROUND-ROBIN across projects (every project's first keyword, then every project's second, ...), so a run
 that ends early still covers every project instead of only the first ones in the sheet. A Bright Data error answer (502, 503, 504, 429)
 or a timeout counts as one failed attempt, exactly like an empty answer, and the keyword is tried again.
@@ -102,13 +103,15 @@ def round_robin(todo):
     return [g[i] for i in range(longest) for g in groups.values() if i < len(g)]
 
 
-def main():
-    projects = config_loader.load_projects()
-    history = history_store.load(DATA_PATH)
-    today = date.today().isoformat()
-    # a reading that was BLOCKED today does not count as done: a second run the same day tries it again (and replaces it)
+def build_work(projects, history, today, only_new=False):
+    """
+    The Temu keywords that still have to be read today: {(region, keyword): [(project, item, goods_id), ...]}.
+
+    THE MONEY RULE (one place, used by the tracker and by temu_todo.py): a (project, product, keyword) with a valid reading dated today
+    (found, or "not in the top N") is DONE and is never read again that day. Only keywords that were BLOCKED today (a "?" row, which a
+    later run replaces) or have no row yet are left. Bright Data bills only successful reads, so a keyword is billed at most once per day.
+    """
     done_today = {(r["project_id"], r["item_key"], r["keyword"]) for r in history if r["date"] == today and not r.get("blocked")}
-    only_new = os.environ.get("ONLY_NEW") == "1"
     known_any = {(r["project_id"], r["item_key"], r["keyword"]) for r in history}
 
     # One read per (storefront, keyword), shared by every product that needs it: a keyword that works serves all products at once.
@@ -127,10 +130,19 @@ def main():
                 if key in done_today or (only_new and key in known_any):
                     continue
                 work.setdefault((region, keyword), []).append((project, item, target))
+    return work
+
+
+def main():
+    projects = config_loader.load_projects()
+    history = history_store.load(DATA_PATH)
+    today = date.today().isoformat()
+    only_new = os.environ.get("ONLY_NEW") == "1"
+    work = build_work(projects, history, today, only_new)
     todo = round_robin(list(work.items()))
     workers = ps.env_int("TEMU_WORKERS", 4, 1, 8)
     stop_after, stop_later = ps.env_int("TEMU_STOP_AFTER", 12, 1, 500), ps.env_int("TEMU_STOP_AFTER_LATER", 60, 1, 1000)
-    deadline = time.monotonic() + ps.env_int("TEMU_MAX_MINUTES", 120, 5, 340) * 60
+    deadline = time.monotonic() + ps.env_int("TEMU_MAX_MINUTES", 15, 5, 340) * 60
 
     stop = threading.Event()                # set when Temu is clearly not answering (or Bright Data refuses): workers stop starting new keywords
     lock = threading.Lock()
@@ -201,7 +213,7 @@ def main():
                     print(f"  [{project['project_name']} / {item['item_key']}] {rk[1]!r} -> " + ("BLOCKED" if blocked else (f"rank {rank}" if rank else f"not in the top {len(ids)}")))
         if skipped:
             if streak["why"] == "time":
-                why = f"the time budget of {ps.env_int('TEMU_MAX_MINUTES', 120, 5, 340)} minutes ran out"
+                why = f"the time budget of {ps.env_int('TEMU_MAX_MINUTES', 15, 5, 340)} minutes ran out"
             elif streak["why"] == "streak":
                 why = (f"{stop_after if streak['ok'] == 0 else stop_later} keywords in a row could not be read"
                        + (" and none had been read yet, so Temu is not answering at all" if streak["ok"] == 0 else ""))
