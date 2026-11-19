@@ -49,7 +49,7 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 
 # Shown in the run logs and in the dashboard footer, so you can see whether an upload really updated the files.
-VERSION = "2026-11-19.2"
+VERSION = "2026-11-19.3"
 CONFIG_DIR = ROOT / "config"
 PRODUCTS_PATH = CONFIG_DIR / "products.csv"
 KEYWORDS_PATH = CONFIG_DIR / "keywords.csv"
@@ -90,6 +90,40 @@ def classify(fieldnames):
     return None
 
 
+_DRIVE = re.compile(r"drive\.google\.com/(?:file/d/|open\?id=|uc\?(?:export=\w+&)?id=|thumbnail\?id=)([\w-]{10,})")
+
+
+def clean_image(value):
+    """
+    The optional project_image cell: a picture for the Projects page. Accepts
+      * an https:// address (for example the product picture of an Amazon listing),
+      * a Google Drive share link (turned into a picture address; the file must be shared "anyone with the link"),
+      * a plain file name such as pool-covers.jpg, which means the file docs/images/projects/pool-covers.jpg in the repository.
+    Anything else is ignored (returns ""), never passed on.
+    """
+    v = (value or "").strip()
+    if not v:
+        return ""
+    m = _DRIVE.search(v)
+    if m:
+        return f"https://drive.google.com/thumbnail?id={m.group(1)}&sz=w800"
+    if re.fullmatch(r"https?://[^\s<>\"']+", v, re.I):
+        return v
+    if re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*\.(?:png|jpe?g|webp|gif|svg)", v, re.I):
+        return "images/projects/" + v
+    return ""
+
+
+def parse_tags(value):
+    """The optional project_tags cell: 'Key Product, Tarpofix' -> ['Key Product', 'Tarpofix'] (commas, ; or |; no duplicates; at most 8)."""
+    out, seen = [], set()
+    for tag in re.split(r"[,;|]", value or ""):
+        tag = tag.strip()[:24]
+        if tag and tag.lower() not in seen:
+            seen.add(tag.lower()); out.append(tag)
+    return out[:8]
+
+
 def parse_marketplaces(value, known=None):
     """
     The optional 'marketplace' column of the Keywords tab. Returns (set of marketplaces, list of unknown names).
@@ -120,8 +154,30 @@ class _Builder:
     def project(self, name):
         pid = slugify(name)
         return self.projects.setdefault(
-            pid, {"project_id": pid, "project_name": name, "items": {}, "keywords": [], "from_products": set(), "scope": {}}
+            pid, {"project_id": pid, "project_name": name, "items": {}, "keywords": [], "from_products": set(), "scope": {}, "meta": {"tags": []}}
         )
+
+    def note_meta(self, row):
+        """Project-level optional columns (project_image, project_tags, project_note) on ANY row of the project: the first picture / note
+        wins, tags from all rows are combined."""
+        name = row.get("project", "")
+        if not name:
+            return
+        meta = self.project(name)["meta"]
+        raw_image = row.get("project_image", "")
+        if raw_image and not meta.get("image"):
+            img = clean_image(raw_image)
+            if img:
+                meta["image"] = img
+            elif not meta.get("bad_image"):
+                meta["bad_image"] = True
+                print(f"  ! project '{name}': project_image '{raw_image[:60]}' is not an https address, a Google Drive link or a plain file name; ignored", file=sys.stderr)
+        for tag in parse_tags(row.get("project_tags", "")):
+            if tag.lower() not in {t.lower() for t in meta["tags"]} and len(meta["tags"]) < 8:
+                meta["tags"].append(tag)
+        note = row.get("project_note", "")
+        if note and not meta.get("note"):
+            meta["note"] = note[:280]
 
     def add_item(self, row, via_products_tab):
         name, marketplace = row.get("project", ""), row.get("marketplace", "").lower()
@@ -198,7 +254,15 @@ class _Builder:
                     print(f"  ! product {i['item_key']} in project '{project['project_name']}' has no "
                           f"keywords yet (add some on the Keywords tab)", file=sys.stderr)
             if items:
-                out.append({"project_id": project["project_id"], "project_name": project["project_name"], "items": items})
+                entry = {"project_id": project["project_id"], "project_name": project["project_name"], "items": items}
+                meta = project["meta"]
+                if meta.get("image"):
+                    entry["image"] = meta["image"]
+                if meta["tags"]:
+                    entry["tags"] = list(meta["tags"])
+                if meta.get("note"):
+                    entry["note"] = meta["note"]
+                out.append(entry)
         if self.skipped:
             print(f"  (skipped {self.skipped} incomplete/example row(s) in the tracking tables)")
         return out
@@ -211,6 +275,7 @@ def build_projects(tables):
     for kind, rows in tables:
         for raw in rows:
             row = _clean(raw)
+            b.note_meta(row)
             if kind == "keywords":
                 scope, unknown = parse_marketplaces(row.get("marketplace") or row.get("marketplaces"), set(ID_FIELD) | known_marketplaces)
                 if unknown:

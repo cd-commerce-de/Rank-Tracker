@@ -33,7 +33,11 @@ def build(projects):
                 "product_id": pid, "sku": it.get("sku", ""), "label": it.get("label", ""),
                 "source": it.get("source", ""), "keywords": list(it.get("keywords", [])),
             })
-        out.append({"project_id": p["project_id"], "project_name": p["project_name"], "items": items})
+        entry = {"project_id": p["project_id"], "project_name": p["project_name"], "items": items}
+        for k in ("image", "tags", "note"):          # optional, for the Projects page
+            if p.get(k):
+                entry[k] = p[k]
+        out.append(entry)
     return out
 
 

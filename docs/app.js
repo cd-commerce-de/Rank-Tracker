@@ -13,7 +13,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-11-19.2";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-11-19.3";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false, view: "ranks", compKw: null, compDate: null, compDays: 30 };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -44,6 +44,37 @@ const I18N = {
     mpChecked: "Last checked {when}", mpNoData: "No readings yet", mpBlocked: "{n} blocked",
     mpAdd: "Add new marketplace", mpMore: "More", mpMenuAdd: "Add products & keywords", mpMenuVisit: "Open {site}",
     mpOthers: "{n} more marketplace(s) in this project",
+    pjTitle: "Projects", pjCntProjects: "Projects", pjCntProducts: "Products", pjCntKeywords: "Keywords",
+    pjSearchPh: "Search by project, tag, product ID, SKU or keyword", pjCreate: "Create project",
+    pjFilters: "Project filters", pjFilterMp: "Marketplace", pjFilterTag: "Tags", pjFilterClear: "Clear filters", pjNoTags: "No tags yet. Add them in your sheet (project_tags).",
+    pjSortBy: "Sort by", pjSortOpened: "Last opened", pjSortName: "Name (A–Z)", pjSortChecked: "Last checked", pjSortVis: "Visibility", pjSortKw: "Most keywords", pjSortProd: "Most products",
+    pjOpenSheet: "Open Google Sheet", pjGrid: "Grid view", pjListView: "List view", pjShowing: "Showing {a} of {b} projects", pjNone: "No project matches your search or filters.",
+    pjWaiting: "Waiting for the first check (a new project starts within the hour)", pjWaitingShort: "waiting", pjLast: "Last checked {when}", pjMore: "More",
+    pjMenuOpen: "Open project", pjMenuDetails: "Products & keywords", pjMenuEdit: "Picture, tags & note", pjMenuIds: "Copy product IDs", pjMenuKw: "Copy keywords",
+    pjCopied: "Copied to the clipboard", pjCopyFailed: "Could not copy: select the text and copy it by hand",
+    pjColProject: "Project", pjColMarkets: "Marketplaces", pjColProducts: "Products", pjColKeywords: "Keywords", pjColTop10: "Top 10", pjColVis: "Visibility", pjColChecked: "Last checked", pjColTags: "Tags",
+    pjBack: "Projects", pjDetails: "Products & keywords", pjTabProducts: "Products", pjTabKeywords: "Keywords",
+    pjColMp: "Marketplace", pjColSku: "SKU", pjColId: "Product ID", pjColName: "Name", pjOnlyOn: "only {mps}",
+    pjCopyIdsBtn: "Copy product IDs", pjCopyKwBtn: "Copy keywords", pjOpenListing: "Open the listing",
+    pjEditTitle: "Picture, tags & note", pjPicUrl: "Picture address or Google Drive link", pjPicUrlPh: "https://… or a Google Drive share link",
+    pjPicFile: "Or choose a picture from your computer", pjPicDownload: "Download {file}",
+    pjPicUpload: "Upload that file to the folder docs/images/projects/ of your GitHub repository (Add file → Upload files). The dashboard finds it by the project ID, so the sheet needs no change.",
+    pjPicNoResize: "This browser cannot resize pictures. Save your picture as {file} yourself and upload it to docs/images/projects/.",
+    pjPicBlank: "(leave empty, or write {file})", pjTagsLabel: "Tags (separated by commas)", pjNoteLabel: "Note (short)", pjCells: "Values for your sheet", pjCopyCells: "Copy values",
+    pjCellsHow: "Put them in the project's first row of the Products tab, in the columns project_image, project_tags and project_note. Add these three columns once, at the right end of the tab.",
+    pjCreateTitle: "Create project", pjName: "Project name", pjNamePh: "e.g. PP (Pool Covers)", pjImageOpt: "Picture address or Google Drive link (optional)",
+    pjMarketplaces: "Marketplaces", pjCountry: "Country", pjIdsFor: "{mp} product IDs",
+    pjIdsHelp: "One per line. Optional: add the SKU and the product name after the ID, separated by a comma or a tab.",
+    pjKwLabel: "Keywords", pjKwHelp: "One per line. To limit one to some marketplaces add | and their names, e.g. poolplane | temu, kaufland.",
+    pjOutProducts: "Rows for the Products tab", pjOutKeywords: "Rows for the Keywords tab", pjCopyRowsProducts: "Copy product rows", pjCopyRowsKeywords: "Copy keyword rows",
+    pjMoreRows: "… and {n} more", pjHeaderRow: "Column order:",
+    pjPasteHow: "Paste the product rows under the last row of your Products tab and the keyword rows under the last row of your Keywords tab. The tracker picks them up within the hour.",
+    pjExists: "A project with this name already exists. These rows are added to it.", pjNeedName: "Enter a project name.", pjNeedMp: "Choose at least one marketplace.",
+    pjNeedIds: "Add at least one product ID.", pjNeedKw: "Add at least one keyword.",
+    pjUnknownMp: "Unknown marketplace “{x}” in a keyword line (known: eBay, Otto, Kaufland, Temu).", pjKwNotSel: "“{kw}” is limited to {mps}, which this project does not track.",
+    pjDup: "Duplicate product ID {x} (listed once).", pjOttoWarn: "Otto currently blocks automatic reading, so its rows may stay empty.",
+    pjEstimate: "Rough cost: about {usd} a month (one check a day; eBay, Otto and Kaufland at $1.50 per 1,000 requests and Kaufland reads 2 pages; Temu adds $1 per 1,000 successful reads).",
+    pjBadImage: "That picture address is not an https link or a Google Drive link.", pjClose: "Close",
     searchPh: "Search SKU or product ID…",
     searchTitle: "Type to search by SKU, product ID or product name",
     showAllProducts: "Show all products",
@@ -149,6 +180,37 @@ const I18N = {
     mpChecked: "Zuletzt geprüft {when}", mpNoData: "Noch keine Messungen", mpBlocked: "{n} blockiert",
     mpAdd: "Neuen Marktplatz hinzufügen", mpMore: "Mehr", mpMenuAdd: "Produkte & Keywords hinzufügen", mpMenuVisit: "{site} öffnen",
     mpOthers: "{n} weitere(r) Marktplatz/Marktplätze in diesem Projekt",
+    pjTitle: "Projekte", pjCntProjects: "Projekte", pjCntProducts: "Produkte", pjCntKeywords: "Keywords",
+    pjSearchPh: "Suche nach Projekt, Tag, Produkt-ID, SKU oder Keyword", pjCreate: "Projekt erstellen",
+    pjFilters: "Projektfilter", pjFilterMp: "Marktplatz", pjFilterTag: "Tags", pjFilterClear: "Filter zurücksetzen", pjNoTags: "Noch keine Tags. Tragen Sie diese in Ihrer Tabelle ein (project_tags).",
+    pjSortBy: "Sortieren nach", pjSortOpened: "Zuletzt geöffnet", pjSortName: "Name (A–Z)", pjSortChecked: "Zuletzt geprüft", pjSortVis: "Sichtbarkeit", pjSortKw: "Meiste Keywords", pjSortProd: "Meiste Produkte",
+    pjOpenSheet: "Google Sheet öffnen", pjGrid: "Kachelansicht", pjListView: "Listenansicht", pjShowing: "{a} von {b} Projekten", pjNone: "Kein Projekt passt zu Ihrer Suche oder Ihren Filtern.",
+    pjWaiting: "Wartet auf die erste Prüfung (ein neues Projekt startet innerhalb einer Stunde)", pjWaitingShort: "wartet", pjLast: "Zuletzt geprüft {when}", pjMore: "Mehr",
+    pjMenuOpen: "Projekt öffnen", pjMenuDetails: "Produkte & Keywords", pjMenuEdit: "Bild, Tags & Notiz", pjMenuIds: "Produkt-IDs kopieren", pjMenuKw: "Keywords kopieren",
+    pjCopied: "In die Zwischenablage kopiert", pjCopyFailed: "Kopieren nicht möglich: Text markieren und von Hand kopieren",
+    pjColProject: "Projekt", pjColMarkets: "Marktplätze", pjColProducts: "Produkte", pjColKeywords: "Keywords", pjColTop10: "Top 10", pjColVis: "Sichtbarkeit", pjColChecked: "Zuletzt geprüft", pjColTags: "Tags",
+    pjBack: "Projekte", pjDetails: "Produkte & Keywords", pjTabProducts: "Produkte", pjTabKeywords: "Keywords",
+    pjColMp: "Marktplatz", pjColSku: "SKU", pjColId: "Produkt-ID", pjColName: "Name", pjOnlyOn: "nur {mps}",
+    pjCopyIdsBtn: "Produkt-IDs kopieren", pjCopyKwBtn: "Keywords kopieren", pjOpenListing: "Angebot öffnen",
+    pjEditTitle: "Bild, Tags & Notiz", pjPicUrl: "Bildadresse oder Google-Drive-Link", pjPicUrlPh: "https://… oder ein Google-Drive-Freigabelink",
+    pjPicFile: "Oder ein Bild von Ihrem Computer wählen", pjPicDownload: "{file} herunterladen",
+    pjPicUpload: "Laden Sie diese Datei in den Ordner docs/images/projects/ Ihres GitHub-Repositories hoch (Add file → Upload files). Das Dashboard findet sie über die Projekt-ID, die Tabelle muss nicht geändert werden.",
+    pjPicNoResize: "Dieser Browser kann Bilder nicht verkleinern. Speichern Sie Ihr Bild selbst als {file} und laden Sie es nach docs/images/projects/ hoch.",
+    pjPicBlank: "(leer lassen oder {file} eintragen)", pjTagsLabel: "Tags (durch Kommas getrennt)", pjNoteLabel: "Notiz (kurz)", pjCells: "Werte für Ihre Tabelle", pjCopyCells: "Werte kopieren",
+    pjCellsHow: "Tragen Sie sie in der ersten Zeile des Projekts im Tab Products ein, in den Spalten project_image, project_tags und project_note. Diese drei Spalten legen Sie einmalig am rechten Ende des Tabs an.",
+    pjCreateTitle: "Projekt erstellen", pjName: "Projektname", pjNamePh: "z. B. PP (Pool Covers)", pjImageOpt: "Bildadresse oder Google-Drive-Link (optional)",
+    pjMarketplaces: "Marktplätze", pjCountry: "Land", pjIdsFor: "{mp}-Produkt-IDs",
+    pjIdsHelp: "Eine pro Zeile. Optional: nach der ID SKU und Produktname anfügen, getrennt durch Komma oder Tab.",
+    pjKwLabel: "Keywords", pjKwHelp: "Eines pro Zeile. Um eines auf einzelne Marktplätze zu beschränken, | und deren Namen anfügen, z. B. poolplane | temu, kaufland.",
+    pjOutProducts: "Zeilen für den Tab Products", pjOutKeywords: "Zeilen für den Tab Keywords", pjCopyRowsProducts: "Produktzeilen kopieren", pjCopyRowsKeywords: "Keyword-Zeilen kopieren",
+    pjMoreRows: "… und {n} weitere", pjHeaderRow: "Spaltenreihenfolge:",
+    pjPasteHow: "Fügen Sie die Produktzeilen unter der letzten Zeile des Tabs Products und die Keyword-Zeilen unter der letzten Zeile des Tabs Keywords ein. Der Tracker übernimmt sie innerhalb einer Stunde.",
+    pjExists: "Ein Projekt mit diesem Namen gibt es bereits. Diese Zeilen werden ihm hinzugefügt.", pjNeedName: "Bitte einen Projektnamen eingeben.", pjNeedMp: "Mindestens einen Marktplatz wählen.",
+    pjNeedIds: "Mindestens eine Produkt-ID eintragen.", pjNeedKw: "Mindestens ein Keyword eintragen.",
+    pjUnknownMp: "Unbekannter Marktplatz „{x}“ in einer Keyword-Zeile (bekannt: eBay, Otto, Kaufland, Temu).", pjKwNotSel: "„{kw}“ ist auf {mps} beschränkt, die dieses Projekt nicht trackt.",
+    pjDup: "Doppelte Produkt-ID {x} (nur einmal aufgeführt).", pjOttoWarn: "Otto blockiert derzeit das automatische Auslesen, die Zeilen können daher leer bleiben.",
+    pjEstimate: "Grobe Kosten: etwa {usd} pro Monat (eine Prüfung täglich; eBay, Otto und Kaufland zu 1,50 $ pro 1.000 Anfragen, Kaufland liest 2 Seiten; bei Temu kommt 1 $ pro 1.000 erfolgreichen Abrufen dazu).",
+    pjBadImage: "Diese Bildadresse ist weder ein https-Link noch ein Google-Drive-Link.", pjClose: "Schließen",
     searchPh: "SKU oder Produkt-ID suchen…",
     searchTitle: "Tippen, um nach SKU, Produkt-ID oder Produktname zu suchen",
     showAllProducts: "Alle Produkte anzeigen",
@@ -258,6 +320,7 @@ function setLang(code) {
   LANG = code;
   try { localStorage.setItem("rt_lang", code); } catch (e) { /* storage blocked: the choice just lasts for this visit */ }
   document.documentElement.lang = code;
+  if (typeof closePjModal === "function") closePjModal();
   renderPage();                                        // keeps the selected project, marketplace, product, filter and sort
   if (typeof MODAL !== "undefined" && MODAL.keyword) renderKeywordModal();
 }
@@ -546,11 +609,463 @@ async function boot() {
   const first = Object.keys(PROJECTS)[0];
   state.projectId = first || null;
   state.helpOpen = !first; // nothing tracked yet -> show how to add products straight away
+  applyRoute();          // #/projects (the default) shows the project list, #/project/<id> opens one project
+  window.addEventListener("hashchange", () => { applyRoute(); renderPage(); });
   renderPage();
 }
 
 // "+ Add products & keywords" and "+ Add keyword": straight to the Google Sheet (docs/settings.json -> sheet_url), opened in
 // a new tab. Without a sheet link they stay buttons that open the how-to panel.
+// ---------- Projects page (#/projects): every project of the sheet as a card or a row ----------
+// Pictures, tags and notes come from the sheet (columns project_image, project_tags, project_note on the Products or Keywords tab) via
+// docs/data/config.json. Without a picture the page looks for docs/images/projects/<project id>.jpg, then shows a coloured badge.
+const PJ = { cache: {}, basis: null, opened: {}, filterOpen: false, modalOpen: false, blob: null, bound: false };
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage blocked: the choice lasts for this visit only */ } }
+try { PJ.opened = JSON.parse(lsGet("rt_opened", "{}")) || {}; } catch (e) { PJ.opened = {}; }
+Object.assign(state, { page: "projects", pq: "", pview: lsGet("rt_pview", "grid") === "list" ? "list" : "grid", psort: lsGet("rt_psort", "opened"), pfmp: [], pftag: [] });
+
+const plural = (n, one, many) => t(n === 1 ? one : many, { n });
+const slug = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "project";
+const hashOf = (s) => { let h = 0; for (const ch of String(s)) h = (h * 31 + ch.codePointAt(0)) >>> 0; return h; };
+const NATURAL = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+const PRODUCT_URL = {
+  ebay: (id) => `https://www.ebay.de/itm/${encodeURIComponent(id)}`, kaufland: (id) => `https://www.kaufland.de/product/${encodeURIComponent(id)}/`,
+  temu: (id) => `https://www.temu.com/goods.html?goods_id=${encodeURIComponent(id)}`,
+};
+
+// ----- where the page is: #/projects (the list) or #/project/<id> (one project's tracker)
+function markOpened(id) { PJ.opened[id] = Date.now(); lsSet("rt_opened", JSON.stringify(PJ.opened)); }
+function applyRoute() {
+  const raw = (location.hash || "").replace(/^#\/?/, "");
+  const m = raw.match(/^project\/([^/?#]+)/);
+  let id = ""; if (m) { try { id = decodeURIComponent(m[1]); } catch (e) { id = m[1]; } }
+  if (id && PROJECTS[id]) {
+    state.page = "tracker";
+    if (state.projectId !== id) { state.projectId = id; state.marketplace = null; state.itemKey = null; }
+    markOpened(id);
+  } else state.page = "projects";
+}
+function go(hash) { if (location.hash === hash) { applyRoute(); renderPage(); } else location.hash = hash; }
+
+// ----- the data behind a card
+function cleanImageJS(v) {
+  v = String(v || "").trim();
+  if (!v) return "";
+  const d = v.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=\w+&)?id=|thumbnail\?id=)([\w-]{10,})/);
+  if (d) return `https://drive.google.com/thumbnail?id=${d[1]}&sz=w800`;
+  if (/^https?:\/\/[^\s<>"']+$/i.test(v)) return v;
+  if (/^[A-Za-z0-9][A-Za-z0-9._-]*\.(png|jpe?g|webp|gif|svg)$/i.test(v)) return "images/projects/" + v;
+  return "";
+}
+function safeImg(u) { return /^https?:\/\/[^\s<>"']+$/i.test(u) || (/^images\/[A-Za-z0-9._\/-]+$/.test(u) && !u.includes("..")) ? u : ""; }
+
+function decorateProject(e) {
+  const p = e.p;
+  const items = e.cfgItems.length
+    ? e.cfgItems
+    : p ? Object.values(p.items).filter((i) => !i.synthetic).map((i) => ({ item_key: i.item_key, marketplace: i.marketplace, country: i.country, product_id: i.product_id, sku: i.sku || "", label: i.label || "", keywords: uniq(i.rows.map((r) => r.keyword)) })) : [];
+  const mps = [...MP_ORDER.filter((m) => items.some((i) => i.marketplace === m)), ...uniq(items.map((i) => i.marketplace)).filter((m) => !MP_ORDER.includes(m))];
+  const kwMps = {};
+  items.forEach((i) => (i.keywords || []).forEach((k) => ((kwMps[k] = kwMps[k] || new Set()).add(i.marketplace))));
+  const stats = mps.map((m) => (p ? mpStats(p, m) : {
+    mp: m, hasData: false, products: items.filter((i) => i.marketplace === m).length,
+    keywords: uniq(items.filter((i) => i.marketplace === m).flatMap((i) => i.keywords || [])).length,
+  }));
+  const withData = stats.filter((s) => s.hasData);
+  const total = withData.reduce((a, s) => a + s.total, 0), found = withData.reduce((a, s) => a + (s.vis * s.total) / 100, 0);
+  const sorted = [...items].sort((a, b) => MP_ORDER.indexOf(a.marketplace) - MP_ORDER.indexOf(b.marketplace) || NATURAL(a.sku || "", b.sku || "") || NATURAL(String(a.product_id), String(b.product_id)));
+  return Object.assign(e, {
+    items: sorted, mps, stats, kwMps, keywordList: Object.keys(kwMps), products: items.length, keywords: Object.keys(kwMps).length,
+    top10: withData.reduce((a, s) => a + s.top10, 0), total, vis: total ? (found / total) * 100 : null,
+    checked: stats.map((s) => s.checked).filter(Boolean).sort().pop() || "", blocked: stats.reduce((a, s) => a + (s.blocked || 0), 0),
+    hay: foldText([e.name, e.tags.join(" "), e.note, mps.map((m) => `${MP_LABEL[m] || m} ${(MP_SITE[m] || {}).domain || ""}`).join(" "),
+      items.map((i) => `${i.product_id} ${i.sku || ""} ${i.label || ""}`).join(" "), Object.keys(kwMps).join(" ")].join(" ")),
+  });
+}
+
+function projectList() {
+  if (PJ.basis !== state.basis) { PJ.cache = {}; PJ.basis = state.basis; }
+  const byId = {};
+  ((CONFIG && CONFIG.projects) || []).forEach((cp) => { byId[cp.project_id] = { id: cp.project_id, name: cp.project_name, image: cp.image || "", tags: cp.tags || [], note: cp.note || "", cfgItems: cp.items || [], p: null }; });
+  Object.values(PROJECTS).forEach((p) => { (byId[p.project_id] = byId[p.project_id] || { id: p.project_id, name: p.project_name, image: "", tags: [], note: "", cfgItems: [], p: null }).p = p; });
+  return Object.values(byId).map((e) => { const k = state.basis + "|" + e.id; return PJ.cache[k] || (PJ.cache[k] = decorateProject(e)); });
+}
+
+function pjVisible(list) {
+  const q = foldText(state.pq.trim());
+  const out = list.filter((e) => (!q || e.hay.includes(q)) && (!state.pfmp.length || e.mps.some((m) => state.pfmp.includes(m))) && (!state.pftag.length || e.tags.some((x) => state.pftag.includes(x))));
+  const by = {
+    opened: (a, b) => (PJ.opened[b.id] || 0) - (PJ.opened[a.id] || 0) || NATURAL(a.name, b.name),
+    name: (a, b) => NATURAL(a.name, b.name),
+    checked: (a, b) => String(b.checked).localeCompare(String(a.checked)) || NATURAL(a.name, b.name),
+    vis: (a, b) => (b.vis ?? -1) - (a.vis ?? -1) || NATURAL(a.name, b.name),
+    kw: (a, b) => b.keywords - a.keywords || NATURAL(a.name, b.name),
+    prod: (a, b) => b.products - a.products || NATURAL(a.name, b.name),
+  };
+  return out.sort(by[state.psort] || by.opened);
+}
+
+// ----- small pieces
+const pjInitials = (name) => { const first = String(name).trim().split(/[\s(]+/).filter(Boolean)[0] || "?"; return first.slice(0, /\d/.test(first) || first === first.toUpperCase() ? 3 : 2).toUpperCase(); };
+function pjThumbHTML(e) {
+  const src = safeImg(e.image) || `images/projects/${e.id}.jpg`;
+  return `<div class="pj-ph" style="--h:${hashOf(e.id) % 360}">${esc(pjInitials(e.name))}</div><img class="pj-img" src="${esc(src)}" alt="" loading="lazy" referrerpolicy="no-referrer" />`;
+}
+function pjTagHTML(tag) {
+  const k = tag.toLowerCase(), cls = /key/.test(k) ? "t-red" : /new|neu/.test(k) ? "t-amber" : "t-" + (hashOf(k) % 5);
+  return `<span class="pj-tag ${cls}">${esc(tag)}</span>`;
+}
+function pjMarketsHTML(e) {
+  return e.stats.map((s) => {
+    const site = (MP_SITE[s.mp] || {}).domain || MP_LABEL[s.mp] || s.mp;
+    const tip = [site, plural(s.products, "mpProduct", "mpProducts") + " | " + plural(s.keywords, "mpKeyword", "mpKeywords")]
+      .concat(s.hasData ? [t("mpVis", { v: pct(s.vis, 1) }), t("mpTop10", { a: s.top10, b: s.total })] : [t("mpNoData")]).join(" · ");
+    return `<span class="pj-mp" title="${esc(tip)}">${mpLogoHTML(s.mp)}${s.hasData ? `<b>${Math.round(s.vis)}%</b>` : ""}${s.blocked ? `<i class="pj-warn" title="${esc(t("blockedTip"))}">${s.blocked}</i>` : ""}</span>`;
+  }).join("");
+}
+const pjWhen = (iso) => new Date(iso).toLocaleString(LOCALE(), { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+function pjMenuHTML(e) {
+  const sheet = SETTINGS.sheet_url ? `<a class="pj-menu-item" role="menuitem" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener">${esc(t("pjOpenSheet"))}</a>` : "";
+  return `<div class="pj-menu" role="menu" hidden>
+    ${e.p ? `<button type="button" class="pj-menu-item" role="menuitem" data-act="open">${esc(t("pjMenuOpen"))}</button>` : ""}
+    <button type="button" class="pj-menu-item" role="menuitem" data-act="details">${esc(t("pjMenuDetails"))}</button>
+    <button type="button" class="pj-menu-item" role="menuitem" data-act="edit">${esc(t("pjMenuEdit"))}</button>
+    <button type="button" class="pj-menu-item" role="menuitem" data-act="ids">${esc(t("pjMenuIds"))}</button>
+    <button type="button" class="pj-menu-item" role="menuitem" data-act="kw">${esc(t("pjMenuKw"))}</button>${sheet}</div>`;
+}
+function pjCardHTML(e) {
+  const on = !!e.p;
+  return `<article class="pj-card ${on ? "" : "off"}" data-id="${esc(e.id)}" ${on ? `tabindex="0" role="link"` : `aria-disabled="true"`} aria-label="${esc(e.name)}">
+    <div class="pj-imgbox">${pjThumbHTML(e)}<button type="button" class="pj-more" aria-label="${esc(t("pjMore"))}" aria-haspopup="menu" aria-expanded="false">⋯</button>${pjMenuHTML(e)}</div>
+    <div class="pj-body">
+      <h3 class="pj-name">${esc(e.name)}</h3>
+      <div class="pj-markets">${pjMarketsHTML(e)}</div>
+      <div class="mp-counts">${esc(plural(e.products, "mpProduct", "mpProducts"))}<span class="mp-sep" aria-hidden="true"></span>${esc(plural(e.keywords, "mpKeyword", "mpKeywords"))}</div>
+      ${on && e.total ? `<div class="mp-chips"><span class="mp-chip">${esc(t("mpTop10", { a: e.top10, b: e.total }))}</span><span class="mp-chip">${esc(t("mpVis", { v: pct(e.vis, 1) }))}</span></div>` : ""}
+      ${on ? "" : `<div class="pj-wait">${esc(t("pjWaiting"))}</div>`}
+      ${e.tags.length ? `<div class="pj-tags">${e.tags.map(pjTagHTML).join("")}</div>` : ""}
+      ${e.note ? `<p class="pj-note">${esc(e.note)}</p>` : ""}
+      ${e.checked ? `<div class="mp-foot">${esc(t("pjLast", { when: pjWhen(e.checked) }))}${e.blocked ? `<span class="mp-warn" title="${esc(t("blockedTip"))}">${esc(t("mpBlocked", { n: e.blocked }))}</span>` : ""}</div>` : ""}
+    </div></article>`;
+}
+function pjListHTML(list) {
+  const head = ["pjColProject", "pjColMarkets", "pjColProducts", "pjColKeywords", "pjColTop10", "pjColVis", "pjColChecked", "pjColTags"].map((k) => `<th>${esc(t(k))}</th>`).join("");
+  const rows = list.map((e) => {
+    const on = !!e.p;
+    return `<tr class="pj-row ${on ? "" : "off"}" data-id="${esc(e.id)}" ${on ? `tabindex="0" role="link"` : `aria-disabled="true"`}>
+      <td><div class="pj-rowname"><div class="pj-imgbox sm">${pjThumbHTML(e)}</div><div><b>${esc(e.name)}</b>${e.note ? `<div class="pj-note">${esc(e.note)}</div>` : ""}</div></div></td>
+      <td><div class="pj-markets">${pjMarketsHTML(e)}</div></td><td>${e.products}</td><td>${e.keywords}</td>
+      <td>${on && e.total ? `${e.top10} / ${e.total}` : "–"}</td><td>${on && e.total ? pct(e.vis, 1) : "–"}</td>
+      <td>${e.checked ? esc(pjWhen(e.checked)) : esc(t("pjWaitingShort"))}</td>
+      <td><div class="pj-tags">${e.tags.map(pjTagHTML).join("")}</div></td>
+      <td class="pj-rowmenu"><div class="pj-menuhost"><button type="button" class="pj-more" aria-label="${esc(t("pjMore"))}" aria-haspopup="menu" aria-expanded="false">⋯</button>${pjMenuHTML(e)}</div></td></tr>`;
+  }).join("");
+  return `<div class="grid-wrap"><table class="pj-table"><thead><tr>${head}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// ----- the page
+function pjFilterHTML(allMps, allTags) {
+  const mps = allMps.map((m) => `<label class="pj-check"><input type="checkbox" data-fmp="${esc(m)}" ${state.pfmp.includes(m) ? "checked" : ""} /> <span class="mp-logo-box sm">${mpLogoHTML(m)}</span> ${esc(MP_LABEL[m] || m)}</label>`).join("");
+  const tags = allTags.length ? allTags.map((x) => `<label class="pj-check"><input type="checkbox" data-ftag="${esc(x)}" ${state.pftag.includes(x) ? "checked" : ""} /> ${pjTagHTML(x)}</label>`).join("") : `<div class="pj-nodata">${esc(t("pjNoTags"))}</div>`;
+  return `<div class="pj-fgroup">${esc(t("pjFilterMp"))}</div>${mps}<div class="pj-fgroup">${esc(t("pjFilterTag"))}</div>${tags}<button type="button" class="pj-clear" id="pjFilterClear">${esc(t("pjFilterClear"))}</button>`;
+}
+function renderProjectsPage(demoBanner) {
+  const app = document.getElementById("app");
+  const list = projectList();
+  const allMps = MP_ORDER.filter((m) => list.some((e) => e.mps.includes(m))).concat(uniq(list.flatMap((e) => e.mps)).filter((m) => !MP_ORDER.includes(m)));
+  const allTags = uniq(list.flatMap((e) => e.tags)).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+  const last = list.map((e) => e.checked).filter(Boolean).sort().pop();
+  const nFilters = state.pfmp.length + state.pftag.length;
+  const sortOpts = [["opened", "pjSortOpened"], ["name", "pjSortName"], ["checked", "pjSortChecked"], ["vis", "pjSortVis"], ["kw", "pjSortKw"], ["prod", "pjSortProd"]]
+    .map(([v, k]) => `<option value="${v}" ${state.psort === v ? "selected" : ""}>${esc(t(k))}</option>`).join("");
+  app.innerHTML = `
+    ${demoBanner}
+    <div class="topbar"><img class="brand-icon" src="logo-icon.svg" alt="CD Commerce" /><h1>Rank Tracker</h1><div class="spacer"></div>${langToggleHTML()}${last ? `<span class="updated">${esc(t("lastChecked"))} ${esc(new Date(last).toLocaleString(LOCALE()))}</span>` : ""}</div>
+    <div class="content pj-page">
+      <div class="pj-head"><h2 class="pj-title">${esc(t("pjTitle"))}</h2>
+        <div class="pj-counters"><span><b>${list.length}</b> ${esc(t("pjCntProjects"))}</span><span><b>${list.reduce((a, e) => a + e.products, 0)}</b> ${esc(t("pjCntProducts"))}</span><span><b>${uniq(list.flatMap((e) => e.keywordList)).length}</b> ${esc(t("pjCntKeywords"))}</span></div></div>
+      <div class="pj-search"><svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <input type="search" id="pjSearch" placeholder="${esc(t("pjSearchPh"))}" value="${esc(state.pq)}" autocomplete="off" spellcheck="false" aria-label="${esc(t("pjSearchPh"))}" /></div>
+      <div class="pj-toolbar">
+        <button type="button" class="btn primary" id="pjCreate">+ ${esc(t("pjCreate"))}</button><div class="spacer"></div>
+        <div class="pj-filter-wrap"><button type="button" class="btn" id="pjFilterBtn" aria-haspopup="true" aria-expanded="${PJ.filterOpen}">${esc(t("pjFilters"))}${nFilters ? ` <span class="mp-plus">${nFilters}</span>` : ""} ▾</button>
+          <div class="pj-filter-pop" id="pjFilterPop" ${PJ.filterOpen ? "" : "hidden"}>${pjFilterHTML(allMps, allTags)}</div></div>
+        <label class="pj-sort"><span>${esc(t("pjSortBy"))}</span><select id="pjSort">${sortOpts}</select></label>
+        ${SETTINGS.sheet_url ? `<a class="btn" id="pjSheet" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener">${esc(t("pjOpenSheet"))}</a>` : ""}
+        <div class="pj-viewtoggle" role="group"><button type="button" data-pview="grid" class="${state.pview === "grid" ? "active" : ""}" aria-label="${esc(t("pjGrid"))}" title="${esc(t("pjGrid"))}">▦</button><button type="button" data-pview="list" class="${state.pview === "list" ? "active" : ""}" aria-label="${esc(t("pjListView"))}" title="${esc(t("pjListView"))}">☰</button></div>
+      </div>
+      <div class="pj-count" id="pjCount"></div>
+      <div id="pjBody"></div>
+      <div class="version-note">${esc(t("versionNote"))} ${APP_VERSION}</div>
+    </div>`;
+  bindLangToggle();
+  bindProjectsPage(allMps, allTags);
+  renderProjectsBody();
+}
+function renderProjectsBody() {
+  const body = document.getElementById("pjBody"); if (!body) return;
+  const all = projectList(), shown = pjVisible(all);
+  document.getElementById("pjCount").textContent = shown.length === all.length ? "" : t("pjShowing", { a: shown.length, b: all.length });
+  body.innerHTML = !shown.length ? `<div class="empty-state">${esc(t("pjNone"))}</div>` : state.pview === "list" ? pjListHTML(shown) : `<div class="pj-grid">${shown.map(pjCardHTML).join("")}</div>`;
+}
+function closePjMenus() {
+  document.querySelectorAll(".pj-menu").forEach((m) => { m.hidden = true; });
+  document.querySelectorAll(".pj-more").forEach((b) => b.setAttribute("aria-expanded", "false"));
+}
+function closePjFilter() {
+  const pop = document.getElementById("pjFilterPop"), btn = document.getElementById("pjFilterBtn");
+  PJ.filterOpen = false; if (pop) pop.hidden = true; if (btn) btn.setAttribute("aria-expanded", "false");
+}
+function pjIds(e) { return e.items.map((i) => [i.marketplace, i.product_id, i.sku || ""].join("\t")).join("\n"); }
+async function pjCopy(text) { pjToast((await copyText(text)) ? t("pjCopied") : t("pjCopyFailed")); }
+function pjToast(msg) {
+  let el = document.getElementById("pjToast");
+  if (!el) { el = document.createElement("div"); el.id = "pjToast"; el.className = "pj-toast"; el.setAttribute("role", "status"); document.body.appendChild(el); }
+  el.textContent = msg; el.classList.add("show"); clearTimeout(pjToast.t); pjToast.t = setTimeout(() => el.classList.remove("show"), 2400);
+}
+function pjAction(act, id) {
+  const e = projectList().find((x) => x.id === id); if (!e) return;
+  if (act === "open") go("#/project/" + encodeURIComponent(id));
+  else if (act === "details") openPjDetails(id);
+  else if (act === "edit") openPjEdit(id);
+  else if (act === "ids") pjCopy(pjIds(e));
+  else if (act === "kw") pjCopy(e.keywordList.join("\n"));
+}
+function bindProjectsPage() {
+  const $ = (id) => document.getElementById(id);
+  $("pjSearch").addEventListener("input", (ev) => { state.pq = ev.target.value; renderProjectsBody(); });
+  $("pjSort").addEventListener("change", (ev) => { state.psort = ev.target.value; lsSet("rt_psort", state.psort); renderProjectsBody(); });
+  $("pjCreate").addEventListener("click", () => openPjCreate());
+  document.querySelectorAll("[data-pview]").forEach((b) => b.addEventListener("click", () => {
+    state.pview = b.dataset.pview; lsSet("rt_pview", state.pview);
+    document.querySelectorAll("[data-pview]").forEach((x) => x.classList.toggle("active", x === b)); renderProjectsBody();
+  }));
+  $("pjFilterBtn").addEventListener("click", (ev) => { ev.stopPropagation(); const open = !PJ.filterOpen; PJ.filterOpen = open; $("pjFilterPop").hidden = !open; ev.currentTarget.setAttribute("aria-expanded", String(open)); });
+  $("pjFilterPop").addEventListener("click", (ev) => ev.stopPropagation());
+  const refreshFilterBtn = () => {
+    const n = state.pfmp.length + state.pftag.length, b = $("pjFilterBtn");
+    b.innerHTML = `${esc(t("pjFilters"))}${n ? ` <span class="mp-plus">${n}</span>` : ""} ▾`;
+  };
+  $("pjFilterPop").addEventListener("change", (ev) => {
+    const el = ev.target, key = el.dataset.fmp ? "pfmp" : el.dataset.ftag !== undefined ? "pftag" : null; if (!key) return;
+    const v = el.dataset.fmp || el.dataset.ftag; state[key] = el.checked ? uniq([...state[key], v]) : state[key].filter((x) => x !== v);
+    refreshFilterBtn(); renderProjectsBody();
+  });
+  $("pjFilterClear").addEventListener("click", () => { state.pfmp = []; state.pftag = []; $("pjFilterPop").querySelectorAll("input").forEach((i) => { i.checked = false; }); refreshFilterBtn(); renderProjectsBody(); });
+  const body = $("pjBody");
+  const openCard = (el) => { const row = el.closest("[data-id]"); if (row && !row.classList.contains("off")) go("#/project/" + encodeURIComponent(row.dataset.id)); };
+  body.addEventListener("click", (ev) => {
+    const more = ev.target.closest(".pj-more");
+    if (more) {
+      ev.stopPropagation();
+      const menu = more.parentElement.querySelector(".pj-menu"), open = menu.hidden; closePjMenus(); menu.hidden = !open; more.setAttribute("aria-expanded", String(open)); return;
+    }
+    const item = ev.target.closest(".pj-menu-item");
+    if (item) { if (item.tagName === "A") { closePjMenus(); return; } const id = item.closest("[data-id]").dataset.id; closePjMenus(); pjAction(item.dataset.act, id); return; }
+    if (ev.target.closest("a")) return;
+    openCard(ev.target);
+  });
+  body.addEventListener("keydown", (ev) => { if ((ev.key === "Enter" || ev.key === " ") && ev.target.matches && ev.target.matches("[data-id][role='link']")) { ev.preventDefault(); openCard(ev.target); } });
+  body.addEventListener("load", (ev) => { const im = ev.target; if (im.classList && im.classList.contains("pj-img")) { im.classList.add("ok"); im.parentElement.classList.add("has-img"); } }, true);
+  body.addEventListener("error", (ev) => { const im = ev.target; if (im.classList && im.classList.contains("pj-img")) im.remove(); }, true);
+  if (!PJ.bound) {
+    PJ.bound = true;
+    document.addEventListener("click", () => { closePjMenus(); closePjFilter(); });
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Escape") return;
+      if (PJ.modalOpen) closePjModal(); else { closePjMenus(); closePjFilter(); }
+    });
+  }
+}
+
+// ----- windows (details, picture editor, create project)
+function openPjModal(title, bodyHTML) {
+  const old = document.getElementById("pjModal"); if (old) old.remove();
+  if (PJ.blob) { URL.revokeObjectURL(PJ.blob); PJ.blob = null; }
+  const r = document.createElement("div"); r.id = "pjModal"; r.className = "pj-modal"; document.body.appendChild(r);
+  r.innerHTML = `<div class="pj-backdrop" data-close></div><div class="pj-dialog" role="dialog" aria-modal="true" aria-labelledby="pjDlgTitle" tabindex="-1">
+    <div class="pj-dlg-head"><h2 id="pjDlgTitle">${esc(title)}</h2><button type="button" class="pj-x" data-close aria-label="${esc(t("pjClose"))}">✕</button></div><div class="pj-dlg-body">${bodyHTML}</div></div>`;
+  PJ.modalOpen = true; document.body.classList.add("modal-open");
+  r.onclick = (ev) => { if (ev.target.closest("[data-close]")) closePjModal(); const c = ev.target.closest("[data-copy]"); if (c) pjCopy(c.dataset.copy); };
+  // pictures inside a window: shown when they load, dropped (the badge stays) when they cannot be found, as on the cards
+  r.addEventListener("load", (ev) => { const im = ev.target; if (im.classList && im.classList.contains("pj-img")) { im.classList.add("ok"); im.parentElement.classList.add("has-img"); } }, true);
+  r.addEventListener("error", (ev) => { const im = ev.target; if (im.classList && im.classList.contains("pj-img")) im.remove(); }, true);
+  r.querySelector(".pj-dialog").focus();
+  return r;
+}
+function closePjModal() {
+  const r = document.getElementById("pjModal"); if (!r) return;
+  r.remove(); PJ.modalOpen = false; document.body.classList.remove("modal-open");
+  if (PJ.blob) { URL.revokeObjectURL(PJ.blob); PJ.blob = null; }
+}
+function pjHeadHTML(e) {
+  return `<div class="pj-dlg-proj"><div class="pj-imgbox sm">${pjThumbHTML(e)}</div><div><b>${esc(e.name)}</b>${e.tags.length ? `<div class="pj-tags">${e.tags.map(pjTagHTML).join("")}</div>` : ""}${e.note ? `<div class="pj-note">${esc(e.note)}</div>` : ""}</div></div>`;
+}
+function openPjDetails(id, tab = "products") {
+  const e = projectList().find((x) => x.id === id); if (!e) return;
+  const prodRows = e.items.map((i) => {
+    const url = PRODUCT_URL[i.marketplace] ? PRODUCT_URL[i.marketplace](i.product_id) : "";
+    return `<tr><td><span class="pj-mp">${mpLogoHTML(i.marketplace)}</span></td><td>${esc(i.sku || "–")}</td><td><code>${esc(i.product_id)}</code> <button type="button" class="pj-copy" data-copy="${esc(i.product_id)}" title="${esc(t("pjCopyIdsBtn"))}">⧉</button></td><td>${esc(i.label || "")}</td>
+      <td>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener" title="${esc(t("pjOpenListing"))}">↗</a>` : ""}</td></tr>`;
+  }).join("");
+  const kwRows = e.keywordList.map((k) => {
+    const where = [...e.kwMps[k]], all = where.length === e.mps.length;
+    return `<li><span>${esc(k)}</span>${all ? "" : `<span class="pj-kw-only" title="${esc(t("pjOnlyOn", { mps: where.map((m) => MP_LABEL[m] || m).join(", ") }))}">${where.map((m) => `<span class="pj-mp">${mpLogoHTML(m)}</span>`).join("")}</span>`}</li>`;
+  }).join("");
+  const r = openPjModal(t("pjDetails"), `${pjHeadHTML(e)}
+    <div class="pj-tabs" role="tablist"><button type="button" role="tab" data-tab="products" class="${tab === "products" ? "active" : ""}">${esc(t("pjTabProducts"))} (${e.products})</button><button type="button" role="tab" data-tab="keywords" class="${tab === "keywords" ? "active" : ""}">${esc(t("pjTabKeywords"))} (${e.keywords})</button></div>
+    <div class="pj-pane" data-pane="products" ${tab === "products" ? "" : "hidden"}><div class="grid-wrap"><table class="pj-table sm"><thead><tr><th>${esc(t("pjColMp"))}</th><th>${esc(t("pjColSku"))}</th><th>${esc(t("pjColId"))}</th><th>${esc(t("pjColName"))}</th><th></th></tr></thead><tbody>${prodRows}</tbody></table></div></div>
+    <div class="pj-pane" data-pane="keywords" ${tab === "keywords" ? "" : "hidden"}><ul class="pj-kw">${kwRows}</ul></div>
+    <div class="pj-actions"><button type="button" class="btn" data-copy="${esc(pjIds(e))}">${esc(t("pjCopyIdsBtn"))}</button><button type="button" class="btn" data-copy="${esc(e.keywordList.join("\n"))}">${esc(t("pjCopyKwBtn"))}</button>
+      <button type="button" class="btn" id="pjDetEdit">${esc(t("pjMenuEdit"))}</button>${e.p ? `<button type="button" class="btn primary" id="pjDetOpen">${esc(t("pjMenuOpen"))}</button>` : ""}</div>`);
+  r.querySelectorAll(".pj-tabs [data-tab]").forEach((b) => b.addEventListener("click", () => {
+    r.querySelectorAll(".pj-tabs [data-tab]").forEach((x) => x.classList.toggle("active", x === b));
+    r.querySelectorAll(".pj-pane").forEach((p) => { p.hidden = p.dataset.pane !== b.dataset.tab; });
+  }));
+  const edit = r.querySelector("#pjDetEdit"); if (edit) edit.addEventListener("click", () => openPjEdit(id));
+  const open = r.querySelector("#pjDetOpen"); if (open) open.addEventListener("click", () => { closePjModal(); go("#/project/" + encodeURIComponent(id)); });
+}
+
+async function resizeImageFile(file, maxW = 640, maxH = 480, quality = 0.86) {
+  // a smaller JPEG (white background) so the repository stays small; null when this browser cannot do it
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, maxW / bmp.width, maxH / bmp.height), w = Math.max(1, Math.round(bmp.width * k)), h = Math.max(1, Math.round(bmp.height * k));
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    const g = cv.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, w, h); g.drawImage(bmp, 0, 0, w, h);
+    return await new Promise((res) => cv.toBlob((b) => res(b), "image/jpeg", quality));
+  } catch (err) { return null; }
+}
+function openPjEdit(id) {
+  const e = projectList().find((x) => x.id === id); if (!e) return;
+  const file = `${id}.jpg`;
+  const r = openPjModal(t("pjEditTitle"), `${pjHeadHTML(e)}
+    <label class="pj-field"><span>${esc(t("pjPicUrl"))}</span><input type="text" id="pjeUrl" placeholder="${esc(t("pjPicUrlPh"))}" value="${esc(/^https?:/.test(e.image) ? e.image : "")}" /></label>
+    <div class="pj-bad" id="pjeBad" hidden>${esc(t("pjBadImage"))}</div>
+    <label class="pj-field"><span>${esc(t("pjPicFile"))}</span><input type="file" id="pjeFile" accept="image/*" /></label>
+    <div class="pj-dl" id="pjeDl" hidden><a class="btn" id="pjeDlLink" download="${esc(file)}">${esc(t("pjPicDownload", { file }))}</a><p>${esc(t("pjPicUpload"))}</p></div>
+    <div class="pj-bad" id="pjeNoResize" hidden>${esc(t("pjPicNoResize", { file }))}</div>
+    <label class="pj-field"><span>${esc(t("pjTagsLabel"))}</span><input type="text" id="pjeTags" value="${esc(e.tags.join(", "))}" /></label>
+    <label class="pj-field"><span>${esc(t("pjNoteLabel"))}</span><input type="text" id="pjeNote" maxlength="280" value="${esc(e.note)}" /></label>
+    <div class="pj-out"><b>${esc(t("pjCells"))}</b><table class="pj-table sm"><tbody>
+      <tr><td><code>project_image</code></td><td id="pjeCellImg"></td></tr><tr><td><code>project_tags</code></td><td id="pjeCellTags"></td></tr><tr><td><code>project_note</code></td><td id="pjeCellNote"></td></tr></tbody></table>
+      <p class="pj-help">${esc(t("pjCellsHow"))}</p></div>
+    <div class="pj-actions"><button type="button" class="btn primary" id="pjeCopy">${esc(t("pjCopyCells"))}</button>${SETTINGS.sheet_url ? `<a class="btn" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener">${esc(t("pjOpenSheet"))}</a>` : ""}</div>`);
+  const q = (s) => r.querySelector(s), cell = () => ({ img: q("#pjeUrl").value.trim(), tags: q("#pjeTags").value.trim(), note: q("#pjeNote").value.trim() });
+  const refresh = () => {
+    const c = cell(), bad = c.img && !cleanImageJS(c.img);
+    q("#pjeBad").hidden = !bad;
+    q("#pjeCellImg").textContent = c.img || (PJ.blob ? t("pjPicBlank", { file }) : "");
+    q("#pjeCellTags").textContent = c.tags; q("#pjeCellNote").textContent = c.note;
+    const src = !bad && c.img ? safeImg(cleanImageJS(c.img)) : PJ.blob || "";
+    const box = q(".pj-dlg-proj .pj-imgbox");
+    if (src) { box.classList.remove("has-img"); box.innerHTML = `<div class="pj-ph" style="--h:${hashOf(e.id) % 360}">${esc(pjInitials(e.name))}</div><img class="pj-img" src="${esc(src)}" alt="" />`; const im = box.querySelector("img"); im.onload = () => { im.classList.add("ok"); box.classList.add("has-img"); }; im.onerror = () => im.remove(); }
+  };
+  r.addEventListener("input", refresh);
+  q("#pjeFile").addEventListener("change", async (ev) => {
+    const f = ev.target.files && ev.target.files[0]; if (!f) return;
+    const blob = await resizeImageFile(f);
+    q("#pjeNoResize").hidden = !!blob; q("#pjeDl").hidden = !blob;
+    if (PJ.blob) URL.revokeObjectURL(PJ.blob);
+    PJ.blob = blob ? URL.createObjectURL(blob) : null;
+    if (blob) { q("#pjeDlLink").href = PJ.blob; q("#pjeUrl").value = ""; }
+    refresh();
+  });
+  q("#pjeCopy").addEventListener("click", () => { const c = cell(); pjCopy([c.img, c.tags, c.note].join("\t")); });
+  refresh();
+}
+
+// ----- create a project: turns a short form into rows to paste into the Products and Keywords tabs
+const CREATE_MPS = ["ebay", "kaufland", "temu", "otto"];
+const COST_PER_READ = { ebay: 0.0015, otto: 0.0015, kaufland: 0.003, temu: 0.0025 };   // USD per keyword and check (Kaufland reads 2 pages)
+function parseMpScope(text) {
+  const s = String(text || "").trim().toLowerCase(); if (!s) return { mps: null, unknown: [] };
+  const mps = [], unknown = [];
+  for (let tok of s.split(/[,;\/|\s]+/)) {
+    tok = tok.split(".")[0]; if (!tok) continue;
+    if (["all", "*", "alle"].includes(tok)) return { mps: null, unknown };
+    (MP_ORDER.includes(tok) ? mps : unknown).push(tok);
+  }
+  return { mps, unknown };
+}
+function parseIdLines(text) {
+  const out = [], seen = new Set(), dups = [];
+  String(text || "").split(/\r?\n/).forEach((line) => {
+    const parts = line.split(/\t|,/).map((x) => x.trim()); if (!parts[0]) return;
+    if (seen.has(parts[0])) { dups.push(parts[0]); return; }
+    seen.add(parts[0]); out.push({ id: parts[0], sku: parts[1] || "", name: parts.slice(2).join(", ") });
+  });
+  return { rows: out, dups };
+}
+function pjBuildRows(v) {
+  const warn = [], name = v.name.trim(), products = [], keywords = [];
+  if (!name) warn.push(["err", t("pjNeedName")]);
+  const img = v.image.trim(); if (img && !cleanImageJS(img)) warn.push(["err", t("pjBadImage")]);
+  const chosen = CREATE_MPS.filter((m) => v.mps[m] !== undefined);
+  if (!chosen.length) warn.push(["err", t("pjNeedMp")]);
+  const idsPer = {}; let first = true;
+  chosen.forEach((m) => {
+    const { rows, dups } = parseIdLines(v.mps[m]); idsPer[m] = rows;
+    dups.forEach((d) => warn.push(["warn", t("pjDup", { x: d })]));
+    rows.forEach((r) => { products.push([name, m, v.country, r.id, r.sku, r.name, "", first ? img : "", first ? v.tags.trim() : "", first ? v.note.trim() : ""]); first = false; });
+  });
+  if (chosen.length && !products.length) warn.push(["err", t("pjNeedIds")]);
+  const kwSeen = new Set(), perMp = Object.fromEntries(chosen.map((m) => [m, 0]));
+  String(v.kw || "").split(/\r?\n/).forEach((line) => {
+    const bar = line.indexOf("|"), kwRaw = bar === -1 ? line : line.slice(0, bar), scopeRaw = bar === -1 ? "" : line.slice(bar + 1);
+    const kw = kwRaw.trim(); if (!kw || kwSeen.has(kw.toLowerCase())) return; kwSeen.add(kw.toLowerCase());
+    const { mps, unknown } = parseMpScope(scopeRaw);
+    unknown.forEach((x) => warn.push(["warn", t("pjUnknownMp", { x })]));
+    if (mps && mps.length && !mps.some((m) => chosen.includes(m))) warn.push(["warn", t("pjKwNotSel", { kw, mps: mps.map((m) => MP_LABEL[m]).join(", ") })]);
+    const hit = mps === null ? chosen : mps.filter((m) => chosen.includes(m));
+    hit.forEach((m) => { if (idsPer[m] && idsPer[m].length) perMp[m]++; });
+    keywords.push([name, kw, mps === null ? "" : mps.length ? mps.join(", ") : scopeRaw.trim()]);   // only unknown names typed: keep them, so the sheet loader reports them
+  });
+  if (!keywords.length) warn.push(["err", t("pjNeedKw")]);
+  if (chosen.includes("otto")) warn.push(["warn", t("pjOttoWarn")]);
+  if (name && projectList().some((p) => slug(p.name) === slug(name))) warn.push(["info", t("pjExists")]);
+  const usd = chosen.reduce((a, m) => a + (idsPer[m] && idsPer[m].length ? perMp[m] * COST_PER_READ[m] * 30 : 0), 0);
+  return { products, keywords, warn, usd, ok: !warn.some((w) => w[0] === "err") };
+}
+const tsv = (rows) => rows.map((r) => r.map((c) => String(c).replace(/[\t\r\n]+/g, " ")).join("\t")).join("\n");
+function openPjCreate() {
+  const mpBox = CREATE_MPS.map((m) => `<div class="pj-cmp"><label class="pj-check"><input type="checkbox" data-cmp="${m}" /> <span class="mp-logo-box sm">${mpLogoHTML(m)}</span> ${esc(MP_LABEL[m])}</label>
+    <div class="pj-ids" data-ids="${m}" hidden><span class="pj-help">${esc(t("pjIdsFor", { mp: MP_LABEL[m] }))}. ${esc(t("pjIdsHelp"))}</span><textarea rows="4" data-idsarea="${m}" spellcheck="false" placeholder="${m === "ebay" ? "186000000001, PP01, Round pool cover" : ""}"></textarea></div></div>`).join("");
+  const countries = Object.keys(FLAGS).map((c) => `<option value="${c}" ${c === "DE" ? "selected" : ""}>${FLAGS[c]} ${c}</option>`).join("");
+  const r = openPjModal(t("pjCreateTitle"), `
+    <div class="pj-formgrid"><label class="pj-field"><span>${esc(t("pjName"))} *</span><input type="text" id="pjcName" placeholder="${esc(t("pjNamePh"))}" autocomplete="off" /></label>
+      <label class="pj-field"><span>${esc(t("pjCountry"))}</span><select id="pjcCountry">${countries}</select></label></div>
+    <label class="pj-field"><span>${esc(t("pjImageOpt"))}</span><input type="text" id="pjcImage" placeholder="${esc(t("pjPicUrlPh"))}" /></label>
+    <div class="pj-formgrid"><label class="pj-field"><span>${esc(t("pjTagsLabel"))}</span><input type="text" id="pjcTags" placeholder="Key Product, Tarpofix" /></label>
+      <label class="pj-field"><span>${esc(t("pjNoteLabel"))}</span><input type="text" id="pjcNote" maxlength="280" /></label></div>
+    <div class="pj-fgroup">${esc(t("pjMarketplaces"))}</div>${mpBox}
+    <label class="pj-field"><span>${esc(t("pjKwLabel"))}</span><span class="pj-help">${esc(t("pjKwHelp"))}</span><textarea id="pjcKw" rows="6" spellcheck="false" placeholder="poolplane&#10;poolabdeckung rund | temu, kaufland"></textarea></label>
+    <div id="pjcOut" class="pj-out"></div>`);
+  const q = (s) => r.querySelector(s);
+  const values = () => {
+    const mps = {}; r.querySelectorAll("[data-cmp]").forEach((c) => { if (c.checked) mps[c.dataset.cmp] = (q(`[data-idsarea="${c.dataset.cmp}"]`) || {}).value || ""; });
+    return { name: q("#pjcName").value, image: q("#pjcImage").value, tags: q("#pjcTags").value, note: q("#pjcNote").value, country: q("#pjcCountry").value, mps, kw: q("#pjcKw").value };
+  };
+  const draw = () => {
+    const b = pjBuildRows(values()), more = (rows, n) => (rows.length > n ? `<tr><td colspan="10" class="pj-help">${esc(t("pjMoreRows", { n: rows.length - n }))}</td></tr>` : "");
+    const table = (rows, n) => `<div class="grid-wrap"><table class="pj-table sm"><tbody>${rows.slice(0, n).map((x) => `<tr>${x.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}${more(rows, n)}</tbody></table></div>`;
+    q("#pjcOut").innerHTML = `${b.warn.map(([k, m]) => `<div class="pj-msg ${k}">${esc(m)}</div>`).join("")}
+      ${b.ok ? `<b>${esc(t("pjOutProducts"))} (${b.products.length})</b><div class="pj-help">${esc(t("pjHeaderRow"))} project, marketplace, country, product_id, sku, name, source, project_image, project_tags, project_note</div>${table(b.products, 6)}
+        <b>${esc(t("pjOutKeywords"))} (${b.keywords.length})</b><div class="pj-help">${esc(t("pjHeaderRow"))} project, keyword, marketplace</div>${table(b.keywords, 6)}
+        <p class="pj-help">${esc(t("pjEstimate", { usd: "$" + nf(b.usd, 2) }))}</p><p class="pj-help">${esc(t("pjPasteHow"))}</p>
+        <div class="pj-actions"><button type="button" class="btn primary" data-copy="${esc(tsv(b.products))}">${esc(t("pjCopyRowsProducts"))}</button><button type="button" class="btn primary" data-copy="${esc(tsv(b.keywords))}">${esc(t("pjCopyRowsKeywords"))}</button>
+        ${SETTINGS.sheet_url ? `<a class="btn" href="${esc(SETTINGS.sheet_url)}" target="_blank" rel="noopener">${esc(t("pjOpenSheet"))}</a>` : ""}</div>` : ""}`;
+  };
+  r.addEventListener("input", draw);
+  r.addEventListener("change", (ev) => {
+    const c = ev.target.closest && ev.target.closest("[data-cmp]");
+    if (c) { q(`[data-ids="${c.dataset.cmp}"]`).hidden = !c.checked; draw(); }
+  });
+  draw();
+  q("#pjcName").focus();
+}
+
 // ---------- Marketplace dropdown (logo + counts + the latest numbers of the Keyword Tracker, one card per marketplace) ----------
 function mpLogoHTML(mp) {
   const label = MP_LABEL[mp] || mp;
@@ -786,7 +1301,8 @@ function renderPage() {
     ? `<div class="demo-banner">${esc(t("demoBanner"))}</div>`
     : "";
 
-  if (!projects.length) {
+  const sheetProjects = CONFIG ? (CONFIG.projects || []).length : 0;
+  if (!projects.length && !sheetProjects) {
     app.innerHTML = `
       ${demoBanner}
       <div class="topbar"><img class="brand-icon" src="logo-icon.svg" alt="CD Commerce" /><h1>Rank Tracker</h1><div class="spacer"></div>${langToggleHTML()}</div>
@@ -795,6 +1311,7 @@ function renderPage() {
     bindLangToggle();
     return;
   }
+  if (state.page === "projects" || !projects.length) { renderProjectsPage(demoBanner); return; }
 
   if (!PROJECTS[state.projectId]) state.projectId = projects[0].project_id;
   const project = currentProject();
@@ -835,6 +1352,7 @@ function renderPage() {
   app.innerHTML = `
     ${demoBanner}
     <div class="topbar">
+      <a class="topbar-back" href="#/projects" title="${esc(t("pjBack"))}" aria-label="${esc(t("pjBack"))}">← ${esc(t("pjBack"))}</a>
       <img class="brand-icon" src="logo-icon.svg" alt="CD Commerce" />
       <h1>Rank Tracker</h1>
       <select class="project-select" id="projectSelect">${projectOptions}</select>
@@ -857,7 +1375,11 @@ function renderPage() {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   bindLangToggle();
   document.querySelectorAll(".view-tab").forEach((b) => b.addEventListener("click", () => { if (state.view !== b.dataset.view) { state.view = b.dataset.view; renderPage(); } }));
-  on("projectSelect", "change", (e) => { state.projectId = e.target.value; state.marketplace = null; state.itemKey = null; renderPage(); });
+  on("projectSelect", "change", (e) => {
+    state.projectId = e.target.value; state.marketplace = null; state.itemKey = null; markOpened(state.projectId);
+    try { history.replaceState(null, "", "#/project/" + encodeURIComponent(state.projectId)); } catch (err) { /* address bar not available: the page still switches */ }
+    renderPage();
+  });
   bindMpPicker();
   bindCombo(comboEntries, state.itemKey);
   on("basisSelect", "change", (e) => { state.basis = e.target.value; applyBasis(ALL_ROWS); renderPage(); });
