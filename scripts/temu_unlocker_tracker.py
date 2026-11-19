@@ -13,17 +13,27 @@ do). A product beyond that is recorded as "not found in the top N" with N = the 
 "Temu did not let us look today" is never confused with "this product does not rank".
 
 Settings (environment): TEMU_ATTEMPTS = tries per keyword (default 6, 1 to 12); TEMU_WORKERS = keywords read at the same time (default 4);
-TEMU_STOP_AFTER = keywords in a row that could not be read before the run stops (default 12); BRIGHTDATA_ZONE_TEMU = the zone; BRIGHTDATA_API_KEY.
+TEMU_STOP_AFTER = keywords in a row that could not be read, BEFORE any keyword has been read, after which the run stops because Temu is
+not answering at all (default 12); TEMU_STOP_AFTER_LATER = the same once at least one keyword was read (default 60: a normal run
+fails most keywords, so a streak of 12 is just bad luck); TEMU_MAX_MINUTES = time budget after which no new keyword is started
+(default 120); BRIGHTDATA_ZONE_TEMU = the zone; BRIGHTDATA_API_KEY.
+Keywords are worked through ROUND-ROBIN across projects (every project's first keyword, then every project's second, ...), so a run
+that ends early still covers every project instead of only the first ones in the sheet. A Bright Data error answer (502, 503, 504, 429)
+or a timeout counts as one failed attempt, exactly like an empty answer, and the keyword is tried again.
 Products tab: product_id = the goods_id from the listing's address (goods.html?...goods_id=NNN), marketplace = temu, country = DE.
 """
 
 import os
 import sys
+import time
 import urllib.parse
 import threading
+from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timezone
 from pathlib import Path
+
+import requests
 
 import bright_data
 import config_loader
@@ -36,7 +46,6 @@ DATA_PATH = ROOT / "docs" / "data" / "ranks.json"
 
 def attempts() -> int:
     return ps.env_int("TEMU_ATTEMPTS", 6, 1, 12)
-STOP_AFTER_BLOCKED = 5          # keywords in a row that could not be read at all: stop the run, Temu is not answering today
 
 _CACHE = {}                     # (region, keyword) -> list of goods ids   (one read per keyword per run, shared by its products)
 _FAILED = {}                    # (region, keyword) -> why it could not be read
@@ -56,7 +65,17 @@ def read_goods_ids(keyword: str, region: str):
     url = search_url(keyword, region)
     problem, tries = "no answer", attempts()
     for attempt in range(1, tries + 1):
-        html = bright_data.fetch_html(url, country=region.lower(), render=True)
+        try:
+            html = bright_data.fetch_html(url, country=region.lower(), render=True)
+        except requests.HTTPError as e:
+            code = e.response.status_code if e.response is not None else 0
+            if code in (408, 425, 429) or code >= 500:      # Bright Data could not get the page this time: the same as an empty answer, try again
+                problem = f"Bright Data answered {code}"
+                continue
+            raise                                           # 401 / 402 / 403 ...: account or zone problem, another try cannot change it
+        except (requests.Timeout, requests.ConnectionError) as e:
+            problem = f"no answer in time ({type(e).__name__})"
+            continue
         msg = ps.refusal(html)
         if msg:
             _FAILED[key] = ps.PolicyRefused(msg)
@@ -68,6 +87,19 @@ def read_goods_ids(keyword: str, region: str):
         problem = f"empty answer ({len(html)} characters)" if not html.strip() else f"a page without product IDs ({len(html):,} characters)"
     _FAILED[key] = ps.EmptyPage(f"{problem} on all {tries} attempts for {url}")
     raise _FAILED[key]
+
+
+def round_robin(todo):
+    """
+    todo: [((region, keyword), owners), ...] in sheet order. Returns the same items interleaved by the first project that owns each
+    keyword: every project's first keyword, then every project's second, and so on. A run that ends early (time budget, a long
+    bad streak) therefore still reaches every project; before, it never got past the first projects of the sheet.
+    """
+    groups = OrderedDict()
+    for item in todo:
+        groups.setdefault(item[1][0][0]["project_id"], []).append(item)
+    longest = max((len(g) for g in groups.values()), default=0)
+    return [g[i] for i in range(longest) for g in groups.values() if i < len(g)]
 
 
 def main():
@@ -95,20 +127,28 @@ def main():
                 if key in done_today or (only_new and key in known_any):
                     continue
                 work.setdefault((region, keyword), []).append((project, item, target))
-    todo = list(work.items())
-    workers, stop_after = ps.env_int("TEMU_WORKERS", 4, 1, 8), ps.env_int("TEMU_STOP_AFTER", 12, 1, 200)
+    todo = round_robin(list(work.items()))
+    workers = ps.env_int("TEMU_WORKERS", 4, 1, 8)
+    stop_after, stop_later = ps.env_int("TEMU_STOP_AFTER", 12, 1, 500), ps.env_int("TEMU_STOP_AFTER_LATER", 60, 1, 1000)
+    deadline = time.monotonic() + ps.env_int("TEMU_MAX_MINUTES", 120, 5, 340) * 60
 
     stop = threading.Event()                # set when Temu is clearly not answering (or Bright Data refuses): workers stop starting new keywords
     lock = threading.Lock()
-    streak = {"n": 0}                       # keywords in a row (in the order they finish) that could not be read
+    streak = {"n": 0, "ok": 0, "why": ""}  # keywords in a row (in the order they finish) that could not be read / keywords read so far / why the run stopped
 
     def read(rk):
         if stop.is_set():
+            return "skipped", ""
+        if time.monotonic() > deadline:
+            with lock:
+                streak["why"] = streak["why"] or "time"
+            stop.set()
             return "skipped", ""
         try:
             ids = read_goods_ids(rk[1], rk[0])
             with lock:
                 streak["n"] = 0
+                streak["ok"] += 1
             return "ok", ids
         except ps.PolicyRefused as e:
             stop.set()
@@ -116,11 +156,14 @@ def main():
         except Exception as e:
             with lock:
                 streak["n"] += 1
-                if streak["n"] >= stop_after:
+                limit = stop_after if streak["ok"] == 0 else stop_later
+                if streak["n"] >= limit and not stop.is_set():
+                    streak["why"] = "streak"
                     stop.set()
             return "blocked", str(e)
 
     read_ok = read_blocked = saved = skipped = 0
+    per_project = OrderedDict()             # project name -> [keywords read, blocked, not tried]
     try:
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = [pool.submit(read, rk) for rk, _ in todo]
@@ -131,8 +174,12 @@ def main():
                     continue
                 if status == "skipped":
                     skipped += 1
+                    for name in OrderedDict.fromkeys(p["project_name"] for p, _, _ in owners):
+                        per_project.setdefault(name, [0, 0, 0])[2] += 1
                     continue
                 blocked = status == "blocked"
+                for name in OrderedDict.fromkeys(p["project_name"] for p, _, _ in owners):
+                    per_project.setdefault(name, [0, 0, 0])[1 if blocked else 0] += 1
                 ids = [] if blocked else payload
                 if blocked:
                     read_blocked += 1
@@ -152,12 +199,23 @@ def main():
                     })
                     saved += 1
                     print(f"  [{project['project_name']} / {item['item_key']}] {rk[1]!r} -> " + ("BLOCKED" if blocked else (f"rank {rank}" if rank else f"not in the top {len(ids)}")))
-        if skipped and streak["n"] >= stop_after:
-            print(f"  !! temu: {stop_after} keywords in a row could not be read, so {skipped} keyword(s) were not tried today. "
+        if skipped:
+            if streak["why"] == "time":
+                why = f"the time budget of {ps.env_int('TEMU_MAX_MINUTES', 120, 5, 340)} minutes ran out"
+            elif streak["why"] == "streak":
+                why = (f"{stop_after if streak['ok'] == 0 else stop_later} keywords in a row could not be read"
+                       + (" and none had been read yet, so Temu is not answering at all" if streak["ok"] == 0 else ""))
+            else:
+                why = "Bright Data refused the request"
+            print(f"  !! temu: {why}; {skipped} keyword(s) were not tried today. "
                   "Running the workflow again retries the blocked ones and tries the rest.", file=sys.stderr)
     finally:
         print(f"temu (Web Unlocker): {read_ok} keyword(s) read, {read_blocked} blocked, {skipped} not tried, {saved} reading(s) saved; up to {attempts()} attempt(s) per keyword, "
               f"{workers} at a time (failed attempts are not billed).")
+        if per_project:
+            print("temu by project (keywords read / blocked / not tried):")
+            for name, (ok_n, bl_n, sk_n) in per_project.items():
+                print(f"  {name:36} {ok_n:3} / {bl_n:3} / {sk_n:3}")
         history_store.save_and_report(DATA_PATH, history)
 
 
