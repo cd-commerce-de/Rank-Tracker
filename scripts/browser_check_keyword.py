@@ -132,7 +132,9 @@ async def visit(url: str, extractor, scrolls: int, pause: float, block: bool = F
 # ---------- diagnose mode (--probe): is the browser refused outright, or only a search page opened cold? ----------
 HOME_URL = "https://www.otto.de/"
 PROBE_WORD = "laptop"
+SETTLE_SECONDS = 30                      # how long a bot-check page gets to clear itself (Kasada's script often solves its check and reloads after a few seconds)
 SEARCH_BOX = ['input[type="search"]', 'input[name="q"]', 'input[role="searchbox"]', 'input[placeholder*="uche" i]', 'input[aria-label*="uche" i]', '[data-testid*="search" i] input']
+SUBMIT_BUTTON = ['button[type="submit"]', 'button[aria-label*="uche" i]', '[data-testid*="search" i] button']
 CONSENT = re.compile(r"alle akzeptieren|akzeptieren|zustimmen|einverstanden|accept all|accept", re.I)
 
 
@@ -140,16 +142,22 @@ def probe_urls(keyword: str, word: str):
     return HOME_URL, f"https://www.otto.de/suche/{urllib.parse.quote(keyword)}/", f"https://www.otto.de/suche/{urllib.parse.quote(word)}/"
 
 
-def classify_page(html: str, title: str, text: str, n_links: int):
-    """(kind, plain words) for what a page turned out to be."""
-    if n_links:
-        return "real", f"a real page ({n_links} product links)"
+def classify_page(html: str, title: str, text: str, n_links: int, final_url: str = "", search: bool = False):
+    """
+    (kind, plain words) for what a page turned out to be. search=True: this step was meant to reach a SEARCH RESULTS page, so product
+    links only count as results when the address really is a search page (a homepage also shows dozens of product links).
+    """
+    searched = "/suche/" in (final_url or "")
+    if n_links and (searched or not search):
+        return "real", (f"real search results ({n_links} product links)" if search else f"a real page ({n_links} product links)")
     ch = ps.challenge(html) if html else None
     if ch:
         return "challenge", f"a {ch} bot-protection challenge page"
     low = f"{title} {text}".lower()
     if "entschuldigung" in low or "hoppla" in low or "das hat nicht geklappt" in low:
         return "error", "Otto's own error page (\"Entschuldigung\" / \"Hoppla\")"
+    if search and not searched:
+        return "notsearched", f"NO SEARCH HAPPENED: the browser is still on {(final_url or 'an unknown page')[:55]}"
     return ("full", "a full page without product links") if len(html) > 50_000 else ("other", "a small page without product links")
 
 
@@ -184,25 +192,47 @@ async def _setup_page(context, page, block: bool):
     return counter, how
 
 
-async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: float, extractor):
+async def settle(page, max_seconds: float):
+    """
+    Give a bot-check page time to clear itself. A page that is still tiny and has no title is a check in progress (Kasada's script
+    solves its check and reloads the real page after a few seconds). Returns (seconds waited, was a check seen, is it still there).
+    """
+    t0, seen = time.monotonic(), False
+    while True:
+        try:
+            html, title = await page.content(), await page.title()
+        except Exception:
+            return time.monotonic() - t0, seen, False
+        pending = not title.strip() and len(html) < 30_000
+        seen = seen or pending
+        if not pending or time.monotonic() - t0 >= max_seconds:
+            return time.monotonic() - t0, seen, pending
+        await page.wait_for_timeout(2000)
+
+
+async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: float, extractor, settle_seconds: float = None):
     """
     Four visits, the way a shopper behaves, to see WHERE Otto's refusal happens:
       1. the homepage, as the first request of a fresh browser;
       2. the search page for the keyword, opened right after the homepage in the same browser;
-      3. the same search typed into Otto's own search box, like a person;
+      3. the same search typed into Otto's own search box, like a person (it must really reach a results page to count);
       4. a plain one-word search as the first request of another fresh browser.
+    Bot-check pages get up to `settle_seconds` to clear themselves before a step is judged.
     """
     from playwright.async_api import async_playwright
+    settle_seconds = SETTLE_SECONDS if settle_seconds is None else settle_seconds
     home, search_url, word_url = probe_urls(keyword, word)
     steps, how = [], ""
 
-    async def run(page, counter, number, label, asked, action, scroll):
-        t0, b0, err = time.monotonic(), counter["bytes"], ""
+    async def run(page, counter, number, label, asked, action, search, scroll):
+        t0, b0, err, note = time.monotonic(), counter["bytes"], "", ""
         try:
-            await action()
+            result = await action()
+            note = result if isinstance(result, str) else ""          # only the typed-search step returns a description; opening a page returns Playwright's response object
         except Exception as e:
             err = f"{type(e).__name__}: {str(e)[:300]}"
         await page.wait_for_timeout(int(pause * 1000))
+        waited, seen, still = await settle(page, settle_seconds)
         for _ in range(2 if scroll else 0):
             try:
                 await page.evaluate("window.scrollBy(0, Math.max(800, window.innerHeight))")
@@ -221,8 +251,12 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
             text = " ".join((await page.inner_text("body", timeout=5000)).split())[:200]
         except Exception:
             text = ""
+        try:
+            final = page.url
+        except Exception:
+            final = ""
         n_links = len(set(extractor(html))) if html else 0
-        kind, words = classify_page(html, title, text, n_links)
+        kind, words = classify_page(html, title, text, n_links, final, search)
         shot = ""
         if save_dir:
             os.makedirs(save_dir, exist_ok=True)
@@ -236,12 +270,12 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
                     fh.write(html)
             except Exception:
                 pass
-        try:
-            final = page.url
-        except Exception:
-            final = ""
+        check_note = ""
+        if seen:
+            check_note = f"a bot check appeared and " + (f"was STILL there after {waited:.0f} s" if still else f"cleared itself after {waited:.0f} s")
         steps.append({"n": number, "label": label, "asked": asked, "final": final, "title": title, "kind": kind, "words": words, "links": n_links, "chars": len(html),
-                      "text": text, "kb": (counter["bytes"] - b0) / 1e3 if counter["ok"] else None, "seconds": time.monotonic() - t0, "error": err, "shot": shot})
+                      "text": text, "kb": (counter["bytes"] - b0) / 1e3 if counter["ok"] else None, "seconds": time.monotonic() - t0, "error": err, "shot": shot,
+                      "note": "; ".join(x for x in (note, check_note) if x)})
 
     ws = bright_data.scraping_browser_ws_url()
     async with async_playwright() as pw:
@@ -260,12 +294,12 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
                         await page.get_by_role("button", name=CONSENT).first.click(timeout=3000)     # the cookie banner, if one is in the way
                     except Exception:
                         pass
-                    box = None
+                    box, used = None, ""
                     for sel in SEARCH_BOX:
                         loc = page.locator(sel).first
                         try:
                             await loc.wait_for(state="visible", timeout=2500)
-                            box = loc
+                            box, used = loc, sel
                             break
                         except Exception:
                             continue
@@ -274,14 +308,28 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
                     await box.click()
                     await page.keyboard.type(keyword, delay=90)
                     await page.keyboard.press("Enter")
-                    await page.wait_for_load_state("domcontentloaded", timeout=45_000)
+                    how_sent = "Enter"
+                    try:
+                        await page.wait_for_url(re.compile(r"/suche/"), timeout=30_000)         # the results page must really open
+                    except Exception:
+                        for sel in SUBMIT_BUTTON:                                               # Enter did nothing: press the search button instead
+                            try:
+                                await page.locator(sel).first.click(timeout=2000)
+                                how_sent = "Enter, then the search button"
+                                await page.wait_for_url(re.compile(r"/suche/"), timeout=30_000)
+                                break
+                            except Exception:
+                                continue
+                        else:
+                            raise RuntimeError(f"typing the keyword and pressing Enter did not open a results page (the browser stayed on {page.url[:70]})")
+                    return f"search box found with `{used}`, submitted with {how_sent}"
 
                 if session == 1:
-                    await run(page, counter, 1, "The homepage, as the first request of a fresh browser", home, go(home), False)
-                    await run(page, counter, 2, "The search page for the keyword, opened right after the homepage", search_url, go(search_url), True)
-                    await run(page, counter, 3, "The keyword typed into Otto's own search box, like a shopper", home + " (typed)", typed, True)
+                    await run(page, counter, 1, "The homepage, as the first request of a fresh browser", home, go(home), False, False)
+                    await run(page, counter, 2, "The search page for the keyword, opened right after the homepage", search_url, go(search_url), True, True)
+                    await run(page, counter, 3, "The keyword typed into Otto's own search box, like a shopper", home + " (typed)", typed, True, True)
                 else:
-                    await run(page, counter, 4, f"A plain one-word search (“{word}”) as the first request of another fresh browser", word_url, go(word_url), True)
+                    await run(page, counter, 4, f"A plain one-word search (“{word}”) as the first request of another fresh browser", word_url, go(word_url), True, True)
             finally:
                 await browser.close()
     return steps, how
@@ -289,16 +337,21 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
 
 def probe_verdict(steps):
     by = {s["n"]: s for s in steps}
-    ok = lambda n: n in by and by[n]["kind"] == "real" and by[n]["links"] > 0
+    ok = lambda n: n in by and by[n]["kind"] == "real"
     home_ok = 1 in by and by[1]["kind"] in ("real", "full")
+    untested = [n for n in (2, 3, 4) if n in by and by[n]["kind"] == "notsearched"]
+    caveat = (f" Step {', '.join(map(str, untested))} never reached a results page, so that way of searching is UNTESTED, not failed." if untested else "")
+    stuck = [n for n in (2, 3, 4) if n in by and by[n]["kind"] == "challenge"]
     if ok(3) and not ok(2):
-        return ("Typing the search into Otto's search box WORKS, opening the search address directly does not. A tracker can do what a shopper does (homepage, search box, results), at the cost of a slower visit per keyword.", "Next: I build the tracker on that route and we measure what a visit costs.")
+        return ("Typing the search into Otto's search box WORKS, opening the search address directly does not. A tracker can do what a shopper does (homepage, search box, results), at the cost of a slower visit per keyword." + caveat, "Next: I build the tracker on that route and we measure what a visit costs.")
     if ok(2) and not ok(4):
-        return ("The search address works once the browser has visited the homepage first, but not as the very first request. A tracker can open the homepage once per session and then search every keyword in the same browser.", "Next: I build the tracker on that route (one browser session for many keywords, which is also cheaper).")
+        return ("The search address works once the browser has visited the homepage first, but not as the very first request. A tracker can open the homepage once per session and then search every keyword in the same browser." + caveat, "Next: I build the tracker on that route (one browser session for many keywords, which is also cheaper).")
     if ok(2) or ok(3) or ok(4):
-        return ("Otto returned real search results in this run. See which step worked above.", "Next: run the normal check for your real keyword (with and without pictures blocked) to measure the cost, and tell me.")
+        return ("Otto returned real search results in this run. See which step worked above." + caveat, "Next: run the normal check for your real keyword (with and without pictures blocked) to measure the cost, and tell me.")
+    if home_ok and stuck:
+        return (f"Otto lets the browser onto the homepage, but the search page came back as a bot check that did not clear within {SETTLE_SECONDS} s (step {', '.join(map(str, stuck))})." + caveat, "Next: the homepage is open to us, so this route is not dead; the bot check on search pages is the obstacle. Send me the screenshots of those steps; a longer wait or a different way of opening the search may help.")
     if home_ok:
-        return ("Otto lets the browser onto the homepage but refuses every search page, however it is opened. The search itself is what is protected.", "Next: this route is closed for search results. Options are a third-party tool (the Apify actor test) or leaving Otto out.")
+        return ("Otto lets the browser onto the homepage but gave no search results in any step." + caveat, "Next: look at the screenshots of the failed steps (artifact browser-check) and send them to me; the search itself is what is protected.")
     return ("Otto refuses the browser from the FIRST request, even the homepage. So it is not the search address, the umlaut or the way the keyword is typed: Otto does not accept Bright Data's browser at all, with either of its products.", "Next: stop testing Bright Data for Otto. The remaining option is a third-party tool with other infrastructure (the Apify actor test), or leaving Otto out.")
 
 
@@ -313,6 +366,8 @@ def build_probe_report(steps, keyword, word, block, how):
     for s in steps:
         lines += [f"### {s['n']}. {s['label']}", "", f"- Asked for: `{s['asked']}` | final address: `{s['final'] or '—'}` | title: {htmllib.unescape(s['title'] or '—')}",
                   f"- What the page says: “{s['text'] or '—'}”"]
+        if s.get("note"):
+            lines.append(f"- {s['note'][0].upper() + s['note'][1:]}")
         if s["error"]:
             lines.append(f"- Error during this step: `{s['error']}`")
         if s["shot"]:
