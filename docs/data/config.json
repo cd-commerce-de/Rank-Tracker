@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-20T14:00:20+00:00",
+  "updated": "2026-11-20T21:14:51+00:00",
   "ebay_postcode": "36179",
   "projects": [
     {
@@ -1313,43 +1313,6 @@
           ]
         },
         {
-          "item_key": "ebay-DE-188001824846",
-          "marketplace": "ebay",
-          "country": "DE",
-          "product_id": "188001824846",
-          "sku": "EKF01-RO/B",
-          "label": "",
-          "source": "web",
-          "keywords": [
-            "faltbarer einkaufswagen",
-            "treppensteiger trolley",
-            "einkaufstrolley modern",
-            "einkaufstrolley mit kühlfach",
-            "einkaufstrolley große räder",
-            "klappbarer einkaufswagen",
-            "einkaufstrolley zum schieben",
-            "trolley einkaufen",
-            "einkaufstrolley",
-            "einkaufswagen",
-            "trolley einkaufstrolley",
-            "einkaufstrolley klappbar",
-            "shopping trolley",
-            "einkaufstrolleys",
-            "einkaufstasche mit rollen",
-            "einkaufstrolly",
-            "einkaufswagen trolley",
-            "einkaufstrolley xxl",
-            "hackenporsche",
-            "einkaufswagen klappbar",
-            "shopping cart",
-            "einkaufskorb mit rollen",
-            "einkaufstrolley groß",
-            "grocery trolley",
-            "einkaufstrolley faltbar",
-            "trolli einkaufswagen"
-          ]
-        },
-        {
           "item_key": "ebay-DE-188001824929",
           "marketplace": "ebay",
           "country": "DE",
@@ -2091,69 +2054,11 @@
           ]
         },
         {
-          "item_key": "ebay-DE-188283603370",
-          "marketplace": "ebay",
-          "country": "DE",
-          "product_id": "188283603370",
-          "sku": "KPD01/B",
-          "label": "",
-          "source": "web",
-          "keywords": [
-            "gitter",
-            "komposter metall 80x80",
-            "metallkomposter 80x80",
-            "kompost metall 80x80",
-            "komposter 80x80",
-            "komposter garten",
-            "komposter",
-            "komposter metall",
-            "komposter garten metall",
-            "metallkomposter",
-            "metall komposter",
-            "komposter metall 100x100x100",
-            "gitter komposter",
-            "kompost",
-            "komposter groß",
-            "komposter xxl",
-            "komposter 100x100",
-            "metallkomposter 100x100"
-          ]
-        },
-        {
           "item_key": "ebay-DE-188283632900",
           "marketplace": "ebay",
           "country": "DE",
           "product_id": "188283632900",
           "sku": "KPD01-SW/B",
-          "label": "",
-          "source": "web",
-          "keywords": [
-            "gitter",
-            "komposter metall 80x80",
-            "metallkomposter 80x80",
-            "kompost metall 80x80",
-            "komposter 80x80",
-            "komposter garten",
-            "komposter",
-            "komposter metall",
-            "komposter garten metall",
-            "metallkomposter",
-            "metall komposter",
-            "komposter metall 100x100x100",
-            "gitter komposter",
-            "kompost",
-            "komposter groß",
-            "komposter xxl",
-            "komposter 100x100",
-            "metallkomposter 100x100"
-          ]
-        },
-        {
-          "item_key": "ebay-DE-188283672913",
-          "marketplace": "ebay",
-          "country": "DE",
-          "product_id": "188283672913",
-          "sku": "KP01/B",
           "label": "",
           "source": "web",
           "keywords": [
@@ -2978,250 +2883,6 @@
           ]
         },
         {
-          "item_key": "ebay-DE-188422328611",
-          "marketplace": "ebay",
-          "country": "DE",
-          "product_id": "188422328611",
-          "sku": "PPG05/B",
-          "label": "",
-          "source": "web",
-          "keywords": [
-            "rundpool winterabdeckung",
-            "winter poolabdeckung",
-            "poolplane winter rund",
-            "pool abdeckplane",
-            "abdeckplane pool",
-            "poolabdeckung",
-            "poolabdeckung rund",
-            "poolplane",
-            "pool plane",
-            "poolplane rund",
-            "pool abdeckung rund",
-            "abdeckplane pool rund",
-            "pool plane rund",
-            "pool abdeckplane rund",
-            "pool winterabdeckung",
-            "pool-abdeckplane rund",
-            "pool winterplane",
-            "winterplane pool",
-            "pool plane winter",
-            "winter poolabdeckung rund",
-            "abdeckplane pool winter",
-            "winterabdeckplane pool rund",
-            "winterabdeckung pool rund",
-            "poolabdeckung winter rund",
-            "pool abdeckplane winter",
-            "poolplane winter",
-            "poolabdeckung winter",
-            "abdeckplane rundpool",
-            "runde poolabdeckung",
-            "poolplanen rund",
-            "poolabdeckplane rund",
-            "poolabdeckung rechteckig",
-            "poolplane rechteckig",
-            "abdeckplane pool rechteckig",
-            "pool abdeckplane rechteckig",
-            "pool abdeckung rechteckig",
-            "abdeckung pool rechteckig",
-            "winterabdeckplane pool",
-            "winterabdeckplane pool rechteckig",
-            "winterplane pool rechteckig",
-            "abdeckplane für pool rechteckig",
-            "poolabdeckung rechteckig bestway",
-            "poolplane rechteckig bestway",
-            "bestway poolabdeckung rechteckig",
-            "plane für pool rechteckig",
-            "plane pool rechteckig",
-            "poolabdeckplane",
-            "poolabdeckung winter rechteckig",
-            "pool winterabdeckung rechteckig",
-            "pool abdeckung winter"
-          ]
-        },
-        {
-          "item_key": "ebay-DE-188422407390",
-          "marketplace": "ebay",
-          "country": "DE",
-          "product_id": "188422407390",
-          "sku": "PPG01/B",
-          "label": "",
-          "source": "web",
-          "keywords": [
-            "rundpool winterabdeckung",
-            "winter poolabdeckung",
-            "poolplane winter rund",
-            "pool abdeckplane",
-            "abdeckplane pool",
-            "poolabdeckung",
-            "poolabdeckung rund",
-            "poolplane",
-            "pool plane",
-            "poolplane rund",
-            "pool abdeckung rund",
-            "abdeckplane pool rund",
-            "pool plane rund",
-            "pool abdeckplane rund",
-            "pool winterabdeckung",
-            "pool-abdeckplane rund",
-            "pool winterplane",
-            "winterplane pool",
-            "pool plane winter",
-            "winter poolabdeckung rund",
-            "abdeckplane pool winter",
-            "winterabdeckplane pool rund",
-            "winterabdeckung pool rund",
-            "poolabdeckung winter rund",
-            "pool abdeckplane winter",
-            "poolplane winter",
-            "poolabdeckung winter",
-            "abdeckplane rundpool",
-            "runde poolabdeckung",
-            "poolplanen rund",
-            "poolabdeckplane rund",
-            "poolabdeckung rechteckig",
-            "poolplane rechteckig",
-            "abdeckplane pool rechteckig",
-            "pool abdeckplane rechteckig",
-            "pool abdeckung rechteckig",
-            "abdeckung pool rechteckig",
-            "winterabdeckplane pool",
-            "winterabdeckplane pool rechteckig",
-            "winterplane pool rechteckig",
-            "abdeckplane für pool rechteckig",
-            "poolabdeckung rechteckig bestway",
-            "poolplane rechteckig bestway",
-            "bestway poolabdeckung rechteckig",
-            "plane für pool rechteckig",
-            "plane pool rechteckig",
-            "poolabdeckplane",
-            "poolabdeckung winter rechteckig",
-            "pool winterabdeckung rechteckig",
-            "pool abdeckung winter"
-          ]
-        },
-        {
-          "item_key": "ebay-DE-188496460482",
-          "marketplace": "ebay",
-          "country": "DE",
-          "product_id": "188496460482",
-          "sku": "PP01-BL/B",
-          "label": "",
-          "source": "web",
-          "keywords": [
-            "rundpool winterabdeckung",
-            "winter poolabdeckung",
-            "poolplane winter rund",
-            "pool abdeckplane",
-            "abdeckplane pool",
-            "poolabdeckung",
-            "poolabdeckung rund",
-            "poolplane",
-            "pool plane",
-            "poolplane rund",
-            "pool abdeckung rund",
-            "abdeckplane pool rund",
-            "pool plane rund",
-            "pool abdeckplane rund",
-            "pool winterabdeckung",
-            "pool-abdeckplane rund",
-            "pool winterplane",
-            "winterplane pool",
-            "pool plane winter",
-            "winter poolabdeckung rund",
-            "abdeckplane pool winter",
-            "winterabdeckplane pool rund",
-            "winterabdeckung pool rund",
-            "poolabdeckung winter rund",
-            "pool abdeckplane winter",
-            "poolplane winter",
-            "poolabdeckung winter",
-            "abdeckplane rundpool",
-            "runde poolabdeckung",
-            "poolplanen rund",
-            "poolabdeckplane rund",
-            "poolabdeckung rechteckig",
-            "poolplane rechteckig",
-            "abdeckplane pool rechteckig",
-            "pool abdeckplane rechteckig",
-            "pool abdeckung rechteckig",
-            "abdeckung pool rechteckig",
-            "winterabdeckplane pool",
-            "winterabdeckplane pool rechteckig",
-            "winterplane pool rechteckig",
-            "abdeckplane für pool rechteckig",
-            "poolabdeckung rechteckig bestway",
-            "poolplane rechteckig bestway",
-            "bestway poolabdeckung rechteckig",
-            "plane für pool rechteckig",
-            "plane pool rechteckig",
-            "poolabdeckplane",
-            "poolabdeckung winter rechteckig",
-            "pool winterabdeckung rechteckig",
-            "pool abdeckung winter"
-          ]
-        },
-        {
-          "item_key": "ebay-DE-188378868355",
-          "marketplace": "ebay",
-          "country": "DE",
-          "product_id": "188378868355",
-          "sku": "PP01-BL",
-          "label": "",
-          "source": "web",
-          "keywords": [
-            "rundpool winterabdeckung",
-            "winter poolabdeckung",
-            "poolplane winter rund",
-            "pool abdeckplane",
-            "abdeckplane pool",
-            "poolabdeckung",
-            "poolabdeckung rund",
-            "poolplane",
-            "pool plane",
-            "poolplane rund",
-            "pool abdeckung rund",
-            "abdeckplane pool rund",
-            "pool plane rund",
-            "pool abdeckplane rund",
-            "pool winterabdeckung",
-            "pool-abdeckplane rund",
-            "pool winterplane",
-            "winterplane pool",
-            "pool plane winter",
-            "winter poolabdeckung rund",
-            "abdeckplane pool winter",
-            "winterabdeckplane pool rund",
-            "winterabdeckung pool rund",
-            "poolabdeckung winter rund",
-            "pool abdeckplane winter",
-            "poolplane winter",
-            "poolabdeckung winter",
-            "abdeckplane rundpool",
-            "runde poolabdeckung",
-            "poolplanen rund",
-            "poolabdeckplane rund",
-            "poolabdeckung rechteckig",
-            "poolplane rechteckig",
-            "abdeckplane pool rechteckig",
-            "pool abdeckplane rechteckig",
-            "pool abdeckung rechteckig",
-            "abdeckung pool rechteckig",
-            "winterabdeckplane pool",
-            "winterabdeckplane pool rechteckig",
-            "winterplane pool rechteckig",
-            "abdeckplane für pool rechteckig",
-            "poolabdeckung rechteckig bestway",
-            "poolplane rechteckig bestway",
-            "bestway poolabdeckung rechteckig",
-            "plane für pool rechteckig",
-            "plane pool rechteckig",
-            "poolabdeckplane",
-            "poolabdeckung winter rechteckig",
-            "pool winterabdeckung rechteckig",
-            "pool abdeckung winter"
-          ]
-        },
-        {
           "item_key": "temu-DE-609529592922458",
           "marketplace": "temu",
           "country": "DE",
@@ -3601,94 +3262,6 @@
           "country": "DE",
           "product_id": "187650524759",
           "sku": "WHS-39-GR-FBM",
-          "label": "",
-          "source": "web",
-          "keywords": [
-            "wathose",
-            "wathose herren",
-            "anglerhose",
-            "anglerhose herren",
-            "anglerhose wasserdicht mit stiefel",
-            "wathose damen",
-            "wathose herren wasserdicht",
-            "watthosen herren wasserdicht mit stiefel",
-            "anglerhose damen",
-            "wathose damen wasserdicht",
-            "watthose",
-            "angelhose",
-            "fischerhose",
-            "wathosen herren",
-            "anglerstiefel",
-            "fischerhose herren",
-            "angelhose herren wasserdicht",
-            "wader",
-            "angelanzug wasserdicht",
-            "watschuhe",
-            "wasserdichte anglerhose",
-            "anglerhose herren wasserdicht",
-            "fischerhose wasserdicht mit stiefel herren",
-            "angel hose",
-            "teichhose",
-            "anglerhose damen wasserdicht",
-            "anglerhosen",
-            "wathose wasserdichte",
-            "wathose herren anglerhose",
-            "wathosen",
-            "watthosen damen wasserdicht mit stiefel",
-            "wathose angeln",
-            "wathosen angeln"
-          ]
-        },
-        {
-          "item_key": "ebay-DE-188488160506",
-          "marketplace": "ebay",
-          "country": "DE",
-          "product_id": "188488160506",
-          "sku": "WHS-42-GR/B",
-          "label": "",
-          "source": "web",
-          "keywords": [
-            "wathose",
-            "wathose herren",
-            "anglerhose",
-            "anglerhose herren",
-            "anglerhose wasserdicht mit stiefel",
-            "wathose damen",
-            "wathose herren wasserdicht",
-            "watthosen herren wasserdicht mit stiefel",
-            "anglerhose damen",
-            "wathose damen wasserdicht",
-            "watthose",
-            "angelhose",
-            "fischerhose",
-            "wathosen herren",
-            "anglerstiefel",
-            "fischerhose herren",
-            "angelhose herren wasserdicht",
-            "wader",
-            "angelanzug wasserdicht",
-            "watschuhe",
-            "wasserdichte anglerhose",
-            "anglerhose herren wasserdicht",
-            "fischerhose wasserdicht mit stiefel herren",
-            "angel hose",
-            "teichhose",
-            "anglerhose damen wasserdicht",
-            "anglerhosen",
-            "wathose wasserdichte",
-            "wathose herren anglerhose",
-            "wathosen",
-            "watthosen damen wasserdicht mit stiefel",
-            "wathose angeln",
-            "wathosen angeln"
-          ]
-        },
-        {
-          "item_key": "ebay-DE-188488341136",
-          "marketplace": "ebay",
-          "country": "DE",
-          "product_id": "188488341136",
-          "sku": "WHS-45-GR/B",
           "label": "",
           "source": "web",
           "keywords": [
@@ -4135,38 +3708,6 @@
           "country": "DE",
           "product_id": "188398736582",
           "sku": "WGH25-PB-SW/B",
-          "label": "",
-          "source": "web",
-          "keywords": [
-            "rangierwagenheber 2 5 tonnen",
-            "wagenheber 2t",
-            "b0bt8xb4mk",
-            "auto heber",
-            "auto wagenheber",
-            "autoheber",
-            "car jack",
-            "hydraulik wagenheber",
-            "hydraulik-wagenheber",
-            "suv wagenheber",
-            "wagenheber für suv",
-            "wagenheber tiefergelegte fahrzeuge",
-            "rangierwagenheber",
-            "wagenheber",
-            "hydraulischer wagenheber",
-            "wagenheber auto",
-            "wagenheber flach",
-            "wagenheber hydraulisch",
-            "wagenheber suv",
-            "hydraulischer wagenheber 2. 5t",
-            "wagenheber 2 5 tonnen"
-          ]
-        },
-        {
-          "item_key": "ebay-DE-188430675158",
-          "marketplace": "ebay",
-          "country": "DE",
-          "product_id": "188430675158",
-          "sku": "WGH25-RO/B",
           "label": "",
           "source": "web",
           "keywords": [
@@ -5673,6 +5214,2505 @@
             "hochplane anhänger 750 kg",
             "anhänger abdeckung",
             "flachplane"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "tse-toilet-seats",
+      "project_name": "TSE (Toilet Seats)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187650789365",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187650789365",
+          "sku": "TSE02-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Toilettendeckel"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "tsf-toilet-seat-child",
+      "project_name": "TSF (Toilet Seat Child)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187650789365",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187650789365",
+          "sku": "TSF01-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Toilettendeckel"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "fkt-flock-cartridge",
+      "project_name": "FKT (Flock cartridge)",
+      "items": [
+        {
+          "item_key": "ebay-DE-188399178669",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188399178669",
+          "sku": "FKT01-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Flockkartuschen"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188673978883",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188673978883",
+          "sku": "FKT01/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Flockkartuschen"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "pfs-pfefferspray",
+      "project_name": "PFS (pfefferspray)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187921529778",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187921529778",
+          "sku": "PFS01-1X-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "pfefferspray"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "dh-hitch-covers",
+      "project_name": "DH (Hitch Covers)",
+      "items": [
+        {
+          "item_key": "ebay-DE-186377552820",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186377552820",
+          "sku": "DH1",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "deichselabdeckung"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186377552869",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186377552869",
+          "sku": "DH4",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "deichselabdeckung"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186377552905",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186377552905",
+          "sku": "DH3",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "deichselabdeckung"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186377553018",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186377553018",
+          "sku": "DH5",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "deichselabdeckung"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186377553065",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186377553065",
+          "sku": "DH6",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "deichselabdeckung"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186377553124",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186377553124",
+          "sku": "DH2",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "deichselabdeckung"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187066089022",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187066089022",
+          "sku": "DH7",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "deichselabdeckung"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187066157994",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187066157994",
+          "sku": "DH8",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "deichselabdeckung"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188199949226",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188199949226",
+          "sku": "DH4",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "deichselabdeckung"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "d-eyelet-wires",
+      "project_name": "ÖD (Eyelet Wires)",
+      "items": [
+        {
+          "item_key": "ebay-DE-186377628086",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186377628086",
+          "sku": "ÖD",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Ösendraht"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186377633102",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186377633102",
+          "sku": "ÖD10",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Ösendraht"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186377633168",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186377633168",
+          "sku": "ÖD20",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Ösendraht"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "da-d-driller-eyelet-wires",
+      "project_name": "DA-ÖD (Driller + Eyelet Wires)",
+      "items": [
+        {
+          "item_key": "ebay-DE-186377628113",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186377628113",
+          "sku": "DA1-ÖD1-250-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "rödeldraht"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186377664251",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186377664251",
+          "sku": "DA1-ÖD21-1000-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "rödeldraht"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186457611561",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186457611561",
+          "sku": "DA1-ÖD11-1000-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "rödeldraht"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "da-driller",
+      "project_name": "DA (Driller)",
+      "items": [
+        {
+          "item_key": "ebay-DE-186458092623",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186458092623",
+          "sku": "DA2",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Drillapparat"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186882062005",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186882062005",
+          "sku": "DA3",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Drillapparat"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186882073044",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186882073044",
+          "sku": "DA4",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Drillapparat"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187738357675",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187738357675",
+          "sku": "DA1",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Drillapparat"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "clg-pool-chlorine-granulate",
+      "project_name": "CLG (Pool chlorine granulate)",
+      "items": [
+        {
+          "item_key": "ebay-DE-186601509157",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186601509157",
+          "sku": "CLG01-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "chlorgranulat für pool"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187364965761",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187364965761",
+          "sku": "CLG01-ebay",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "chlorgranulat für pool"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "mtt-pool-multitabs-5-in-1-200g",
+      "project_name": "MTT (Pool multitabs 5-in-1 200g)",
+      "items": [
+        {
+          "item_key": "ebay-DE-186601569400",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186601569400",
+          "sku": "MTT01-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "multitabs pool"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187364965761",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187364965761",
+          "sku": "MTT01-ebay",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "multitabs pool"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188422418442",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188422418442",
+          "sku": "MTT05/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "multitabs pool"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "dsp-pressure-sprayers",
+      "project_name": "DSP (Pressure sprayers)",
+      "items": [
+        {
+          "item_key": "ebay-DE-186785011005",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186785011005",
+          "sku": "DSP01-03-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "drucksprüher"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187087077934",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187087077934",
+          "sku": "DSP03-03-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "drucksprüher"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188173468439",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188173468439",
+          "sku": "DSP01-05/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "drucksprüher"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188325572447",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188325572447",
+          "sku": "DSP01-03/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "drucksprüher"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "gws-threaded-rods",
+      "project_name": "GWS (Threaded rods)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187163859949",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187163859949",
+          "sku": "GWS-D976-A2-M4x1m-FBM-eBay",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Gewindestange"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "frm-bicycle-mounting-stand",
+      "project_name": "FRM (Bicycle Mounting Stand)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187057333441",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187057333441",
+          "sku": "FRM01-SW-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "fahrrad montageständer"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187596573480",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187596573480",
+          "sku": "FRM02-SW-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "fahrrad montageständer"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187992946582",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187992946582",
+          "sku": "FRM01-SW/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "fahrrad montageständer"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188025196025",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188025196025",
+          "sku": "FRM01-GO/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "fahrrad montageständer"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188028377248",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188028377248",
+          "sku": "FRM02-BL/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "fahrrad montageständer"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188028756905",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188028756905",
+          "sku": "FRM02-SW/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "fahrrad montageständer"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188028849073",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188028849073",
+          "sku": "FRM02-RO/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "fahrrad montageständer"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188721791005",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188721791005",
+          "sku": "FRM01-SW-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "fahrrad montageständer"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188721817988",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188721817988",
+          "sku": "FRM02-SW-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "fahrrad montageständer"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "sup-stand-up-paddling-board",
+      "project_name": "SUP (Stand Up Paddling Board)",
+      "items": [
+        {
+          "item_key": "ebay-DE-188575167544",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188575167544",
+          "sku": "SUP01-D1-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "stand up paddling board"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "ubm-ultra-blue-multitabs-5-in-1-20g",
+      "project_name": "UBM (Ultra blue multitabs 5 in 1 20g)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187218096897",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187218096897",
+          "sku": "UBM01-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "chlortabletten für pool"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187364965761",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187364965761",
+          "sku": "UBM01-ebay",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "chlortabletten für pool"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188422393875",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188422393875",
+          "sku": "UBM01/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "chlortabletten für pool"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "clt-pool-chlortabs",
+      "project_name": "CLT (Pool chlortabs)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187218102185",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187218102185",
+          "sku": "CLT01-005-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Chlortabletten"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187218102191",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187218102191",
+          "sku": "CLT01-020-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Chlortabletten"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187218102216",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187218102216",
+          "sku": "CLT01-200-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Chlortabletten"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187364965761",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187364965761",
+          "sku": "CLT01-005-ebay",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Chlortabletten"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "pmf-pool-ph-minus-liquid",
+      "project_name": "PMF (Pool pH-minus liquid)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187235279643",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187235279643",
+          "sku": "PMF10-PL-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "ph minus flüssig"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "fav-pond-thread-algicide",
+      "project_name": "FAV (Pond thread-algicide)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187235571019",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187235571019",
+          "sku": "FAV005-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "fadenalgenvernichter teich"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188422244613",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188422244613",
+          "sku": "FAV050/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "fadenalgenvernichter teich"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "agz-pool-algicide",
+      "project_name": "AGZ (Pool algicide)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187260542786",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187260542786",
+          "sku": "AGZ05-PL-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Algizid"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187286146588",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187286146588",
+          "sku": "AGZ05-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Algizid"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187298220556",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187298220556",
+          "sku": "AGZ05-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Algizid"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187298325374",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187298325374",
+          "sku": "AGZ05-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Algizid"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "slp-pool-solar-cover",
+      "project_name": "SLP (Pool Solar Cover)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187415048628",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187415048628",
+          "sku": "SLP01-SW-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Solarplane"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188269970643",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188269970643",
+          "sku": "SLP107-SW400-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Solarplane"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188270312220",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188270312220",
+          "sku": "SLP01-SW400-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Solarplane"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188274016625",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188274016625",
+          "sku": "SLP107-SW-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Solarplane"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187437017218",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187437017218",
+          "sku": "SLP103-SW-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Solarplane"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "pwm-pool-winter-agent",
+      "project_name": "PWM (Pool Winter Agent)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187524589641",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187524589641",
+          "sku": "PWM05-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Pool Wintermittel"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187560253159",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187560253159",
+          "sku": "PWM05-PL-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "Pool Wintermittel"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "dsb-dartboard-lightning",
+      "project_name": "DSB (Dartboard Lightning)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187653503113",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187653503113",
+          "sku": "DSB02-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "dart beleuchtung",
+            "dartscheibe beleuchtung",
+            "dart lichtring",
+            "dart licht",
+            "beleuchtung dartscheibe",
+            "dartboard beleuchtung",
+            "dartlicht",
+            "lichtring dartscheibe",
+            "dartscheibe licht",
+            "darts beleuchtung",
+            "darts licht",
+            "dart ring beleuchtung",
+            "dartbeleuchtung",
+            "led dart beleuchtung",
+            "dartscheiben beleuchtung",
+            "licht dartscheibe",
+            "dartscheibe lichtring",
+            "dart licht ring",
+            "dart lampe",
+            "dart led"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187978226047",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187978226047",
+          "sku": "DSB-DSD01-SW-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "dart beleuchtung",
+            "dartscheibe beleuchtung",
+            "dart lichtring",
+            "dart licht",
+            "beleuchtung dartscheibe",
+            "dartboard beleuchtung",
+            "dartlicht",
+            "lichtring dartscheibe",
+            "dartscheibe licht",
+            "darts beleuchtung",
+            "darts licht",
+            "dart ring beleuchtung",
+            "dartbeleuchtung",
+            "led dart beleuchtung",
+            "dartscheiben beleuchtung",
+            "licht dartscheibe",
+            "dartscheibe lichtring",
+            "dart licht ring",
+            "dart lampe",
+            "dart led"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "dsd-dart-stand",
+      "project_name": "DSD (Dart stand)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187783814336",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187783814336",
+          "sku": "DSD01-SW-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "dart zubehör",
+            "dart",
+            "dartscheibe steeldart",
+            "steeldartscheibe",
+            "darts zubehör",
+            "dartständer",
+            "dartscheibe halterung",
+            "dartpfeile halterung",
+            "steeldart",
+            "dartscheibe ständer",
+            "darthalter",
+            "dartständer für dartscheibe",
+            "dart ständer",
+            "dartzubehör",
+            "dartboard halterung",
+            "dartscheibe aufhängung",
+            "halterung dartscheibe",
+            "dart halterung für pfeile",
+            "dart halter",
+            "dartpfeil halter"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187973705486",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187973705486",
+          "sku": "DSD01-SW/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "dart zubehör",
+            "dart",
+            "dartscheibe steeldart",
+            "steeldartscheibe",
+            "darts zubehör",
+            "dartständer",
+            "dartscheibe halterung",
+            "dartpfeile halterung",
+            "steeldart",
+            "dartscheibe ständer",
+            "darthalter",
+            "dartständer für dartscheibe",
+            "dart ständer",
+            "dartzubehör",
+            "dartboard halterung",
+            "dartscheibe aufhängung",
+            "halterung dartscheibe",
+            "dart halterung für pfeile",
+            "dart halter",
+            "dartpfeil halter"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187973705568",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187973705568",
+          "sku": "DSD01-GN/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "dart zubehör",
+            "dart",
+            "dartscheibe steeldart",
+            "steeldartscheibe",
+            "darts zubehör",
+            "dartständer",
+            "dartscheibe halterung",
+            "dartpfeile halterung",
+            "steeldart",
+            "dartscheibe ständer",
+            "darthalter",
+            "dartständer für dartscheibe",
+            "dart ständer",
+            "dartzubehör",
+            "dartboard halterung",
+            "dartscheibe aufhängung",
+            "halterung dartscheibe",
+            "dart halterung für pfeile",
+            "dart halter",
+            "dartpfeil halter"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187973705612",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187973705612",
+          "sku": "DSD01-RO/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "dart zubehör",
+            "dart",
+            "dartscheibe steeldart",
+            "steeldartscheibe",
+            "darts zubehör",
+            "dartständer",
+            "dartscheibe halterung",
+            "dartpfeile halterung",
+            "steeldart",
+            "dartscheibe ständer",
+            "darthalter",
+            "dartständer für dartscheibe",
+            "dart ständer",
+            "dartzubehör",
+            "dartboard halterung",
+            "dartscheibe aufhängung",
+            "halterung dartscheibe",
+            "dart halterung für pfeile",
+            "dart halter",
+            "dartpfeil halter"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "fes-fire-bowl",
+      "project_name": "FES (Fire bowl)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187731184142",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187731184142",
+          "sku": "FES01-SI-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "feuerschale",
+            "feuerschalen für den garten",
+            "feuerkorb",
+            "feuertonne",
+            "feuertonne für den garten",
+            "feuerschale mit funkenschutz",
+            "feuerkorb mit funkenschutz",
+            "feuerstelle",
+            "feuerkorb für den garten",
+            "feuerschalen & feuerkörbe",
+            "camping feuerschale",
+            "feuerschale edelstahl",
+            "feuerschale faltbar",
+            "faltbare feuerschale",
+            "feuerschalen",
+            "feuerschale camping",
+            "feuerschale garten",
+            "feuerstelle outdoor",
+            "edelstahl feuerschale",
+            "feuerstelle garten"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187983275850",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187983275850",
+          "sku": "FES01-SW/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "feuerschale",
+            "feuerschalen für den garten",
+            "feuerkorb",
+            "feuertonne",
+            "feuertonne für den garten",
+            "feuerschale mit funkenschutz",
+            "feuerkorb mit funkenschutz",
+            "feuerstelle",
+            "feuerkorb für den garten",
+            "feuerschalen & feuerkörbe",
+            "camping feuerschale",
+            "feuerschale edelstahl",
+            "feuerschale faltbar",
+            "faltbare feuerschale",
+            "feuerschalen",
+            "feuerschale camping",
+            "feuerschale garten",
+            "feuerstelle outdoor",
+            "edelstahl feuerschale",
+            "feuerstelle garten"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188047973088",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188047973088",
+          "sku": "FES01-SI/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "feuerschale",
+            "feuerschalen für den garten",
+            "feuerkorb",
+            "feuertonne",
+            "feuertonne für den garten",
+            "feuerschale mit funkenschutz",
+            "feuerkorb mit funkenschutz",
+            "feuerstelle",
+            "feuerkorb für den garten",
+            "feuerschalen & feuerkörbe",
+            "camping feuerschale",
+            "feuerschale edelstahl",
+            "feuerschale faltbar",
+            "faltbare feuerschale",
+            "feuerschalen",
+            "feuerschale camping",
+            "feuerschale garten",
+            "feuerstelle outdoor",
+            "edelstahl feuerschale",
+            "feuerstelle garten"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "gwk-mulled-wine-cooker",
+      "project_name": "GWK (Mulled wine cooker)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187749782152",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187749782152",
+          "sku": "GWK01-SI-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "glühweinkocher",
+            "einkochautomat",
+            "heißwasserspender",
+            "glühweinkocher 10l",
+            "glühweintopf",
+            "punschkocher",
+            "glühweinkocher 5l",
+            "einkochtopf",
+            "heißgetränkespender",
+            "glühweinkocher 8 liter",
+            "heißgetränkeautomat",
+            "glühweinkessel",
+            "10 liter glühweinkocher",
+            "einkocher",
+            "einkochautomat mit hahn",
+            "einkochtopf elektrisch",
+            "glühweinkocher mit zapfhahn",
+            "glühweintopf mit zapfhahn",
+            "glühweinbehälter",
+            "glühweintopf mit hahn"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187982990422",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187982990422",
+          "sku": "GWK02-SI/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "glühweinkocher",
+            "einkochautomat",
+            "heißwasserspender",
+            "glühweinkocher 10l",
+            "glühweintopf",
+            "punschkocher",
+            "glühweinkocher 5l",
+            "einkochtopf",
+            "heißgetränkespender",
+            "glühweinkocher 8 liter",
+            "heißgetränkeautomat",
+            "glühweinkessel",
+            "10 liter glühweinkocher",
+            "einkocher",
+            "einkochautomat mit hahn",
+            "einkochtopf elektrisch",
+            "glühweinkocher mit zapfhahn",
+            "glühweintopf mit zapfhahn",
+            "glühweinbehälter",
+            "glühweintopf mit hahn"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187996311081",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187996311081",
+          "sku": "GWK01-SI-TR/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "glühweinkocher",
+            "einkochautomat",
+            "heißwasserspender",
+            "glühweinkocher 10l",
+            "glühweintopf",
+            "punschkocher",
+            "glühweinkocher 5l",
+            "einkochtopf",
+            "heißgetränkespender",
+            "glühweinkocher 8 liter",
+            "heißgetränkeautomat",
+            "glühweinkessel",
+            "10 liter glühweinkocher",
+            "einkocher",
+            "einkochautomat mit hahn",
+            "einkochtopf elektrisch",
+            "glühweinkocher mit zapfhahn",
+            "glühweintopf mit zapfhahn",
+            "glühweinbehälter",
+            "glühweintopf mit hahn"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188001586189",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188001586189",
+          "sku": "GWK02-SI-TR/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "glühweinkocher",
+            "einkochautomat",
+            "heißwasserspender",
+            "glühweinkocher 10l",
+            "glühweintopf",
+            "punschkocher",
+            "glühweinkocher 5l",
+            "einkochtopf",
+            "heißgetränkespender",
+            "glühweinkocher 8 liter",
+            "heißgetränkeautomat",
+            "glühweinkessel",
+            "10 liter glühweinkocher",
+            "einkocher",
+            "einkochautomat mit hahn",
+            "einkochtopf elektrisch",
+            "glühweinkocher mit zapfhahn",
+            "glühweintopf mit zapfhahn",
+            "glühweinbehälter",
+            "glühweintopf mit hahn"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188004945473",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188004945473",
+          "sku": "GWK01-SI/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "glühweinkocher",
+            "einkochautomat",
+            "heißwasserspender",
+            "glühweinkocher 10l",
+            "glühweintopf",
+            "punschkocher",
+            "glühweinkocher 5l",
+            "einkochtopf",
+            "heißgetränkespender",
+            "glühweinkocher 8 liter",
+            "heißgetränkeautomat",
+            "glühweinkessel",
+            "10 liter glühweinkocher",
+            "einkocher",
+            "einkochautomat mit hahn",
+            "einkochtopf elektrisch",
+            "glühweinkocher mit zapfhahn",
+            "glühweintopf mit zapfhahn",
+            "glühweinbehälter",
+            "glühweintopf mit hahn"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "pmg-pool-ph-minus-granulate",
+      "project_name": "PMG (Pool pH-minus granulate)",
+      "items": [
+        {
+          "item_key": "ebay-DE-187148393562",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187148393562",
+          "sku": "PMG015-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "ph minus",
+            "ph minus granulat",
+            "ph senker pool",
+            "ph minus pool",
+            "ph senker",
+            "pool ph minus",
+            "ph wert senker pool",
+            "ph wert senker",
+            "pool ph senker",
+            "ph-",
+            "ph minus whirlpool",
+            "ph-minus",
+            "ph senker pool granulat",
+            "ph wert senker granulat",
+            "ph wert senker whirlpool",
+            "ph wert senker whirlpool brast",
+            "whirlpool ph minus",
+            "ph minus granulat 5kg",
+            "ph wert im pool senken",
+            "pool ph minus granulat"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187235471460",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187235471460",
+          "sku": "PMG015-PL-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "ph minus",
+            "ph minus granulat",
+            "ph senker pool",
+            "ph minus pool",
+            "ph senker",
+            "pool ph minus",
+            "ph wert senker pool",
+            "ph wert senker",
+            "pool ph senker",
+            "ph-",
+            "ph minus whirlpool",
+            "ph-minus",
+            "ph senker pool granulat",
+            "ph wert senker granulat",
+            "ph wert senker whirlpool",
+            "ph wert senker whirlpool brast",
+            "whirlpool ph minus",
+            "ph minus granulat 5kg",
+            "ph wert im pool senken",
+            "pool ph minus granulat"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188422329527",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188422329527",
+          "sku": "PMG075/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "ph minus",
+            "ph minus granulat",
+            "ph senker pool",
+            "ph minus pool",
+            "ph senker",
+            "pool ph minus",
+            "ph wert senker pool",
+            "ph wert senker",
+            "pool ph senker",
+            "ph-",
+            "ph minus whirlpool",
+            "ph-minus",
+            "ph senker pool granulat",
+            "ph wert senker granulat",
+            "ph wert senker whirlpool",
+            "ph wert senker whirlpool brast",
+            "whirlpool ph minus",
+            "ph minus granulat 5kg",
+            "ph wert im pool senken",
+            "pool ph minus granulat"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "vzw-caravan-awning",
+      "project_name": "VZW (Caravan awning)",
+      "items": [
+        {
+          "item_key": "ebay-DE-188374762536",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188374762536",
+          "sku": "VZW01-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "sonnensegel wohnwagen",
+            "sonnensegel für wohnwagen",
+            "wohnwagen sonnensegel",
+            "sonnensegel mit keder",
+            "sonnensegel wohnwagen mit keder",
+            "wohnwagen vorzelt",
+            "sonnensegel wohnmobil",
+            "sonnensegel mit kederleiste",
+            "camping sonnensegel",
+            "sonnensegel camper"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188487981377",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188487981377",
+          "sku": "VZW02/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "sonnensegel wohnwagen",
+            "sonnensegel für wohnwagen",
+            "wohnwagen sonnensegel",
+            "sonnensegel mit keder",
+            "sonnensegel wohnwagen mit keder",
+            "wohnwagen vorzelt",
+            "sonnensegel wohnmobil",
+            "sonnensegel mit kederleiste",
+            "camping sonnensegel",
+            "sonnensegel camper"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188523552889",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188523552889",
+          "sku": "VZW01/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "sonnensegel wohnwagen",
+            "sonnensegel für wohnwagen",
+            "wohnwagen sonnensegel",
+            "sonnensegel mit keder",
+            "sonnensegel wohnwagen mit keder",
+            "wohnwagen vorzelt",
+            "sonnensegel wohnmobil",
+            "sonnensegel mit kederleiste",
+            "camping sonnensegel",
+            "sonnensegel camper"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188585082583",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188585082583",
+          "sku": "VZW03/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "sonnensegel wohnwagen",
+            "sonnensegel für wohnwagen",
+            "wohnwagen sonnensegel",
+            "sonnensegel mit keder",
+            "sonnensegel wohnwagen mit keder",
+            "wohnwagen vorzelt",
+            "sonnensegel wohnmobil",
+            "sonnensegel mit kederleiste",
+            "camping sonnensegel",
+            "sonnensegel camper"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188721825521",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188721825521",
+          "sku": "VZW01-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "sonnensegel wohnwagen",
+            "sonnensegel für wohnwagen",
+            "wohnwagen sonnensegel",
+            "sonnensegel mit keder",
+            "sonnensegel wohnwagen mit keder",
+            "wohnwagen vorzelt",
+            "sonnensegel wohnmobil",
+            "sonnensegel mit kederleiste",
+            "camping sonnensegel",
+            "sonnensegel camper"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "kmk-clamping-awning",
+      "project_name": "KMK (Clamping Awning)",
+      "items": [
+        {
+          "item_key": "ebay-DE-188468315835",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188468315835",
+          "sku": "KMK-AT-250-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "klemmmarkise",
+            "markise balkon ohne bohren",
+            "klemmmarkise 300 cm breit",
+            "klemmmarkise 250 cm breit",
+            "markise",
+            "klemmmarkise 400 cm breit",
+            "klemmmarkise 350 cm breit",
+            "sonnenschutz balkon",
+            "sonnenschutz terrasse",
+            "balkon sonnenschutz",
+            "balkon markise ohne bohren",
+            "markise 3m breit",
+            "markise balkon",
+            "markise 4m",
+            "balkon markise",
+            "klemmmarkise balkon",
+            "balkonmarkisen zum klemmen",
+            "markise balkon ohne bohren 300cm",
+            "klemmmarkise 3m",
+            "klemmmarkise 350"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "atm-inflatable-gymnastic-mat",
+      "project_name": "ATM (Inflatable Gymnastic Mat)",
+      "items": [
+        {
+          "item_key": "ebay-DE-188966010066",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188966010066",
+          "sku": "ATM01-SW-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "gymnastikmatte",
+            "airtrack matte",
+            "turnmatte",
+            "airtrack matte 3m",
+            "airtrack",
+            "turnmatte kinder",
+            "air track matte 3m",
+            "turnmatte für zuhause",
+            "turnmatte aufblasbar",
+            "gymnastik matte",
+            "air track",
+            "air track matte",
+            "turn sachen",
+            "turnmatte outdoor",
+            "turnmatten",
+            "turngeräte für kinder",
+            "airtrack zubehör"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "arl-air-roll",
+      "project_name": "ARL (Air Roll)",
+      "items": [
+        {
+          "item_key": "ebay-DE-840134342879",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "840134342879",
+          "sku": "ARL01-SW-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "airtrack rolle",
+            "gymnastikrolle",
+            "air roll",
+            "airroll",
+            "gymnastik rolle",
+            "air rolle turnen",
+            "air track rolle"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "ssc-stunt-scooter",
+      "project_name": "SSC (Stunt Scooter)",
+      "items": [
+        {
+          "item_key": "ebay-DE-840124509055",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "840124509055",
+          "sku": "SSC02-NC-X3-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "roller kinder 6 jahre",
+            "stunt scooter",
+            "roller",
+            "roller kinder 10 jahre",
+            "scooter",
+            "scooter kinder",
+            "stunt roller",
+            "roller erwachsene",
+            "roller kinder 8 jahre",
+            "roller kinder",
+            "stunt scooter kinder",
+            "cityroller",
+            "tretroller erwachsene",
+            "stuntroller",
+            "scooter erwachsene",
+            "stuntroller kinder 10 jahre",
+            "tretroller kinder ab 8 jahre",
+            "kinderroller ab 5 jahre",
+            "kinderroller ab 6 jahre",
+            "kinder roller"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "ltf-electric-dehumidifier",
+      "project_name": "LTF (Electric Dehumidifier)",
+      "items": [
+        {
+          "item_key": "ebay-DE-840117361811",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "840117361811",
+          "sku": "LTF01-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "luftentfeuchter",
+            "entfeuchter",
+            "raumentfeuchter",
+            "luftentfeuchter elektrisch",
+            "dehumidifier",
+            "entfeuchter elektrisch",
+            "raumentfeuchter elektrisch",
+            "raumluftentfeuchter",
+            "elektrischer luftentfeuchter",
+            "dehumidifiers for home",
+            "luftentfeuchter klein",
+            "luft entfeuchter",
+            "luftentfeuchter elektrisch klein",
+            "luftentfeuchter schlafzimmer",
+            "luftentfeuchter badezimmer",
+            "luftentfeuchter bad",
+            "luftentfeuchter wohnmobil",
+            "moisture absorber",
+            "lufttrockner",
+            "luftentfeuchter keller"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "kmb-fireplace-set",
+      "project_name": "KMB (Fireplace set)",
+      "items": [
+        {
+          "item_key": "ebay-DE-186747133469",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186747133469",
+          "sku": "KMB10-D01-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "kaminbesteck",
+            "kaminzubehör",
+            "kaminbesteck schwarz",
+            "ofenbesteck kaminbesteck",
+            "kaminbesteck modern",
+            "ofenbesteck",
+            "kaminofen zubehör",
+            "holzofen zubehör",
+            "kaminbesteck klein",
+            "ofen zubehör",
+            "kaminbesteck edelstahl",
+            "kaminset",
+            "ofen besteck set",
+            "kachelofen zubehör",
+            "kamin besteck",
+            "kamin zubehör",
+            "kaminzubehör set",
+            "ofen besteck",
+            "kamingarnitur",
+            "kaminbesteck set"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186747133484",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186747133484",
+          "sku": "KMB40-D01-FBM",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "kaminbesteck",
+            "kaminzubehör",
+            "kaminbesteck schwarz",
+            "ofenbesteck kaminbesteck",
+            "kaminbesteck modern",
+            "ofenbesteck",
+            "kaminofen zubehör",
+            "holzofen zubehör",
+            "kaminbesteck klein",
+            "ofen zubehör",
+            "kaminbesteck edelstahl",
+            "kaminset",
+            "ofen besteck set",
+            "kachelofen zubehör",
+            "kamin besteck",
+            "kamin zubehör",
+            "kaminzubehör set",
+            "ofen besteck",
+            "kamingarnitur",
+            "kaminbesteck set"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-187978743975",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "187978743975",
+          "sku": "KMB10-D01/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "kaminbesteck",
+            "kaminzubehör",
+            "kaminbesteck schwarz",
+            "ofenbesteck kaminbesteck",
+            "kaminbesteck modern",
+            "ofenbesteck",
+            "kaminofen zubehör",
+            "holzofen zubehör",
+            "kaminbesteck klein",
+            "ofen zubehör",
+            "kaminbesteck edelstahl",
+            "kaminset",
+            "ofen besteck set",
+            "kachelofen zubehör",
+            "kamin besteck",
+            "kamin zubehör",
+            "kaminzubehör set",
+            "ofen besteck",
+            "kamingarnitur",
+            "kaminbesteck set"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188004679863",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188004679863",
+          "sku": "KMB10-D03/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "kaminbesteck",
+            "kaminzubehör",
+            "kaminbesteck schwarz",
+            "ofenbesteck kaminbesteck",
+            "kaminbesteck modern",
+            "ofenbesteck",
+            "kaminofen zubehör",
+            "holzofen zubehör",
+            "kaminbesteck klein",
+            "ofen zubehör",
+            "kaminbesteck edelstahl",
+            "kaminset",
+            "ofen besteck set",
+            "kachelofen zubehör",
+            "kamin besteck",
+            "kamin zubehör",
+            "kaminzubehör set",
+            "ofen besteck",
+            "kamingarnitur",
+            "kaminbesteck set"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188004680075",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188004680075",
+          "sku": "KMB10-D04/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "kaminbesteck",
+            "kaminzubehör",
+            "kaminbesteck schwarz",
+            "ofenbesteck kaminbesteck",
+            "kaminbesteck modern",
+            "ofenbesteck",
+            "kaminofen zubehör",
+            "holzofen zubehör",
+            "kaminbesteck klein",
+            "ofen zubehör",
+            "kaminbesteck edelstahl",
+            "kaminset",
+            "ofen besteck set",
+            "kachelofen zubehör",
+            "kamin besteck",
+            "kamin zubehör",
+            "kaminzubehör set",
+            "ofen besteck",
+            "kamingarnitur",
+            "kaminbesteck set"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188028033895",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188028033895",
+          "sku": "KMB10-D01/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "kaminbesteck",
+            "kaminzubehör",
+            "kaminbesteck schwarz",
+            "ofenbesteck kaminbesteck",
+            "kaminbesteck modern",
+            "ofenbesteck",
+            "kaminofen zubehör",
+            "holzofen zubehör",
+            "kaminbesteck klein",
+            "ofen zubehör",
+            "kaminbesteck edelstahl",
+            "kaminset",
+            "ofen besteck set",
+            "kachelofen zubehör",
+            "kamin besteck",
+            "kamin zubehör",
+            "kaminzubehör set",
+            "ofen besteck",
+            "kamingarnitur",
+            "kaminbesteck set"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188032090193",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188032090193",
+          "sku": "KMB40-D01/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "kaminbesteck",
+            "kaminzubehör",
+            "kaminbesteck schwarz",
+            "ofenbesteck kaminbesteck",
+            "kaminbesteck modern",
+            "ofenbesteck",
+            "kaminofen zubehör",
+            "holzofen zubehör",
+            "kaminbesteck klein",
+            "ofen zubehör",
+            "kaminbesteck edelstahl",
+            "kaminset",
+            "ofen besteck set",
+            "kachelofen zubehör",
+            "kamin besteck",
+            "kamin zubehör",
+            "kaminzubehör set",
+            "ofen besteck",
+            "kamingarnitur",
+            "kaminbesteck set"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-188178381271",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "188178381271",
+          "sku": "KMB50-D01/B",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "kaminbesteck",
+            "kaminzubehör",
+            "kaminbesteck schwarz",
+            "ofenbesteck kaminbesteck",
+            "kaminbesteck modern",
+            "ofenbesteck",
+            "kaminofen zubehör",
+            "holzofen zubehör",
+            "kaminbesteck klein",
+            "ofen zubehör",
+            "kaminbesteck edelstahl",
+            "kaminset",
+            "ofen besteck set",
+            "kachelofen zubehör",
+            "kamin besteck",
+            "kamin zubehör",
+            "kaminzubehör set",
+            "ofen besteck",
+            "kamingarnitur",
+            "kaminbesteck set"
+          ]
+        }
+      ]
+    },
+    {
+      "project_id": "pb-trailer-tarpaulin-brackets",
+      "project_name": "PB (Trailer Tarpaulin Brackets)",
+      "items": [
+        {
+          "item_key": "ebay-DE-186198758980",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186198758980",
+          "sku": "PB11",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186198759000",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186198759000",
+          "sku": "PB11-2X",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186198759037",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186198759037",
+          "sku": "PB11-3X",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186198762358",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186198762358",
+          "sku": "PB11-4X",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186198762421",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186198762421",
+          "sku": "PB12",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186198762488",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186198762488",
+          "sku": "PB12-2X",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186198762569",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186198762569",
+          "sku": "PB12-3X",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186198762660",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186198762660",
+          "sku": "PB12-4X",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186812734710",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186812734710",
+          "sku": "PB2-STK",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186823753203",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186823753203",
+          "sku": "PB1-2x-STK",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186823753227",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186823753227",
+          "sku": "PB1-4x-STK",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186823753259",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186823753259",
+          "sku": "PB1-3x-STK",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186823756849",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186823756849",
+          "sku": "PB2-2x-STK",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186823756921",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186823756921",
+          "sku": "PB2-3x-STK",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186823756971",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186823756971",
+          "sku": "PB2-4x-STK",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
+          ]
+        },
+        {
+          "item_key": "ebay-DE-186833992603",
+          "marketplace": "ebay",
+          "country": "DE",
+          "product_id": "186833992603",
+          "sku": "PB1-STK",
+          "label": "",
+          "source": "web",
+          "keywords": [
+            "anhänger zubehör",
+            "anhänger planenbügel",
+            "planenbügel",
+            "planenbügel für pkw anhänger",
+            "flachplanenbügel",
+            "planenbügel anhänger verstellbar",
+            "alu-bügel xl für anhänger flach-planen",
+            "planenbügel anhänger planenbügel 140 - 210 cm",
+            "bügel für flachplane planenbügel 145-220cm verstellbar",
+            "planenbügel 100-145",
+            "planenbügel 100",
+            "flachplanenbügel 1-4 set",
+            "anhänger zubehör flachplanenbügel 100-145",
+            "anhänger plane bügel",
+            "anhänger plane spriegel",
+            "bügel flachplane",
+            "spriegel anhänger 750 kg",
+            "planenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 2 set",
+            "flachplanenbügel für anhänger 1m"
           ]
         }
       ]
