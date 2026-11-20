@@ -16,6 +16,7 @@ Reference: https://docs.brightdata.com/scraping-automation/web-unlocker/send-you
 """
 
 import os
+import re
 import time
 import urllib.parse
 
@@ -35,7 +36,7 @@ def _timeout() -> int:
         return 150
 
 
-def scraping_browser_ws_url() -> str:
+def scraping_browser_ws_url(country: str = "") -> str:
     """
     Build the WebSocket endpoint for Bright Data's Browser API (Scraping
     Browser) — a remote, real Chrome instance you drive with Playwright's
@@ -44,6 +45,9 @@ def scraping_browser_ws_url() -> str:
     Requires BRIGHTDATA_BROWSER_AUTH as "username:password", exactly as
     shown in the Browser API zone's Overview tab in the Bright Data control
     panel (the username already looks like "brd-customer-...-zone-...").
+
+    country: optional 2-letter code ("de") or "eu". Bright Data's Browser API picks the exit country by itself unless told; the code is added to
+    the user name as -country-de (docs: "add the -country flag after your USER credentials"). Falls back to BRIGHTDATA_BROWSER_COUNTRY.
     """
     auth = (os.environ.get("BRIGHTDATA_BROWSER_AUTH") or "").strip()
     if not auth or ":" not in auth:
@@ -52,7 +56,14 @@ def scraping_browser_ws_url() -> str:
             "GitHub secret in the form 'username:password' from a Browser "
             "API zone's Overview tab."
         )
-    user, password = auth.split(":", 1)       # encoded separately: a password containing @ / # or : would otherwise break the address
+    user, password = auth.split(":", 1)
+    country = (country or os.environ.get("BRIGHTDATA_BROWSER_COUNTRY") or "").strip().lower()
+    if country:
+        if not re.fullmatch(r"[a-z]{2}", country):
+            raise RuntimeError(f"The exit country must be a 2-letter code such as de (or eu), not {country!r}.")
+        if "-country-" not in user:           # do not add it twice if it is already part of the secret
+            user = f"{user}-country-{country}"
+    # encoded separately: a password containing @ / # or : would otherwise break the address
     return f"wss://{urllib.parse.quote(user, safe='')}:{urllib.parse.quote(password, safe='')}@brd.superproxy.io:9222"
 
 

@@ -15,6 +15,7 @@ import argparse
 import asyncio
 import html as htmllib
 import os
+import json
 import re
 import sys
 import time
@@ -44,12 +45,12 @@ def target(marketplace: str, keyword: str, region: str):
     return f"{base}/search_result.html?search_key={q}", m.extract_ordered_goods_ids, "temu_goods_id"
 
 
-async def visit(url: str, extractor, scrolls: int, pause: float, block: bool = False, save_dir: str = ""):
+async def visit(url: str, extractor, scrolls: int, pause: float, block: bool = False, save_dir: str = "", country: str = ""):
     """Open the page in the remote browser. Returns a dict of what was seen."""
     from playwright.async_api import async_playwright
     out = {"error": None, "html": "", "final_url": url, "title": "", "steps": [], "bytes": None, "seconds": 0.0, "text": "", "block_how": "", "saved": []}
     t0 = time.monotonic()
-    ws = bright_data.scraping_browser_ws_url()
+    ws = bright_data.scraping_browser_ws_url(country)
     async with async_playwright() as pw:
         browser = await pw.chromium.connect_over_cdp(ws)
         try:
@@ -130,6 +131,7 @@ async def visit(url: str, extractor, scrolls: int, pause: float, block: bool = F
 
 
 # ---------- diagnose mode (--probe): is the browser refused outright, or only a search page opened cold? ----------
+GEO_URL = "https://geo.brdtest.com/mygeo.json"   # Bright Data's own test page: tells which country / city / network the browser exits from
 HOME_URL = "https://www.otto.de/"
 PROBE_WORD = "laptop"
 SETTLE_SECONDS = 30                      # how long a bot-check page gets to clear itself (Kasada's script often solves its check and reloads after a few seconds)
@@ -210,7 +212,7 @@ async def settle(page, max_seconds: float):
         await page.wait_for_timeout(2000)
 
 
-async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: float, extractor, settle_seconds: float = None):
+async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: float, extractor, settle_seconds: float = None, country: str = ""):
     """
     Four visits, the way a shopper behaves, to see WHERE Otto's refusal happens:
       1. the homepage, as the first request of a fresh browser;
@@ -222,7 +224,7 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
     from playwright.async_api import async_playwright
     settle_seconds = SETTLE_SECONDS if settle_seconds is None else settle_seconds
     home, search_url, word_url = probe_urls(keyword, word)
-    steps, how = [], ""
+    steps, how, geo = [], "", {}
 
     async def run(page, counter, number, label, asked, action, search, scroll):
         t0, b0, err, note = time.monotonic(), counter["bytes"], "", ""
@@ -277,7 +279,7 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
                       "text": text, "kb": (counter["bytes"] - b0) / 1e3 if counter["ok"] else None, "seconds": time.monotonic() - t0, "error": err, "shot": shot,
                       "note": "; ".join(x for x in (note, check_note) if x)})
 
-    ws = bright_data.scraping_browser_ws_url()
+    ws = bright_data.scraping_browser_ws_url(country)
     async with async_playwright() as pw:
         for session in (1, 2):
             browser = await pw.chromium.connect_over_cdp(ws)
@@ -286,6 +288,15 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
                 page = await context.new_page()
                 counter, how = await _setup_page(context, page, block)
                 go = lambda u: (lambda: page.goto(u, wait_until="domcontentloaded", timeout=90_000))
+                if session == 1:                      # where does this browser come from? (a few hundred bytes)
+                    try:
+                        await page.goto(GEO_URL, wait_until="domcontentloaded", timeout=60_000)
+                        raw = json.loads(await page.inner_text("body", timeout=5000))
+                        res = raw.get("result", raw)
+                        geo.update({"country": str(res.get("country") or "").lower(), "city": (res.get("geo") or {}).get("city") or "", "asn": (res.get("asn") or {}).get("org_name") or ""})
+                    except Exception as e:
+                        geo["error"] = f"{type(e).__name__}: {str(e)[:120]}"
+                    counter["bytes"] = 0
 
                 async def typed():
                     await page.goto(home, wait_until="domcontentloaded", timeout=90_000)
@@ -332,7 +343,7 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
                     await run(page, counter, 4, f"A plain one-word search (“{word}”) as the first request of another fresh browser", word_url, go(word_url), True, True)
             finally:
                 await browser.close()
-    return steps, how
+    return steps, how, geo
 
 
 def probe_verdict(steps):
@@ -355,7 +366,7 @@ def probe_verdict(steps):
     return ("Otto refuses the browser from the FIRST request, even the homepage. So it is not the search address, the umlaut or the way the keyword is typed: Otto does not accept Bright Data's browser at all, with either of its products.", "Next: stop testing Bright Data for Otto. The remaining option is a third-party tool with other infrastructure (the Apify actor test), or leaving Otto out.")
 
 
-def build_probe_report(steps, keyword, word, block, how):
+def build_probe_report(steps, keyword, word, block, how, geo=None, country=""):
     lines = [f"# Browser API diagnosis — otto — “{keyword}”", "",
              "Four visits in a real browser run by Bright Data, in the order a shopper would go, to see **where** Otto's refusal happens"
              + (f" (pictures, video and fonts blocked {how})." if block else "."), "",
@@ -375,6 +386,17 @@ def build_probe_report(steps, keyword, word, block, how):
         lines.append("")
     verdict, nxt = probe_verdict(steps)
     total = sum(s["kb"] for s in steps if s["kb"] is not None)
+    geo = geo or {}
+    if geo.get("country"):
+        exit_line = f"Where the browser exited to the internet: **{geo['country'].upper()}**" + (f", {geo['city']}" if geo.get("city") else "") + (f" ({geo['asn']})" if geo.get("asn") else "") + (f"; you asked for {country.upper()}." if country else "; you did not ask for a country, Bright Data chose it.")
+    elif geo.get("error"):
+        exit_line = f"Where the browser exits could not be read ({geo['error']})."
+    else:
+        exit_line = ""
+    if exit_line:
+        lines += ["## Where the browser comes from", "", exit_line, ""]
+        if geo.get("country") and geo["country"] != "de" and verdict and "WORKS" not in verdict and "returned real search results" not in verdict:
+            lines += ["This is **not Germany**. A German shop can treat other countries far more strictly on its search pages than on its homepage: run the check again with the country set to **de**.", ""]
     lines += ["## What this means", "", f"**{verdict}**", "", nxt, "",
               f"Traffic of all four visits: {total / 1e3:.2f} MB, about ${total / 1e6 * PRICE_PER_GB[0]:.3f} to ${total / 1e6 * PRICE_PER_GB[1]:.3f}."]
     return "\n".join(lines)
@@ -462,6 +484,7 @@ def main():
     ap.add_argument("--pause", type=float, default=1.5, help="seconds to wait after each scroll")
     ap.add_argument("--block", action="store_true", help="do not download pictures, video and fonts (cuts the GB that are billed)")
     ap.add_argument("--save-dir", default="", help="folder for a screenshot and the page HTML (the workflow uploads it as an artifact)")
+    ap.add_argument("--country", default=os.environ.get("BROWSER_COUNTRY", ""), help="exit country of the remote browser, 2 letters such as de (blank = Bright Data chooses)")
     ap.add_argument("--probe", action="store_true", help="diagnose where the refusal happens: homepage, search after homepage, typed search, one-word search (about 4 visits; use with --block)")
     ap.add_argument("--probe-word", default=PROBE_WORD, help="the plain one-word search used as the last step of --probe")
     ap.add_argument("--region", default="de", help="Temu storefront path (de = Germany); empty for Temu's default address")
@@ -479,20 +502,20 @@ def main():
     except Exception as e:
         print(f"(could not read the sheet: {e})", file=sys.stderr)
     try:
-        bright_data.scraping_browser_ws_url()                          # fail early and clearly if the secret is missing
+        bright_data.scraping_browser_ws_url(a.country)                 # fail early and clearly if the secret is missing
     except RuntimeError as e:
         print(f"Cannot start: {e}", file=sys.stderr)
         sys.exit(2)
     if a.probe:
-        steps, how = asyncio.run(probe(a.keyword, a.probe_word, a.block, a.save_dir, a.pause, extractor))
-        report = build_probe_report(steps, a.keyword, a.probe_word, a.block, how)
+        steps, how, geo = asyncio.run(probe(a.keyword, a.probe_word, a.block, a.save_dir, a.pause, extractor, country=a.country))
+        report = build_probe_report(steps, a.keyword, a.probe_word, a.block, how, geo, a.country)
         print(report)
         path = os.environ.get("GITHUB_STEP_SUMMARY")
         if path:
             with open(path, "a", encoding="utf-8") as f:
                 f.write(report + "\n")
         return
-    got = asyncio.run(visit(url, extractor, a.scrolls, a.pause, a.block, a.save_dir))
+    got = asyncio.run(visit(url, extractor, a.scrolls, a.pause, a.block, a.save_dir, a.country))
     report = build_report(a, url, got, extractor, tracked)
     print(report)
     path = os.environ.get("GITHUB_STEP_SUMMARY")
