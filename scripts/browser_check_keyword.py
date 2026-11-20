@@ -144,11 +144,24 @@ def probe_urls(keyword: str, word: str):
     return HOME_URL, f"https://www.otto.de/suche/{urllib.parse.quote(keyword)}/", f"https://www.otto.de/suche/{urllib.parse.quote(word)}/"
 
 
-def classify_page(html: str, title: str, text: str, n_links: int, final_url: str = "", search: bool = False):
+TOOL_ERROR = re.compile(r"navigate_domains_limit|Protocol error|Target (page|closed)|has been closed|Connection closed|browser_disconnected|worker_disconnect|job_killed|session_timeout|network_inactivity_timeout|client_timeout|no_free_workers|wrong_password|wrong_customer_name|zone_not_found|brob|brul", re.I)
+
+
+def tool_error_words(err: str) -> str:
+    """Plain words for an error that comes from the Browser API itself (Bright Data's documented error codes), not from the marketplace."""
+    if re.search(r"navigate_domains_limit", err):
+        return "the Browser API allows ONE website per session (navigate_domains_limit)"
+    m = re.search(r"\b(session_timeout|network_inactivity_timeout|client_timeout|no_free_workers|browser_disconnected|worker_disconnect|job_killed|wrong_password|wrong_customer_name|zone_not_found|brob|brul)\b", err)
+    return f"Browser API error {m.group(1)}" if m else "a Browser API protocol error"
+
+
+def classify_page(html: str, title: str, text: str, n_links: int, final_url: str = "", search: bool = False, err: str = ""):
     """
     (kind, plain words) for what a page turned out to be. search=True: this step was meant to reach a SEARCH RESULTS page, so product
     links only count as results when the address really is a search page (a homepage also shows dozens of product links).
     """
+    if err and TOOL_ERROR.search(err):
+        return "toolerror", f"NOT TESTED: {tool_error_words(err)} stopped this step, which says nothing about Otto"
     searched = "/suche/" in (final_url or "")
     if n_links and (searched or not search):
         return "real", (f"real search results ({n_links} product links)" if search else f"a real page ({n_links} product links)")
@@ -258,7 +271,7 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
         except Exception:
             final = ""
         n_links = len(set(extractor(html))) if html else 0
-        kind, words = classify_page(html, title, text, n_links, final, search)
+        kind, words = classify_page(html, title, text, n_links, final, search, err)
         shot = ""
         if save_dir:
             os.makedirs(save_dir, exist_ok=True)
@@ -281,6 +294,19 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
 
     ws = bright_data.scraping_browser_ws_url(country)
     async with async_playwright() as pw:
+        try:                                          # where does a browser with these settings exit? In its OWN session: Bright Data allows one website per session
+            browser0 = await pw.chromium.connect_over_cdp(ws)
+            try:
+                context0 = browser0.contexts[0] if browser0.contexts else await browser0.new_context()
+                page0 = await context0.new_page()
+                await page0.goto(GEO_URL, wait_until="domcontentloaded", timeout=60_000)
+                raw = json.loads(await page0.inner_text("body", timeout=5000))
+                res = raw.get("result", raw)
+                geo.update({"country": str(res.get("country") or "").lower(), "city": (res.get("geo") or {}).get("city") or "", "asn": (res.get("asn") or {}).get("org_name") or ""})
+            finally:
+                await browser0.close()
+        except Exception as e:
+            geo["error"] = f"{type(e).__name__}: {str(e)[:120]}"
         for session in (1, 2):
             browser = await pw.chromium.connect_over_cdp(ws)
             try:
@@ -288,15 +314,6 @@ async def probe(keyword: str, word: str, block: bool, save_dir: str, pause: floa
                 page = await context.new_page()
                 counter, how = await _setup_page(context, page, block)
                 go = lambda u: (lambda: page.goto(u, wait_until="domcontentloaded", timeout=90_000))
-                if session == 1:                      # where does this browser come from? (a few hundred bytes)
-                    try:
-                        await page.goto(GEO_URL, wait_until="domcontentloaded", timeout=60_000)
-                        raw = json.loads(await page.inner_text("body", timeout=5000))
-                        res = raw.get("result", raw)
-                        geo.update({"country": str(res.get("country") or "").lower(), "city": (res.get("geo") or {}).get("city") or "", "asn": (res.get("asn") or {}).get("org_name") or ""})
-                    except Exception as e:
-                        geo["error"] = f"{type(e).__name__}: {str(e)[:120]}"
-                    counter["bytes"] = 0
 
                 async def typed():
                     await page.goto(home, wait_until="domcontentloaded", timeout=90_000)
@@ -350,8 +367,14 @@ def probe_verdict(steps):
     by = {s["n"]: s for s in steps}
     ok = lambda n: n in by and by[n]["kind"] == "real"
     home_ok = 1 in by and by[1]["kind"] in ("real", "full")
+    home_refused = 1 in by and by[1]["kind"] in ("error", "challenge", "other")
     untested = [n for n in (2, 3, 4) if n in by and by[n]["kind"] == "notsearched"]
+    tooled = [n for n in by if by[n]["kind"] == "toolerror"]
     caveat = (f" Step {', '.join(map(str, untested))} never reached a results page, so that way of searching is UNTESTED, not failed." if untested else "")
+    if tooled:
+        caveat += f" Step {', '.join(map(str, sorted(tooled)))} could NOT be tested: the Browser API itself stopped it, which says nothing about Otto."
+    if tooled and len(tooled) == len(by):
+        return ("Nothing could be tested: the Browser API stopped every step." + caveat, "Next: run it again; if it repeats, send me the error text of step 1.")
     stuck = [n for n in (2, 3, 4) if n in by and by[n]["kind"] == "challenge"]
     if ok(3) and not ok(2):
         return ("Typing the search into Otto's search box WORKS, opening the search address directly does not. A tracker can do what a shopper does (homepage, search box, results), at the cost of a slower visit per keyword." + caveat, "Next: I build the tracker on that route and we measure what a visit costs.")
@@ -363,6 +386,8 @@ def probe_verdict(steps):
         return (f"Otto lets the browser onto the homepage, but the search page came back as a bot check that did not clear within {SETTLE_SECONDS} s (step {', '.join(map(str, stuck))})." + caveat, "Next: the homepage is open to us, so this route is not dead; the bot check on search pages is the obstacle. Send me the screenshots of those steps; a longer wait or a different way of opening the search may help.")
     if home_ok:
         return ("Otto lets the browser onto the homepage but gave no search results in any step." + caveat, "Next: look at the screenshots of the failed steps (artifact browser-check) and send them to me; the search itself is what is protected.")
+    if not home_refused:
+        return ("INCONCLUSIVE: the homepage step could not be tested, so this run cannot say whether Otto accepts the browser." + caveat, "Next: run it again.")
     return ("Otto refuses the browser from the FIRST request, even the homepage. So it is not the search address, the umlaut or the way the keyword is typed: Otto does not accept Bright Data's browser at all, with either of its products.", "Next: stop testing Bright Data for Otto. The remaining option is a third-party tool with other infrastructure (the Apify actor test), or leaving Otto out.")
 
 
@@ -388,7 +413,7 @@ def build_probe_report(steps, keyword, word, block, how, geo=None, country=""):
     total = sum(s["kb"] for s in steps if s["kb"] is not None)
     geo = geo or {}
     if geo.get("country"):
-        exit_line = f"Where the browser exited to the internet: **{geo['country'].upper()}**" + (f", {geo['city']}" if geo.get("city") else "") + (f" ({geo['asn']})" if geo.get("asn") else "") + (f"; you asked for {country.upper()}." if country else "; you did not ask for a country, Bright Data chose it.")
+        exit_line = f"Where a browser with these settings exits to the internet (checked in its own session): **{geo['country'].upper()}**" + (f", {geo['city']}" if geo.get("city") else "") + (f" ({geo['asn']})" if geo.get("asn") else "") + (f"; you asked for {country.upper()}." if country else "; you did not ask for a country, Bright Data chose it.")
     elif geo.get("error"):
         exit_line = f"Where the browser exits could not be read ({geo['error']})."
     else:
