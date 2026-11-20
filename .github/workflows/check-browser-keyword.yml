@@ -29,6 +29,10 @@ on:
         required: false
         default: false
         type: boolean
+      country:
+        description: "Exit country of the remote browser, 2 letters (blank = Bright Data chooses). Otto is a German shop: try de."
+        required: false
+        default: "de"
       diagnose:
         description: "Diagnose instead of a normal check: homepage, search after the homepage, typed search, one-word search (4 visits, a few cents). Tick the box above too."
         required: false
@@ -52,6 +56,7 @@ jobs:
       SCROLLS: ${{ inputs.scrolls }}
       BLOCK_MEDIA: ${{ inputs.block_media }}
       DIAGNOSE: ${{ inputs.diagnose }}
+      BROWSER_COUNTRY: ${{ inputs.country }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
