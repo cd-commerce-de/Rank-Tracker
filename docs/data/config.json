@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-20T21:14:51+00:00",
+  "updated": "2026-11-21T18:19:54+00:00",
   "ebay_postcode": "36179",
   "projects": [
     {
@@ -6125,8 +6125,8 @@
       ]
     },
     {
-      "project_id": "dsb-dartboard-lightning",
-      "project_name": "DSB (Dartboard Lightning)",
+      "project_id": "dsb-dartboard-lighting",
+      "project_name": "DSB (Dartboard Lighting)",
       "items": [
         {
           "item_key": "ebay-DE-187653503113",
