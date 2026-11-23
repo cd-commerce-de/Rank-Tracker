@@ -42,6 +42,8 @@ jobs:
       RANK_STORAGE: "monthly"
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main        # the NEWEST main at the moment the job really starts: a run that waited for the lock, or is re-run, must not start from an older copy
 
       - uses: actions/setup-python@v5
         with:
@@ -62,8 +64,7 @@ jobs:
             git config user.name "rank-tracker-bot"
             git config user.email "actions@users.noreply.github.com"
             git commit -m "Update keyword list $(date -u +%Y-%m-%d)"
-            git pull --rebase
-            git push
+            bash scripts/commit_data.sh push        # pushes safely: if another run saved meanwhile, nothing is lost (see scripts/commit_data.sh)
           fi
 
       - name: Check whether there is anything to do
@@ -154,6 +155,5 @@ jobs:
           fi
           git diff --staged --quiet || {
             git commit -m "Update ranks $(date -u +%Y-%m-%d)"
-            git pull --rebase
-            git push
+            bash scripts/commit_data.sh push        # pushes safely: if another run saved to the same history files meanwhile, the readings of both are merged
           }
