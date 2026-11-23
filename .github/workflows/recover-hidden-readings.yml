@@ -1,0 +1,36 @@
+name: Recover hidden readings
+
+# Run this ONCE after uploading version 2026-11-23.2 or newer. On 2026-11-23 a Temu run that crossed midnight UTC could not be stored in the
+# compact monthly format and its readings (about 277) were written to the OLD file docs/data/ranks.json, which the dashboard does not read.
+# This merges every reading that only the old file has into the monthly files. It changes nothing if nothing is hidden, so it is safe to
+# run again. It makes no request to any marketplace or to Bright Data, so it costs nothing.
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+# The same lock as the other workflows: never two runs writing the history at once.
+concurrency:
+  group: track-ranks
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    env:
+      RANK_STORAGE: "monthly"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Merge the readings that only the old file has into the monthly files
+        run: python scripts/recover_hidden_readings.py
+
+      - name: Commit the recovered readings
+        run: bash scripts/commit_data.sh commit "Recover hidden readings" docs/data/ranks
