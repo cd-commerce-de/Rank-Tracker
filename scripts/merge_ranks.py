@@ -40,6 +40,8 @@ def better(a: dict, b: dict) -> dict:
 def merge(theirs: list, ours: list):
     """theirs = the base (what is already on the server), ours = what this run produced. Returns (merged rows, how many of our rows were added or replaced something)."""
     out, index, changed = [], {}, 0
+    theirs = [history_store.normalize(r) for r in theirs]          # compare readings in the form the monthly files keep (checked_at without fractions of a second)
+    ours = [history_store.normalize(r) for r in ours]
     for r in theirs:
         k = row_key(r)
         if k in index:

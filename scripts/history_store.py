@@ -48,6 +48,22 @@ def normalize(row: dict) -> dict:
     return r
 
 
+def relabel_days(rows: list):
+    """
+    A reading belongs to the UTC day it was taken on. A run that crosses midnight UTC stamps its later readings with the day it STARTED
+    (date) although their checked_at is already the next day; the compact monthly format keeps only the seconds into the day, so such a row
+    cannot be stored (this is what hid 277 Temu readings in the old ranks.json on 2026-11-23). Returns (rows, number relabelled): the date
+    of such a row becomes the day of its checked_at. Rows that are fine are returned untouched.
+    """
+    out, n = [], 0
+    for r in rows:
+        m = _TS.match(str(r.get("checked_at", "")))
+        if m and str(r.get("date", "")) != m.group(1) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(r.get("date", ""))):
+            r = dict(r); r["date"] = m.group(1); n += 1
+        out.append(r)
+    return out, n
+
+
 def _encodable(row: dict, month: str) -> bool:
     if any(k not in row for k in BASE_KEYS):
         return False
@@ -64,7 +80,7 @@ def _encodable(row: dict, month: str) -> bool:
 
 def encode_month(month: str, rows: list) -> dict:
     if not all(_encodable(r, month) for r in rows):
-        return {"v": 1, "month": month, "rows": rows}
+        return {"v": 1, "month": month, "rows": [normalize(r) for r in rows]}      # uncompacted but complete; checked_at is normalised so it reads back identically
     items, item_ix, kws, kw_ix, ctxs, ctx_ix, shapes, shape_ix, out = [], {}, [], {}, [], {}, [], {}, []
     for r in rows:
         item = {k: r[k] for k in ITEM_KEYS if k in r}
@@ -150,10 +166,11 @@ def save(legacy_path: Path, history: list) -> dict:
     if not wants_monthly(legacy_path):
         _save_legacy(legacy_path, history)
         return {"mode": "legacy", "rows": len(history)}
+    history, relabelled = relabel_days(history)
     by_month = {}
     for r in history:
         by_month.setdefault(str(r.get("date", ""))[:7], []).append(r)
-    texts = {}
+    texts, raw_months = {}, []
     try:
         for month, rows in by_month.items():
             if not re.fullmatch(r"\d{4}-\d{2}", month):
@@ -163,9 +180,11 @@ def save(legacy_path: Path, history: list) -> dict:
             if decode_month(json.loads(text)) != [normalize(r) for r in rows]:      # nothing is written unless it reads back identically
                 raise ValueError(f"month {month} does not read back identically")
             texts[month] = text
+            if shard.get("v") == 1:
+                raw_months.append(month)
     except Exception as e:
         _save_legacy(legacy_path, history)
-        return {"mode": "legacy-fallback", "rows": len(history), "error": f"{type(e).__name__}: {e}"}
+        return {"mode": "legacy-fallback", "rows": len(history), "error": f"{type(e).__name__}: {e}", "relabelled": relabelled}
     d = _dir(legacy_path)
     d.mkdir(parents=True, exist_ok=True)
     written = 0
@@ -180,18 +199,26 @@ def save(legacy_path: Path, history: list) -> dict:
     if not ip.exists() or ip.read_text(encoding="utf-8") != idx:
         tmp = ip.with_suffix(".json.tmp")
         tmp.write_text(idx, encoding="utf-8"); os.replace(tmp, ip)
-    return {"mode": "monthly", "rows": len(history), "months": months, "written": written, "bytes": sum(len(t.encode("utf-8")) for t in texts.values())}
+    return {"mode": "monthly", "rows": len(history), "months": months, "written": written, "bytes": sum(len(t.encode("utf-8")) for t in texts.values()),
+            "relabelled": relabelled, "raw_months": raw_months}
 
 
 def save_and_report(legacy_path: Path, history: list) -> dict:
     """save(), plus one line in the run log (and a loud warning if the safety net had to step in)."""
     import sys
     r = save(legacy_path, history)
+    if r.get("relabelled"):
+        print(f"Note: {r['relabelled']} reading(s) taken after midnight UTC were dated with the day they were actually taken (the run started the day before).")
     if r["mode"] == "monthly":
         print(f"Saved {r['rows']:,} rows in the monthly history ({len(r['months'])} month file(s), {r['written']} changed, {r['bytes'] / 1e6:.1f} MB in total).")
+        if r.get("raw_months"):
+            print(f"::warning title=Month stored uncompacted::{', '.join(r['raw_months'])} could not be stored in the compact format (a row has unexpected fields), so it was saved in full "
+                  "(larger, but complete and shown by the dashboard). Tell whoever maintains the tracker.")
     elif r["mode"] == "legacy-fallback":
         print(f"  !! The compact monthly save could not be verified ({r['error']}), so this run saved the old way into {Path(legacy_path).name}. "
-              "Nothing was lost; tell whoever maintains the tracker.", file=sys.stderr)
+              "The dashboard does NOT read that file: these readings will not show until they are recovered.", file=sys.stderr)
+        print(f"::error title=Readings saved to the old file::The monthly save failed ({r['error']}). The readings are in {Path(legacy_path).name}, which the dashboard does not read. "
+              "Run the workflow 'Recover hidden readings' once the cause is fixed.")
         print(f"Saved {r['rows']:,} rows to {Path(legacy_path).name}.")
     else:
         print(f"Saved {r['rows']:,} total rows to {legacy_path}")
