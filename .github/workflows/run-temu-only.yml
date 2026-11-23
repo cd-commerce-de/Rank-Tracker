@@ -50,6 +50,8 @@ jobs:
       TEMU_MAX_MINUTES: ${{ inputs.max_minutes || '120' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main        # the NEWEST main at the moment the job really starts: a run that waited for the lock, or is re-run, must not start from an older copy
 
       - uses: actions/setup-python@v5
         with:
@@ -75,27 +77,17 @@ jobs:
 
       - name: Commit the Temu readings
         if: steps.todo.outputs.todo != '0'
-        run: |
-          git config user.name "rank-tracker-bot"
-          git config user.email "actions@users.noreply.github.com"
-          if [ -f docs/data/ranks.json ]; then git add docs/data/ranks.json; fi
-          if [ -d docs/data/ranks ]; then git add docs/data/ranks; fi
-          if git diff --staged --quiet; then
-            echo "Nothing new to save: no Temu reading changed."
-            exit 0
-          fi
-          git commit -m "Update Temu ranks $(date -u +'%Y-%m-%d %H:%M')"
-          for attempt in 1 2 3 4; do
-            if git pull --rebase && git push; then
-              echo "Saved the Temu readings (attempt $attempt)."
-              exit 0
-            fi
-            echo "Saving failed on attempt $attempt, trying again in 15 seconds."
-            git rebase --abort 2>/dev/null || true
-            sleep 15
-          done
-          echo "::error title=Temu readings not saved::The readings could not be pushed after 4 attempts. They were paid for but are not saved, so the next run reads them again."
-          exit 1
+        # Saves the readings without ever losing one: if another run saved to the same history files meanwhile, the readings of both
+        # are merged by content (scripts/commit_data.sh, scripts/merge_ranks.py) instead of the push failing on a Git conflict.
+        run: bash scripts/commit_data.sh commit "Update Temu ranks" docs/data/ranks docs/data/ranks.json
+
+      - name: Keep the readings if they could not be saved (download from the run page, kept 7 days)
+        if: failure() && steps.todo.outputs.todo != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsaved-temu-readings
+          path: docs/data
+          retention-days: 7
 
       - name: Nothing left today
         if: steps.todo.outputs.todo == '0'
