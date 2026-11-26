@@ -154,6 +154,11 @@ def save_json(path: Path, data):
 
 
 def main():
+    if os.environ.get("OTTO_LEGACY_TRACKER") != "1":
+        print("otto: this step is retired. Otto is read by the 'Track Otto only' workflow (scripts/otto_unlocker_tracker.py), which tries every "
+              "keyword many times and saves \"?\" for a keyword that stays blocked. This old tracker made ONE attempt per keyword, stopped after 5 "
+              "failures and saved nothing for a failure. Set OTTO_LEGACY_TRACKER=1 to run it anyway.")
+        return
     projects = config_loader.load_projects()
     history = history_store.load(DATA_PATH)
     today = date.today().isoformat()

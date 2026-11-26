@@ -71,14 +71,16 @@ def zone_for(url: str):
     """
     (zone name, is it a dedicated zone?) for a URL. Temu is a "premium domain" for Web Unlocker (extra cost per request), so it can
     have its own zone: set BRIGHTDATA_ZONE_TEMU to that zone's name and every request to a temu.* address uses it, while all
-    other sites keep using BRIGHTDATA_ZONE. A separate zone also has its own usage limit, so tests on one site cannot use up
+    other sites keep using BRIGHTDATA_ZONE. The same for Otto with BRIGHTDATA_ZONE_OTTO (optional: Otto refuses most requests, so a
+    zone of its own gives it its own usage limit and keeps the other marketplaces' budget safe). A separate zone also has its own usage limit, so tests on one site cannot use up
     the spending cap of another. Without BRIGHTDATA_ZONE_TEMU, Temu simply uses the normal zone.
     """
     host = (urllib.parse.urlparse(url).hostname or "").lower()
-    is_temu = "temu" in host.split(".")[:-1]                  # a whole label "temu" (www.temu.com, temu.com), not a lookalike such as notemu.com
-    special = os.environ.get("BRIGHTDATA_ZONE_TEMU", "").strip() if is_temu else ""
-    if special:
-        return special, True
+    labels = host.split(".")[:-1]                             # whole labels only (www.temu.com -> www, temu), never a lookalike such as notemu.com
+    for brand, env_name in (("temu", "BRIGHTDATA_ZONE_TEMU"), ("otto", "BRIGHTDATA_ZONE_OTTO")):
+        special = os.environ.get(env_name, "").strip() if brand in labels else ""
+        if special:
+            return special, True
     return os.environ.get("BRIGHTDATA_ZONE"), False
 
 
