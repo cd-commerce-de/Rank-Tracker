@@ -10,7 +10,9 @@ name: Track Otto only
 # MONEY: it runs by itself 8 times a day (see "schedule") and by hand. Every run first works out what is STILL LEFT today (UTC) with no
 # request at all (scripts/otto_todo.py). A keyword that already has a valid reading today is never read again; only keywords that were
 # blocked earlier today or have not been tried are attempted. When nothing is left the run stops after that check and no Bright Data
-# request is made. Failed attempts are normally not billed; the run also stops once 10 attempts were billed without giving results.
+# request is made. Whether Otto's refusal pages are billed is being measured (workflow "Probe Otto"): Bright Data's debug flag called
+# 13 of 14 failed attempts billed on 2026-11-26 while the account balance did not move. Until that is settled the run stops once 10
+# attempts were flagged billed without giving results (form field "max_billed_failures"; 0 switches this stop off).
 # A new UTC day starts at 00:00 UTC (08:00 in the Philippines): then every keyword is due again.
 on:
   schedule:
@@ -20,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       attempts:
-        description: "Tries per keyword (1-30). Failed tries are normally not billed, they only cost time."
+        description: "Tries per keyword (1-30). Failed tries cost time, and possibly money: see the note at the top of this file."
         required: false
         default: "12"
       workers:
@@ -31,6 +33,22 @@ on:
         description: "Time budget in minutes: no new keyword is started after it (5-340)"
         required: false
         default: "60"
+      geo:
+        description: "Exit address: auto = German and Bright Data's own choice in turn, de = always German, none = always Bright Data's choice"
+        required: false
+        default: "auto"
+        type: choice
+        options: [auto, de, none]
+      render:
+        description: "Browser rendering: Bright Data loads the page in a real browser first (slower; may get through where plain requests do not)"
+        required: false
+        default: "off"
+        type: choice
+        options: ["off", "on"]
+      max_billed_failures:
+        description: "Stop the run after this many attempts that Bright Data flagged as billed without giving results (0 = never stop for this)"
+        required: false
+        default: "10"
 
 permissions:
   contents: write
@@ -56,6 +74,9 @@ jobs:
       OTTO_ATTEMPTS: ${{ inputs.attempts || '12' }}
       OTTO_WORKERS: ${{ inputs.workers || '4' }}
       OTTO_MAX_MINUTES: ${{ inputs.max_minutes || '60' }}
+      OTTO_GEO_MODE: ${{ inputs.geo || 'auto' }}
+      OTTO_RENDER: ${{ inputs.render == 'on' && '1' || '0' }}
+      OTTO_MAX_BILLED_FAILURES: ${{ inputs.max_billed_failures || '10' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -99,4 +120,4 @@ jobs:
 
       - name: Nothing left today
         if: steps.todo.outputs.todo == '0'
-        run: echo "Every Otto keyword already has a valid reading for today (UTC). No request was made, nothing was billed."
+        run: echo "Every Otto keyword already has a valid reading for today (UTC). No request was made."
