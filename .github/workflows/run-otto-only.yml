@@ -10,9 +10,10 @@ name: Track Otto only
 # MONEY: it runs by itself 8 times a day (see "schedule") and by hand. Every run first works out what is STILL LEFT today (UTC) with no
 # request at all (scripts/otto_todo.py). A keyword that already has a valid reading today is never read again; only keywords that were
 # blocked earlier today or have not been tried are attempted. When nothing is left the run stops after that check and no Bright Data
-# request is made. Whether Otto's refusal pages are billed is being measured (workflow "Probe Otto"): Bright Data's debug flag called
-# 13 of 14 failed attempts billed on 2026-11-26 while the account balance did not move. Until that is settled the run stops once 10
-# attempts were flagged billed without giving results (form field "max_billed_failures"; 0 switches this stop off).
+# request is made. MEASURED on 2026-11-26 (workflow "Probe Otto"): Otto's refusal pages ARE BILLED, 0.0015 USD per request like a real page,
+# and through the plain Web Unlocker Otto's search pages gave 0 real pages in 46 attempts. So the run stops once 10 attempts were flagged
+# billed without giving results (form field "max_billed_failures"; 0 switches this stop off). Keep the schedule paused (Actions > Track
+# Otto only > ... > Disable workflow) until a way of asking is found that works: run "Probe Otto" to look for one.
 # A new UTC day starts at 00:00 UTC (08:00 in the Philippines): then every keyword is due again.
 on:
   schedule:
@@ -41,6 +42,12 @@ on:
         options: [auto, de, none]
       render:
         description: "Browser rendering: Bright Data loads the page in a real browser first (slower; may get through where plain requests do not)"
+        required: false
+        default: "off"
+        type: choice
+        options: ["off", "on"]
+      expect:
+        description: "Bright Data 'expect' header: the Unlocker only counts a page as unlocked when product links are on it. Needs the zone's Custom Web Unlocker feature 'Manual expect elements' switched on, else it is ignored."
         required: false
         default: "off"
         type: choice
@@ -76,6 +83,7 @@ jobs:
       OTTO_MAX_MINUTES: ${{ inputs.max_minutes || '60' }}
       OTTO_GEO_MODE: ${{ inputs.geo || 'auto' }}
       OTTO_RENDER: ${{ inputs.render == 'on' && '1' || '0' }}
+      OTTO_EXPECT: ${{ inputs.expect == 'on' && 'products' || '' }}
       OTTO_MAX_BILLED_FAILURES: ${{ inputs.max_billed_failures || '10' }}
     steps:
       - uses: actions/checkout@v4
