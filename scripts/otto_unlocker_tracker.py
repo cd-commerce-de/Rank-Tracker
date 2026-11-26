@@ -25,6 +25,9 @@ when the flag is missing).
 Settings (environment): OTTO_ATTEMPTS = tries per keyword (default 12, 1 to 30); OTTO_WORKERS = keywords read at the same time (default 4,
 1 to 8); OTTO_MAX_PAGES = results pages per keyword (default 1: one page holds about 100 tiles; each further page needs its own attempts);
 OTTO_GEO_MODE = auto | de | none; OTTO_RENDER = 1 to make Bright Data load the page in a real browser first (slower; the Temu route needs it);
+OTTO_EXPECT = products (or a header value such as {"element": "a.x"}) to send Bright Data's x-unblock-expect header: the Unlocker then only counts a page as
+unlocked when product links are on it, instead of accepting a bot-check page as a success. It needs the zone's Custom Web Unlocker feature "Manual expect
+elements" switched on (Configuration > Advanced settings; without it the header is ignored) and makes EVERY request billed, which Otto's failures already are;
 OTTO_STOP_AFTER = keywords in a row that could not be read BEFORE any keyword has been read, after which the
 run stops because Otto is not answering at all (default 12); OTTO_STOP_AFTER_LATER = the same once one keyword was read (default 60);
 OTTO_MAX_MINUTES = time budget after which no new keyword is started (default 15; the scheduled workflow passes 60);
@@ -69,6 +72,16 @@ def pages() -> int:
 
 def render_on() -> bool:
     return (os.environ.get("OTTO_RENDER") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def expect_header():
+    """The x-unblock-expect header for Bright Data (a dict for the request body), or None. OTTO_EXPECT=products waits for product links."""
+    v = (os.environ.get("OTTO_EXPECT") or "").strip()
+    if not v or v.lower() in ("0", "off", "no", "false"):
+        return None
+    if v.lower() in ("1", "on", "yes", "true", "products"):
+        v = '{"element": "a[href*=\\"/p/\\"]"}'
+    return {"x-unblock-expect": v}
 
 
 def geo_mode() -> str:
@@ -137,10 +150,10 @@ def _otto_error(html: str) -> bool:
     return bool(html) and len(html) < 40000 and bool(_OTTO_ERROR.search(html))
 
 
-def _one_attempt(url: str, country, render: bool = False):
+def _one_attempt(url: str, country, render: bool = False, expect=None):
     """One request. Returns (ids, billed, peer_country) or raises AttemptFailed / ps.PolicyRefused / AccountProblem."""
     try:
-        resp = bright_data.fetch_response(url, country=country, render=render, debug=True)
+        resp = bright_data.fetch_response(url, country=country, render=render, debug=True, extra_headers=expect)
     except requests.HTTPError as e:
         r = e.response
         code = getattr(r, "status_code", 0) or 0
@@ -204,7 +217,7 @@ def _read_page(url: str, region: str) -> list:
             raise Aborted()
         geo = _geo_for(attempt, region)
         try:
-            ids, billed, peer = _one_attempt(url, geo, render_on())
+            ids, billed, peer = _one_attempt(url, geo, render_on(), expect_header())
         except AttemptFailed as f:
             seen[f.kind] += 1
             _record(False, geo, f.kind, f.billed)
@@ -316,7 +329,7 @@ def _row(project, item, target, region, keyword, rank, blocked, scanned, carried
 
 def _summary(read_ok, read_blocked, skipped, saved, workers, per_project, why_stop):
     lines = [f"otto (retry mode): {read_ok} keyword(s) read, {read_blocked} blocked, {skipped} not tried, {saved} reading(s) saved; "
-             f"up to {attempts()} attempt(s) per keyword, {workers} at a time, geo mode {geo_mode()}, browser rendering {'on' if render_on() else 'off'}."]
+             f"up to {attempts()} attempt(s) per keyword, {workers} at a time, geo mode {geo_mode()}, browser rendering {'on' if render_on() else 'off'}, expect header {'on' if expect_header() else 'off'}."]
     rate = f"{RUN.ok / RUN.attempts:.0%}" if RUN.attempts else "-"
     lines.append(f"otto attempts: {RUN.attempts} made, {RUN.ok} gave the real page ({rate}); failures: "
                  + (", ".join(f"{n}x {k}" for k, n in RUN.kinds.most_common()) or "none") + ".")

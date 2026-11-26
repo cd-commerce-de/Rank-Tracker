@@ -7,14 +7,17 @@ Two questions that the Otto runner cannot answer by itself:
     (the real results page, Otto's own "Hoppla" page, a bot-check page, errors):
       - Bright Data's own choice of exit address;   - a German exit address (country de);
       - with browser rendering (Bright Data loads the page in a real browser first; slower; this is what the Temu route needs);
-      - rendering + German exit;                    - Otto's homepage as a control (does the zone reach Otto at all?).
+      - rendering + German exit;
+      - with Bright Data's x-unblock-expect header (the Unlocker only counts a page as unlocked when product links are on it; needs the zone's
+        Custom Web Unlocker feature "Manual expect elements", Configuration > Advanced settings, switched on, else the header is ignored), plain and rendered;
+      - Otto's homepage as a control (does the zone reach Otto at all?).
  2. ARE FAILED ATTEMPTS BILLED? Each response carries Bright Data's own debug flag "billed". On 2026-11-26 it said true for 13 of 14 failed
     attempts, yet the account balance did not move. The probe reads the zone's BILLED COST from Bright Data's cost API (GET /zone/cost, which
     the docs say matches the Usage Overview and the invoice) before and after, and prints the difference next to the number of requests the flag
     called billed. A free or trial allowance shows as cost 0 although the requests count against it; the zone's Usage page shows the request count.
     For a clean reading run it when nothing else uses the same zone (a dedicated Otto zone: BRIGHTDATA_ZONE_OTTO).
 
-It saves nothing and changes no data. At most (4 ways x PROBE_ATTEMPTS + 4) requests are made, 36 by default.
+It saves nothing and changes no data. At most (6 ways x PROBE_ATTEMPTS + 4) requests are made, 52 by default.
 
 Settings (environment): PROBE_KEYWORD (default: the first Otto keyword of the sheet, else "anhänger hochplane"); PROBE_ATTEMPTS = tries per way
 (default 8, 1 to 30); PROBE_WORKERS (default 4); PROBE_WAIT_SECONDS = pause before the second cost reading, because the cost API can lag (default 120).
@@ -34,13 +37,17 @@ import otto_rank_tracker as classic
 import otto_unlocker_tracker as ot
 import page_savings as ps
 
-WAYS = [
-    ("search page, Bright Data's own exit", "search", None, False),
-    ("search page, German exit", "search", "de", False),
-    ("search page, browser rendering", "search", None, True),
-    ("search page, rendering + German exit", "search", "de", True),
-    ("homepage (control)", "home", None, False),
+WAYS = [        # (name, page, country, render, expect)
+    ("search page, Bright Data's own exit", "search", None, False, False),
+    ("search page, German exit", "search", "de", False, False),
+    ("search page, browser rendering", "search", None, True, False),
+    ("search page, rendering + German exit", "search", "de", True, False),
+    ("search page, expect product links", "search", None, False, True),
+    ("search page, expect + rendering", "search", None, True, True),
+    ("homepage (control)", "home", None, False, False),
 ]
+CONTROL = next(i for i, w in enumerate(WAYS) if w[1] == "home")
+EXPECT = {"x-unblock-expect": '{"element": "a[href*=\\"/p/\\"]"}'}
 HOME = "https://www.otto.de/"
 
 
@@ -63,17 +70,17 @@ def run_probe(keyword: str, attempts: int, workers: int) -> list:
     search_url = classic.search_url(urllib.parse.quote(keyword), 0)
     abort = threading.Event()
     jobs = []
-    for w, (_, target, country, render) in enumerate(WAYS):
+    for w, (_, target, country, render, expect) in enumerate(WAYS):
         n = min(4, attempts) if target == "home" else attempts
-        jobs += [(w, HOME if target == "home" else search_url, country, render)] * n
+        jobs += [(w, HOME if target == "home" else search_url, country, render, EXPECT if expect else None)] * n
 
     def one(job):
-        w, url, country, render = job
+        w, url, country, render, expect = job
         if abort.is_set():
             return {"way": w, "ok": False, "kind": "not tried (stopped)", "billed": None, "peer": "", "secs": 0.0}
         started = time.monotonic()
         try:
-            ids, billed, peer = ot._one_attempt(url, country, render)
+            ids, billed, peer = ot._one_attempt(url, country, render, expect)
             return {"way": w, "ok": True, "kind": "real page", "billed": billed, "peer": peer, "secs": time.monotonic() - started, "n": len(ids)}
         except ot.AttemptFailed as f:
             return {"way": w, "ok": False, "kind": f.kind, "billed": f.billed, "peer": "", "secs": time.monotonic() - started}
@@ -135,6 +142,8 @@ def main():
 
     flagged_total = sum(1 for r in results if r["billed"])
     flagged_failed = sum(1 for r in results if r["billed"] and not r["ok"])
+    search = [r for r in results if WAYS[r["way"]][1] == "search"]
+    search_ok = sum(1 for r in search if r["ok"])
     print(f"\nBilling: {len(results)} requests were made; Bright Data's debug flag called {flagged_total} of them billed ({flagged_failed} of those were NOT real pages).")
     cost_lines = []
     if before is None:
@@ -152,8 +161,13 @@ def main():
             cost_lines.append(f"Bright Data's billed cost for this zone today: ${before['today']['cost']:.4f} before, ${after['today']['cost']:.4f} after (change ${d_cost:+.4f}); "
                               f"bandwidth {d_bw:+.0f} KB.")
             if d_cost > 0 and flagged_total:
-                cost_lines.append(f"-> Bright Data BILLED ${d_cost:.4f} for the {flagged_total} request(s) it flagged billed: about ${d_cost / flagged_total:.4f} each. "
-                                  f"If the flagged failures are billed too, a real page costs about ${d_cost / flagged_total * len(results) / max(1, sum(1 for r in results if r['ok'])):.3f} at this test's success rate.")
+                price = d_cost / flagged_total
+                cost_lines.append(f"-> Bright Data BILLED ${d_cost:.4f} for the {flagged_total} request(s) it flagged billed: about ${price:.4f} each (${price * 1000:.2f} per 1,000 requests: "
+                                  f"compare with your zone's price; if it matches, the refusal pages are billed too" + (f", {flagged_failed} of them" if flagged_failed else "") + ").")
+                if search_ok:
+                    cost_lines.append(f"-> {search_ok} real search page(s) from {len(search)} search attempts: about ${price * len(search) / search_ok:.3f} per real search page at this success rate.")
+                else:
+                    cost_lines.append(f"-> No real search page yet from {len(search)} search attempts, which cost about ${price * len(search):.3f}: there is no price per reading to give.")
             elif d_cost <= 0 and flagged_total:
                 cost_lines.append("-> The billed cost did not move although the flag called requests billed. Possible reasons: the account is on a free or trial allowance "
                                   "(the requests still count against it: check the request count on the zone's Usage page), the cost figure lags (read it again in a few minutes), "
@@ -162,25 +176,34 @@ def main():
                 cost_lines.append("-> The billed cost rose although no request was flagged billed: other traffic on this zone, or the flag is missing. Use a dedicated Otto zone for a clean reading.")
     print("\n".join(cost_lines))
 
+    expect_ways = [i for i, w in enumerate(WAYS) if w[4]]
     if best is None:
         verdict = ("No way of asking got a real Otto search page. If the homepage control worked, the zone reaches Otto but its search pages are protected "
-                   "(Kasada): try again later or at another time of day, or use another route (Apify).") \
-            if any(r["way"] == 4 and r["ok"] for r in results) else \
+                   "(Kasada): check that otto.de is on the zone's Premium Domains list and the zone has Premium Domains switched on, switch on the Custom Web Unlocker "
+                   "feature 'Manual expect elements' on this zone, try again at another time of day, or use another route (Apify).") \
+            if any(r["way"] == CONTROL and r["ok"] for r in results) else \
             "Nothing got through, not even the homepage: check the zone, the API key and the zone's usage limit."
         verdict_env = ""
     else:
-        name, _, country, render = WAYS[best]
-        verdict_env = f"OTTO_GEO_MODE={'de' if country else 'none'} OTTO_RENDER={'1' if render else '0'}"
-        verdict = f"Best way so far: {name}. Use: {verdict_env} (in the workflow form: geo = {'de' if country else 'none'}, browser rendering = {'on' if render else 'off'})."
-    print(f"\nVerdict: {verdict}")
+        name, _, country, render, expect = WAYS[best]
+        verdict_env = f"OTTO_GEO_MODE={'de' if country else 'none'} OTTO_RENDER={'1' if render else '0'} OTTO_EXPECT={'products' if expect else 'off'}"
+        verdict = (f"Best way so far: {name}. Use: {verdict_env} (in the workflow form: geo = {'de' if country else 'none'}, browser rendering = {'on' if render else 'off'}, "
+                   f"expect = {'on' if expect else 'off'}).")
+    expect_note = ""
+    if expect_ways and not any(r["ok"] for r in results if r["way"] in expect_ways) and any(r["ok"] for r in results if WAYS[r["way"]][1] == "search"):
+        expect_note = "The expect ways did worse than the plain ones: the zone's 'Manual expect elements' feature is probably not switched on (the header is then ignored)."
+    elif expect_ways and not any(r["ok"] for r in results if WAYS[r["way"]][1] == "search"):
+        expect_note = "The expect ways got nothing either: if you have not switched on 'Manual expect elements' (zone > Configuration > Advanced settings) the header was ignored."
+    print(f"\nVerdict: {verdict}" + (f"\n{expect_note}" if expect_note else ""))
 
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         try:
             with open(summary, "a", encoding="utf-8") as f:
+                safe = lambda text: text.replace("$", "\\$")        # GitHub renders $...$ in a summary as maths
                 f.write(f"### Otto probe, {keyword!r}\n\n| way of asking | real pages | flagged billed | seconds | failures |\n|---|--:|--:|--:|---|\n"
                         + "".join(f"| {a} | {b} | {c} | {d} | {e} |\n" for a, b, c, d, e in rows)
-                        + f"\n{chr(10).join(cost_lines)}\n\n**{verdict}**\n")
+                        + f"\n{safe(chr(10).join(cost_lines))}\n\n**{safe(verdict)}**\n" + (f"\n{safe(expect_note)}\n" if expect_note else ""))
         except OSError:
             pass
 
