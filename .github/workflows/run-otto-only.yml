@@ -1,0 +1,102 @@
+name: Track Otto only
+
+# Reads Otto keywords through Bright Data's Web Unlocker and saves the readings. It never touches eBay, Kaufland or Temu.
+#
+# WHY A WORKFLOW OF ITS OWN: through the Web Unlocker Otto answers only about 1 request in 20 with the real results page; the others are
+# Otto's own "Hoppla" page or a bot-check page. So every keyword is tried again and again (OTTO_ATTEMPTS), and a keyword that still fails is
+# saved as "?" (blocked), never as "not found". The old step inside "Track marketplace ranks" made one attempt per keyword and saved nothing
+# for a failure; it is retired (it prints a note and does nothing).
+#
+# MONEY: it runs by itself 8 times a day (see "schedule") and by hand. Every run first works out what is STILL LEFT today (UTC) with no
+# request at all (scripts/otto_todo.py). A keyword that already has a valid reading today is never read again; only keywords that were
+# blocked earlier today or have not been tried are attempted. When nothing is left the run stops after that check and no Bright Data
+# request is made. Failed attempts are normally not billed; the run also stops once 10 attempts were billed without giving results.
+# A new UTC day starts at 00:00 UTC (08:00 in the Philippines): then every keyword is due again.
+on:
+  schedule:
+    # Every 3 hours at 15 minutes past: 00:15, 03:15, ... 21:15 UTC. GitHub starts scheduled runs late and drops many of them, so there are
+    # many slots; a run that finds nothing left stops after the check (about 30 seconds).
+    - cron: "15 */3 * * *"
+  workflow_dispatch:
+    inputs:
+      attempts:
+        description: "Tries per keyword (1-30). Failed tries are normally not billed, they only cost time."
+        required: false
+        default: "12"
+      workers:
+        description: "Keywords read at the same time (1-8)"
+        required: false
+        default: "4"
+      max_minutes:
+        description: "Time budget in minutes: no new keyword is started after it (5-340)"
+        required: false
+        default: "60"
+
+permissions:
+  contents: write
+
+# Its own lock: never two Otto runs at once (so a keyword is never read twice at the same time), but it neither waits for the Temu or main
+# runs nor makes them wait. Saving is safe even when another workflow saves at the same moment (scripts/commit_data.sh merges the readings).
+concurrency:
+  group: otto-track
+  cancel-in-progress: false
+
+jobs:
+  otto:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      TRACKING_SHEET_CSV_URL: ${{ secrets.TRACKING_SHEET_CSV_URL }}
+      RANK_STORAGE: "monthly"
+      BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+      BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+      # optional: a Web Unlocker zone of its own for otto.de (its own usage limit). Without it, the normal zone is used.
+      BRIGHTDATA_ZONE_OTTO: ${{ secrets.BRIGHTDATA_ZONE_OTTO }}
+      # a scheduled run has no inputs: the part after || is what it uses
+      OTTO_ATTEMPTS: ${{ inputs.attempts || '12' }}
+      OTTO_WORKERS: ${{ inputs.workers || '4' }}
+      OTTO_MAX_MINUTES: ${{ inputs.max_minutes || '60' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main        # the NEWEST main at the moment the job really starts: a run that waited for the lock, or is re-run, must not start from an older copy
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Check a Web Unlocker zone is set up
+        run: |
+          if [ -z "$BRIGHTDATA_ZONE" ] && [ -z "$BRIGHTDATA_ZONE_OTTO" ]; then
+            echo "::error title=No zone::Neither BRIGHTDATA_ZONE nor BRIGHTDATA_ZONE_OTTO is set. Add the name of your Web Unlocker zone under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: What is still left to read today? (no request, no cost)
+        id: todo
+        run: python scripts/otto_todo.py
+
+      - name: Run the Otto tracker
+        if: steps.todo.outputs.todo != '0'
+        run: python scripts/otto_unlocker_tracker.py
+
+      - name: Commit the Otto readings
+        if: steps.todo.outputs.todo != '0'
+        # Saves the readings without ever losing one: if another run saved to the same history files meanwhile, the readings of both
+        # are merged by content (scripts/commit_data.sh, scripts/merge_ranks.py) instead of the push failing on a Git conflict.
+        run: bash scripts/commit_data.sh commit "Update Otto ranks" docs/data/ranks docs/data/ranks.json
+
+      - name: Keep the readings if they could not be saved (download from the run page, kept 7 days)
+        if: failure() && steps.todo.outputs.todo != '0'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsaved-otto-readings
+          path: docs/data
+          retention-days: 7
+
+      - name: Nothing left today
+        if: steps.todo.outputs.todo == '0'
+        run: echo "Every Otto keyword already has a valid reading for today (UTC). No request was made, nothing was billed."
