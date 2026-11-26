@@ -17,7 +17,7 @@ import config_loader
 import history_store
 import otto_unlocker_tracker as ot
 
-PRICE_PER_READ = 0.0025   # an upper bound per successful read (the zone's rate; check your zone's price); failed attempts are normally not billed
+PRICE_PER_READ = 0.0025   # an upper bound per successful read (the zone's rate; check your zone's price); whether Otto's failed attempts are billed too: see scripts/otto_probe.py
 
 
 def main():
@@ -44,7 +44,7 @@ def main():
         print(f"  dormant keywords that only need a carried row (no request): {n_carried}")
     if outstanding:
         print(f"  most this can cost if every one of them is read: about ${outstanding * PRICE_PER_READ:.2f} "
-              f"(a keyword is billed once, when it is read; failed attempts are normally not billed)")
+              f"(a keyword is billed once, when it is read; whether Otto's refusal pages are billed too is measured by scripts/otto_probe.py)")
     else:
         print("  nothing to read: no request will be made.")
 

@@ -15,13 +15,17 @@ runner does what the Temu runner does:
   * keywords are worked through ROUND-ROBIN across projects, so a run that ends early still covers every project;
   * dormant keywords (nothing of yours found in their last checks) are only re-checked weekly, as before; "?" rows never count towards that.
 
-Money: Bright Data bills a request only when it counts as successful. Otto's refusal pages normally are not billed, but a bot-check page
-answered with HTTP 200 might be, so every attempt is asked for Bright Data's own "billed" flag (debug header) and the run STOPS once
-OTTO_MAX_BILLED_FAILURES (default 10) attempts were billed without giving results (a bot-check page counts when the flag is missing).
+Money: Bright Data's standard rule is that only successful requests are billed, and "successful" is Bright Data's own classification. Whether
+Otto's refusal pages count as successful is MEASURED, not assumed (scripts/otto_probe.py compares the flags with the zone's real billed cost):
+on 2026-11-26 the debug flag said "billed" for 13 of 14 failed attempts while the account balance did not move (free or trial credits? a wrong
+flag?). Until that is settled, every attempt is asked for Bright Data's own "billed" flag (debug header) and the run STOPS once
+OTTO_MAX_BILLED_FAILURES (default 10; 0 switches the stop off) attempts were flagged billed without giving results (a bot-check page counts
+when the flag is missing).
 
 Settings (environment): OTTO_ATTEMPTS = tries per keyword (default 12, 1 to 30); OTTO_WORKERS = keywords read at the same time (default 4,
 1 to 8); OTTO_MAX_PAGES = results pages per keyword (default 1: one page holds about 100 tiles; each further page needs its own attempts);
-OTTO_GEO_MODE = auto | de | none; OTTO_STOP_AFTER = keywords in a row that could not be read BEFORE any keyword has been read, after which the
+OTTO_GEO_MODE = auto | de | none; OTTO_RENDER = 1 to make Bright Data load the page in a real browser first (slower; the Temu route needs it);
+OTTO_STOP_AFTER = keywords in a row that could not be read BEFORE any keyword has been read, after which the
 run stops because Otto is not answering at all (default 12); OTTO_STOP_AFTER_LATER = the same once one keyword was read (default 60);
 OTTO_MAX_MINUTES = time budget after which no new keyword is started (default 15; the scheduled workflow passes 60);
 OTTO_MAX_BILLED_FAILURES (default 10); BRIGHTDATA_ZONE (or BRIGHTDATA_ZONE_OTTO for a dedicated zone with its own usage limit),
@@ -61,6 +65,10 @@ def attempts() -> int:
 
 def pages() -> int:
     return ps.env_int("OTTO_MAX_PAGES", 1, 1, 5)
+
+
+def render_on() -> bool:
+    return (os.environ.get("OTTO_RENDER") or "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def geo_mode() -> str:
@@ -129,10 +137,10 @@ def _otto_error(html: str) -> bool:
     return bool(html) and len(html) < 40000 and bool(_OTTO_ERROR.search(html))
 
 
-def _one_attempt(url: str, country):
+def _one_attempt(url: str, country, render: bool = False):
     """One request. Returns (ids, billed, peer_country) or raises AttemptFailed / ps.PolicyRefused / AccountProblem."""
     try:
-        resp = bright_data.fetch_response(url, country=country, debug=True)
+        resp = bright_data.fetch_response(url, country=country, render=render, debug=True)
     except requests.HTTPError as e:
         r = e.response
         code = getattr(r, "status_code", 0) or 0
@@ -184,7 +192,7 @@ def _record(ok: bool, geo, kind: str = "", billed=None, peer: str = ""):
             RUN.billed_fail += 1
         if billed or (billed is None and kind == "bot check"):      # billed, or possibly billed (the flag is missing and a bot-check page may count)
             RUN.risky_fail += 1
-            if RUN.risky_fail >= RUN.billed_cap:
+            if RUN.billed_cap and RUN.risky_fail >= RUN.billed_cap:
                 RUN.set_stop("billed")
 
 
@@ -196,7 +204,7 @@ def _read_page(url: str, region: str) -> list:
             raise Aborted()
         geo = _geo_for(attempt, region)
         try:
-            ids, billed, peer = _one_attempt(url, geo)
+            ids, billed, peer = _one_attempt(url, geo, render_on())
         except AttemptFailed as f:
             seen[f.kind] += 1
             _record(False, geo, f.kind, f.billed)
@@ -308,12 +316,12 @@ def _row(project, item, target, region, keyword, rank, blocked, scanned, carried
 
 def _summary(read_ok, read_blocked, skipped, saved, workers, per_project, why_stop):
     lines = [f"otto (retry mode): {read_ok} keyword(s) read, {read_blocked} blocked, {skipped} not tried, {saved} reading(s) saved; "
-             f"up to {attempts()} attempt(s) per keyword, {workers} at a time, geo mode {geo_mode()}."]
+             f"up to {attempts()} attempt(s) per keyword, {workers} at a time, geo mode {geo_mode()}, browser rendering {'on' if render_on() else 'off'}."]
     rate = f"{RUN.ok / RUN.attempts:.0%}" if RUN.attempts else "-"
     lines.append(f"otto attempts: {RUN.attempts} made, {RUN.ok} gave the real page ({rate}); failures: "
                  + (", ".join(f"{n}x {k}" for k, n in RUN.kinds.most_common()) or "none") + ".")
-    lines.append(f"otto billing (Bright Data's own flag): {RUN.billed_ok} real page(s) billed, {RUN.billed_fail} failed attempt(s) billed"
-                 + (f" ({RUN.risky_fail} counted towards the stop at {RUN.billed_cap})" if RUN.risky_fail else "") + ".")
+    lines.append(f"otto billing (Bright Data's debug flag; compare it with the zone's usage page): {RUN.billed_ok} real page(s) flagged billed, {RUN.billed_fail} failed attempt(s) flagged billed"
+                 + (f" ({RUN.risky_fail} counted towards the stop at {RUN.billed_cap or 'no limit'})" if RUN.risky_fail else "") + ".")
     de, any_ = RUN.geo["de"], RUN.geo["any"]
     lines.append(f"otto by way of asking: German exit {de[1]}/{de[0]}, Bright Data's choice {any_[1]}/{any_[0]}"
                  + (f"; exit countries of the real pages: {dict(RUN.peers)}" if RUN.peers else "") + ".")
@@ -332,7 +340,7 @@ def main():
     workers = ps.env_int("OTTO_WORKERS", 4, 1, 8)
     stop_after, stop_later = ps.env_int("OTTO_STOP_AFTER", 12, 1, 500), ps.env_int("OTTO_STOP_AFTER_LATER", 60, 1, 1000)
     minutes = ps.env_int("OTTO_MAX_MINUTES", 15, 5, 340)
-    RUN.reset(deadline=_now() + minutes * 60, billed_cap=ps.env_int("OTTO_MAX_BILLED_FAILURES", 10, 1, 500))
+    RUN.reset(deadline=_now() + minutes * 60, billed_cap=ps.env_int("OTTO_MAX_BILLED_FAILURES", 10, 0, 500))
     if not todo and not carried:
         print("otto: nothing left to read today (every keyword has a valid reading for today, UTC). No request was made.")
         return
@@ -411,7 +419,7 @@ def main():
                 "time": f"the time budget of {minutes} minutes ran out",
                 "streak": f"{stop_after if streak['ok'] == 0 else stop_later} keywords in a row could not be read"
                           + (" and none had been read yet, so Otto is not answering at all" if streak["ok"] == 0 else ""),
-                "billed": f"{RUN.risky_fail} attempts were billed (or may have been) without giving results, the cap is {RUN.billed_cap}",
+                "billed": f"{RUN.risky_fail} attempts were flagged billed (or may have been) without giving results, the cap is {RUN.billed_cap}",
                 "refused": f"Bright Data refused the request: {refusal}",
                 "account": f"Bright Data account problem: {refusal}",
             }
@@ -435,7 +443,7 @@ def main():
             try:
                 with open(summary, "a", encoding="utf-8") as f:
                     f.write(f"### Otto run\n\n| | |\n|---|--:|\n| keywords read | {read_ok} |\n| blocked (\"?\") | {read_blocked} |\n| not tried | {skipped} |\n"
-                            f"| attempts / real pages | {RUN.attempts} / {RUN.ok} |\n| billed: real pages / failed attempts | {RUN.billed_ok} / {RUN.billed_fail} |\n"
+                            f"| attempts / real pages | {RUN.attempts} / {RUN.ok} |\n| flagged billed: real pages / failed attempts | {RUN.billed_ok} / {RUN.billed_fail} |\n"
                             f"| failures | {', '.join(f'{n}x {k}' for k, n in RUN.kinds.most_common()) or 'none'} |\n")
             except OSError:
                 pass

@@ -156,6 +156,35 @@ def parse_debug(headers) -> dict:
     return out
 
 
+def zone_cost(zone: str) -> dict:
+    """
+    Bright Data's own BILLED cost and bandwidth for a zone (GET /zone/cost; the docs say it matches the Control Panel's Usage Overview and
+    your invoice): {"today": {"bw": bytes, "cost": dollars}, "month": {...}}. {} when there is no API key or no zone. Raises requests.HTTPError
+    when the API key may not read billing (an API key with Ops or User permission cannot; use an Admin key).
+    """
+    api_key = os.environ.get("BRIGHTDATA_API_KEY")
+    if not api_key or not zone:
+        return {}
+    resp = requests.get("https://api.brightdata.com/zone/cost", params={"zone": zone}, headers={"Authorization": f"Bearer {api_key}"}, timeout=60)
+    resp.raise_for_status()
+
+    def find(o):                       # the buckets (back_d0 = today, back_m0 = this month) sit one level down, under an id
+        if isinstance(o, dict):
+            if "back_d0" in o:
+                return o
+            for v in o.values():
+                r = find(v)
+                if r:
+                    return r
+        return None
+
+    b = find(resp.json())
+    if not b:
+        return {}
+    pick = lambda k: {"bw": float((b.get(k) or {}).get("bw") or 0), "cost": float((b.get(k) or {}).get("cost") or 0)}
+    return {"today": pick("back_d0"), "month": pick("back_m0")}
+
+
 def success_rate(domain: str) -> dict:
     """
     Bright Data's own statistics for YOUR requests to a domain over the last 7 days: {"otto.de": 0.97, "time_p90": 3347.9}
