@@ -1,11 +1,14 @@
 name: Probe Otto
 
 # A diagnostic, run by hand. It asks Bright Data's Web Unlocker for the same Otto search page several ways (Bright Data's own exit address,
-# a German exit address, with browser rendering, rendering + German exit) plus Otto's homepage as a control, a few times each, and prints
-# which way gets the real results page. It also compares Bright Data's "billed" flag with the zone's real BILLED COST (Bright Data's cost
-# API), before and after, to settle whether Otto's refusal pages cost money. It saves nothing and changes no data.
-# At most 36 requests with the defaults. For a clean cost reading nothing else should use the zone meanwhile (a dedicated Otto zone,
+# a German exit address, with browser rendering, rendering + German exit, and with the x-unblock-expect header, plain and rendered) plus
+# Otto's homepage as a control, a few times each, and prints which way gets the real results page. It also compares Bright Data's "billed"
+# flag with the zone's real BILLED COST (Bright Data's cost API), before and after. Measured on 2026-11-26: 36 requests cost 0.054 USD,
+# 0.0015 each, so Otto's refusal pages ARE billed. It saves nothing and changes no data.
+# At most 52 requests with the defaults. For a clean cost reading nothing else should use the zone meanwhile (a dedicated Otto zone,
 # secret BRIGHTDATA_ZONE_OTTO, is best). Reading the billed cost needs a Bright Data API key with Admin permission.
+# The expect ways only differ from the plain ones when the zone has the Custom Web Unlocker feature "Manual expect elements" switched on
+# (zone > Configuration > Advanced settings). Switch it on ONLY on a zone used for Otto: it makes every request on that zone billed.
 on:
   workflow_dispatch:
     inputs:
