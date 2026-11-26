@@ -1,0 +1,58 @@
+name: Probe Otto
+
+# A diagnostic, run by hand. It asks Bright Data's Web Unlocker for the same Otto search page several ways (Bright Data's own exit address,
+# a German exit address, with browser rendering, rendering + German exit) plus Otto's homepage as a control, a few times each, and prints
+# which way gets the real results page. It also compares Bright Data's "billed" flag with the zone's real BILLED COST (Bright Data's cost
+# API), before and after, to settle whether Otto's refusal pages cost money. It saves nothing and changes no data.
+# At most 36 requests with the defaults. For a clean cost reading nothing else should use the zone meanwhile (a dedicated Otto zone,
+# secret BRIGHTDATA_ZONE_OTTO, is best). Reading the billed cost needs a Bright Data API key with Admin permission.
+on:
+  workflow_dispatch:
+    inputs:
+      keyword:
+        description: "Keyword to search on Otto (blank = the first Otto keyword of your sheet)"
+        required: false
+        default: ""
+      attempts:
+        description: "Tries per way of asking (1-30)"
+        required: false
+        default: "8"
+      wait_seconds:
+        description: "Seconds to wait before reading the billed cost the second time (0-900; the figures can lag)"
+        required: false
+        default: "120"
+
+permissions:
+  contents: read
+
+# Never at the same time as an Otto run: it would spend on the same zone and blur the cost reading.
+concurrency:
+  group: otto-track
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      TRACKING_SHEET_CSV_URL: ${{ secrets.TRACKING_SHEET_CSV_URL }}
+      BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+      BRIGHTDATA_ZONE: ${{ secrets.BRIGHTDATA_ZONE }}
+      BRIGHTDATA_ZONE_OTTO: ${{ secrets.BRIGHTDATA_ZONE_OTTO }}
+      PROBE_KEYWORD: ${{ inputs.keyword }}
+      PROBE_ATTEMPTS: ${{ inputs.attempts || '8' }}
+      PROBE_WAIT_SECONDS: ${{ inputs.wait_seconds || '120' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Probe Otto
+        run: python scripts/otto_probe.py
