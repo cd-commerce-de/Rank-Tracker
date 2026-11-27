@@ -3,21 +3,23 @@ name: Track Temu only (no eBay)
 # Reads Temu keywords through the dedicated Temu Web Unlocker zone and saves the readings. It never touches eBay, Otto or Kaufland and
 # never uses the eBay zone.
 #
-# MONEY: it runs by itself three times a day (see "schedule") and by hand. Every run first works out what is STILL LEFT today (UTC) with
+# MONEY: it has six scheduled slots a day (see "schedule") and can be started by hand. Every run first works out what is STILL LEFT today (UTC) with
 # no request at all (scripts/temu_todo.py). A keyword that already has a valid reading today is never read again; only keywords that were
-# blocked earlier today (blocked attempts are not billed) or that have not been tried yet are attempted. When nothing is left the run
+# blocked earlier today (blocked attempts were not billed when measured; compare the Temu zone's usage page now and then) or that have not been tried yet are attempted. When nothing is left the run
 # stops after that check and no Bright Data request is made. A keyword is therefore billed at most once per day.
 # A new UTC day starts at 00:00 UTC (08:00 in the Philippines): then every keyword is due again.
 on:
   schedule:
-    # 00:30, 08:30 and 16:30 UTC = 08:30, 16:30 and 00:30 in the Philippines. Each run lasts up to about 2 hours.
-    - cron: "30 0,8,16 * * *"
+    # Every 4 hours at 30 minutes past: 00:30, 04:30, 08:30, 12:30, 16:30, 20:30 UTC (08:30, 12:30, 16:30, 20:30, 00:30, 04:30 in the Philippines).
+    # GitHub starts scheduled runs late and drops many of them (on 2026-11-26 only ONE of the three slots ran), so there are six slots: every run that
+    # does start retries what is still blocked or untried today. A run that finds nothing left stops after the check (about 30 seconds, no request).
+    - cron: "30 */4 * * *"
   workflow_dispatch:
     inputs:
       attempts:
         description: "Tries per keyword (1-12). Failed tries cost nothing, only time."
         required: false
-        default: "6"
+        default: "12"
       workers:
         description: "Keywords read at the same time (1-8)"
         required: false
@@ -30,9 +32,11 @@ on:
 permissions:
   contents: write
 
-# The same lock as the main workflow: never two runs at once, so one keyword is never read twice at the same time.
+# Its own lock: never two Temu runs at once (so one keyword is never read twice at the same time), but it neither waits for the main workflow
+# (the daily eBay run) nor makes it wait: with six slots a day the Temu runs would otherwise keep the shared lock busy for most of the day.
+# Saving is safe even when another workflow saves at the same moment (scripts/commit_data.sh merges the readings).
 concurrency:
-  group: track-ranks
+  group: temu-track
   cancel-in-progress: false
 
 jobs:
@@ -45,7 +49,7 @@ jobs:
       BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
       BRIGHTDATA_ZONE_TEMU: ${{ secrets.BRIGHTDATA_ZONE_TEMU }}
       # a scheduled run has no inputs: the part after || is what it uses
-      TEMU_ATTEMPTS: ${{ inputs.attempts || '6' }}
+      TEMU_ATTEMPTS: ${{ inputs.attempts || '12' }}
       TEMU_WORKERS: ${{ inputs.workers || '4' }}
       TEMU_MAX_MINUTES: ${{ inputs.max_minutes || '120' }}
     steps:
