@@ -96,9 +96,9 @@ def _now() -> float:
 class AttemptFailed(Exception):
     """One attempt gave no results page. kind says what came back; billed is Bright Data's flag (True / False / None = unknown)."""
 
-    def __init__(self, kind: str, billed=None):
+    def __init__(self, kind: str, billed=None, req_id: str = ""):
         super().__init__(kind)
-        self.kind, self.billed = kind, billed
+        self.kind, self.billed, self.req_id = kind, billed, req_id
 
 
 class AccountProblem(RuntimeError):
@@ -166,24 +166,25 @@ def _one_attempt(url: str, country, render: bool = False, expect=None):
         if msg:
             raise ps.PolicyRefused(msg) from e
         kind = "bot check" if ps.challenge(body) else ("Otto error page" if _otto_error(body) else f"HTTP {code}")
-        raise AttemptFailed(kind, billed) from e
+        raise AttemptFailed(kind, billed, info.get("req_id", "")) from e
     except (requests.Timeout, requests.ConnectionError) as e:
         raise AttemptFailed("timeout", False) from e
     html = resp.text or ""
     info = bright_data.parse_debug(resp.headers)
     billed = {"true": True, "false": False}.get(info.get("billed", "").lower())
+    rid = info.get("req_id", "")
     msg = ps.refusal(html)
     if msg:
         raise ps.PolicyRefused(msg)
     if ps.challenge(html):
-        raise AttemptFailed("bot check", billed)
+        raise AttemptFailed("bot check", billed, rid)
     if not html.strip():
-        raise AttemptFailed("empty answer", billed)
+        raise AttemptFailed("empty answer", billed, rid)
     if _otto_error(html):
-        raise AttemptFailed("Otto error page", billed)
+        raise AttemptFailed("Otto error page", billed, rid)
     ids = classic.extract_ordered_product_ids(html)
     if not ids:
-        raise AttemptFailed("page without products", billed)
+        raise AttemptFailed("page without products", billed, rid)
     return ids, billed, info.get("peer_country") or ""
 
 

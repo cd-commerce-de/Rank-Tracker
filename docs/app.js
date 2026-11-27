@@ -13,7 +13,7 @@ let ALL_ROWS = [];
 let IS_DEMO = false;
 let PROJECTS = {};   // project_id -> { project_id, project_name, items: { item_key: {...} }, rows: [] }
 let SETTINGS = {};   // docs/settings.json
-const APP_VERSION = "2026-11-26.3";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
+const APP_VERSION = "2026-11-27.1";   // must equal the scripts' VERSION (config_loader.py); shown in the footer
 let CONFIG = null;   // docs/data/config.json: the products + keywords that are in the sheet TODAY (with SKU and name)
 let state = { projectId: null, marketplace: null, itemKey: null, range: "daily", days: 30, basis: "all", q: "", filter: "all", sort: { key: "now", dir: 1 }, helpOpen: false, view: "ranks", compKw: null, compDate: null, compDays: 30 };
 let LAST_GRID = null; // what the grid currently shows, used by CSV export
@@ -664,6 +664,11 @@ const PJ = { cache: {}, basis: null, opened: {}, filterOpen: false, modalOpen: f
 function lsGet(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* storage blocked: the choice lasts for this visit only */ } }
 try { PJ.opened = JSON.parse(lsGet("rt_opened", "{}")) || {}; } catch (e) { PJ.opened = {}; }
+// What the person was looking at survives a refresh: the period shown (daily / weekly / monthly and how many days) is remembered for the whole
+// dashboard, the marketplace and the product for each project (saveView / restoreView below). A saved value that no longer fits is simply ignored.
+{ const r0 = lsGet("rt_range", ""), d0 = lsGet("rt_days", "");
+  if (["daily", "weekly", "monthly"].includes(r0)) state.range = r0;
+  if (d0 === "all") state.days = "all"; else if ([14, 30, 60, 90].includes(Number(d0))) state.days = Number(d0); }
 Object.assign(state, { page: "projects", pq: "", pview: lsGet("rt_pview", "grid") === "list" ? "list" : "grid", psort: lsGet("rt_psort", "opened"), pfmp: [], pftag: [] });
 
 const plural = (n, one, many) => t(n === 1 ? one : many, { n });
@@ -677,6 +682,21 @@ const PRODUCT_URL = {
 
 // ----- where the page is: #/projects (the list) or #/project/<id> (one project's tracker)
 function markOpened(id) { PJ.opened[id] = Date.now(); lsSet("rt_opened", JSON.stringify(PJ.opened)); }
+// Remembers, for each project, which marketplace and product were open, so a refresh (or coming back to the project) reopens the same view
+// instead of the first marketplace. The page checks both again when it draws, so a marketplace or product that is gone just falls back to the first one.
+function saveView() {
+  if (!state.projectId || !state.marketplace) return;
+  lsSet("rt_view_" + state.projectId, JSON.stringify({ mp: state.marketplace, item: state.itemKey }));
+}
+function restoreView(id) {
+  let v = null;
+  try { v = JSON.parse(lsGet("rt_view_" + id, "null")); } catch (e) { v = null; }
+  const project = PROJECTS[id];
+  if (!v || typeof v.mp !== "string" || !project || !marketplacesOf(project).includes(v.mp)) return;
+  state.marketplace = v.mp;
+  const it = typeof v.item === "string" ? project.items[v.item] : null;
+  state.itemKey = it && it.marketplace === v.mp ? v.item : null;
+}
 function applyRoute() {
   const raw = (location.hash || "").replace(/^#\/?/, "");
   const m = raw.match(/^project\/([^/?#]+)/);
@@ -684,6 +704,7 @@ function applyRoute() {
   if (id && PROJECTS[id]) {
     state.page = "tracker";
     if (state.projectId !== id) { state.projectId = id; state.marketplace = null; state.itemKey = null; }
+    if (!state.marketplace) restoreView(id);   // nothing chosen yet in this visit (a fresh load, or the first project, which boot() has already made current): reopen what was open last time
     markOpened(id);
   } else state.page = "projects";
 }
@@ -1510,6 +1531,7 @@ function renderPage() {
   if (!state.itemKey || !project.items[state.itemKey] || project.items[state.itemKey].marketplace !== state.marketplace) {
     state.itemKey = items[0].item_key;   // the list starts with "★ All <marketplace> products — best position" whenever the marketplace has 2+ products
   }
+  saveView();
   const multiCountry = new Set(items.filter((i) => !i.synthetic).map((i) => i.country)).size > 1;
   computeView();
 
@@ -1565,19 +1587,19 @@ function renderPage() {
   bindLangToggle();
   document.querySelectorAll(".view-tab").forEach((b) => b.addEventListener("click", () => { if (state.view !== b.dataset.view) { state.view = b.dataset.view; renderPage(); } }));
   on("projectSelect", "change", (e) => {
-    state.projectId = e.target.value; state.marketplace = null; state.itemKey = null; markOpened(state.projectId);
+    state.projectId = e.target.value; state.marketplace = null; state.itemKey = null; restoreView(state.projectId); markOpened(state.projectId);
     try { history.replaceState(null, "", "#/project/" + encodeURIComponent(state.projectId)); } catch (err) { /* address bar not available: the page still switches */ }
     renderPage();
   });
   bindMpPicker();
   bindCombo(comboEntries, state.itemKey);
   on("basisSelect", "change", (e) => { state.basis = e.target.value; applyBasis(ALL_ROWS); renderPage(); });
-  on("periodSelect", "change", (e) => { state.days = e.target.value === "all" ? "all" : Number(e.target.value); renderPage(); });
+  on("periodSelect", "change", (e) => { state.days = e.target.value === "all" ? "all" : Number(e.target.value); lsSet("rt_days", String(state.days)); renderPage(); });
   if (!SETTINGS.sheet_url) {   // with a sheet link set, these are plain links that open the sheet; without one they show the how-to panel
     on("helpBtn", "click", () => { state.helpOpen = !state.helpOpen; renderPage(); });
     on("addKwBtn", "click", () => { state.helpOpen = true; renderPage(); window.scrollTo(0, 0); });
   }
-  document.querySelectorAll(".range-btn").forEach((b) => b.addEventListener("click", () => { state.range = b.dataset.range; renderPage(); }));
+  document.querySelectorAll(".range-btn").forEach((b) => b.addEventListener("click", () => { state.range = b.dataset.range; lsSet("rt_range", state.range); renderPage(); }));
 
   if (state.view === "competitors") { safely("compRoot", renderCompetitors); loadCompetitors(); return; }
   safely("summaryGrid", () => renderSummaryCards(VIEW.rows));

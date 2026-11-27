@@ -185,14 +185,16 @@ def zone_cost(zone: str) -> dict:
     return {"today": pick("back_d0"), "month": pick("back_m0")}
 
 
-def success_rate(domain: str) -> dict:
+def success_rate(domain: str, url_pattern: str | None = None) -> dict:
     """
     Bright Data's own statistics for YOUR requests to a domain over the last 7 days: {"otto.de": 0.97, "time_p90": 3347.9}
     (success rate between 0 and 1, and the 90th-percentile response time in milliseconds). {} when there were none.
+    url_pattern keeps only requests whose URL contains that text (for example "/suche/" for Otto's search pages).
     """
     api_key = os.environ.get("BRIGHTDATA_API_KEY")
     if not api_key:
         raise RuntimeError("BRIGHTDATA_API_KEY not set")
-    resp = requests.get(f"https://api.brightdata.com/unblocker/success_rate/{domain}", headers={"Authorization": f"Bearer {api_key}"}, timeout=120)
+    resp = requests.get(f"https://api.brightdata.com/unblocker/success_rate/{domain}", params={"url_pattern": url_pattern} if url_pattern else None,
+                        headers={"Authorization": f"Bearer {api_key}"}, timeout=120)
     resp.raise_for_status()
     return resp.json()

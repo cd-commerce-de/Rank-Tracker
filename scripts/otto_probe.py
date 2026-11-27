@@ -83,7 +83,7 @@ def run_probe(keyword: str, attempts: int, workers: int) -> list:
             ids, billed, peer = ot._one_attempt(url, country, render, expect)
             return {"way": w, "ok": True, "kind": "real page", "billed": billed, "peer": peer, "secs": time.monotonic() - started, "n": len(ids)}
         except ot.AttemptFailed as f:
-            return {"way": w, "ok": False, "kind": f.kind, "billed": f.billed, "peer": "", "secs": time.monotonic() - started}
+            return {"way": w, "ok": False, "kind": f.kind, "billed": f.billed, "peer": "", "secs": time.monotonic() - started, "req_id": f.req_id}
         except (ps.PolicyRefused, ot.AccountProblem) as e:
             abort.set()
             return {"way": w, "ok": False, "kind": "refused: " + str(e)[:120], "billed": None, "peer": "", "secs": time.monotonic() - started}
@@ -175,8 +175,32 @@ def main():
             elif d_cost > 0:
                 cost_lines.append("-> The billed cost rose although no request was flagged billed: other traffic on this zone, or the flag is missing. Use a dedicated Otto zone for a clean reading.")
     print("\n".join(cost_lines))
+    if os.environ.get("BRIGHTDATA_API_KEY"):
+        try:
+            allr, srch = bright_data.success_rate("otto.de"), bright_data.success_rate("otto.de", "/suche/")
+            if allr.get("otto.de") is not None:
+                print(f"Bright Data's own 7-day success rate for your requests to otto.de: {allr['otto.de']:.0%} overall"
+                      + (f", {srch['otto.de']:.0%} for search pages (/suche/)" if srch.get("otto.de") is not None else "") + ".")
+        except Exception as e:
+            print(f"(Bright Data's success-rate statistic could not be read: {type(e).__name__})")
+    failed_ids = [(WAYS[r["way"]][0], r["req_id"]) for r in results if not r["ok"] and r.get("req_id") and WAYS[r["way"]][1] == "search"]
+    shown, per_way = [], Counter()
+    for name, rid in failed_ids:
+        if per_way[name] < 2:
+            per_way[name] += 1
+            shown.append(f"{rid}  ({name})")
+    ticket_ids = "\n".join("  " + s for s in shown)
+    if shown:
+        print("\nRequest IDs of failed search attempts, for a Bright Data support ticket (they can trace each one):\n" + ticket_ids)
 
     expect_ways = [i for i, w in enumerate(WAYS) if w[4]]
+    plain_search = [r for r in results if WAYS[r["way"]][1] == "search" and not WAYS[r["way"]][4]]
+    expect_res = [r for r in results if r["way"] in expect_ways]
+    top = lambda rs: Counter(r["kind"] for r in rs if not r["ok"]).most_common(1)
+    avg = lambda rs: (sum(r["secs"] for r in rs if r["secs"]) / max(1, sum(1 for r in rs if r["secs"])))
+    honored = bool(expect_res) and bool(top(expect_res)) and ((bool(top(plain_search)) and top(expect_res)[0][0] != top(plain_search)[0][0]) or avg(expect_res) > 1.3 * avg(plain_search))
+    differs = (f"{top(expect_res)[0][0]} instead of {top(plain_search)[0][0]}, {avg(expect_res) - avg(plain_search):.0f} s slower on average"
+               if honored and top(plain_search) and top(expect_res) else "")
     if best is None:
         verdict = ("No way of asking got a real Otto search page. If the homepage control worked, the zone reaches Otto but its search pages are protected "
                    "(Kasada): check that otto.de is on the zone's Premium Domains list and the zone has Premium Domains switched on, switch on the Custom Web Unlocker "
@@ -190,20 +214,26 @@ def main():
         verdict = (f"Best way so far: {name}. Use: {verdict_env} (in the workflow form: geo = {'de' if country else 'none'}, browser rendering = {'on' if render else 'off'}, "
                    f"expect = {'on' if expect else 'off'}).")
     expect_note = ""
-    if expect_ways and not any(r["ok"] for r in results if r["way"] in expect_ways) and any(r["ok"] for r in results if WAYS[r["way"]][1] == "search"):
-        expect_note = "The expect ways did worse than the plain ones: the zone's 'Manual expect elements' feature is probably not switched on (the header is then ignored)."
-    elif expect_ways and not any(r["ok"] for r in results if WAYS[r["way"]][1] == "search"):
-        expect_note = "The expect ways got nothing either: if you have not switched on 'Manual expect elements' (zone > Configuration > Advanced settings) the header was ignored."
+    expect_ok = any(r["ok"] for r in expect_res)
+    search_ok_any = any(r["ok"] for r in results if WAYS[r["way"]][1] == "search")
+    if expect_ways and not expect_ok and search_ok_any:
+        expect_note = ("The expect ways did worse than the plain ones" + (f" and they behaved differently ({differs}), so the header WAS applied." if honored else
+                       ": the zone's 'Manual expect elements' feature is probably not switched on (the header is then ignored)."))
+    elif expect_ways and not search_ok_any:
+        expect_note = ((f"The expect ways behaved differently from the plain ones ({differs}), so the header WAS applied: the Unlocker waited for product links and never got "
+                        "a real search page. Bright Data's own unlocking cannot get Otto's search page through at the moment.") if honored else
+                       "The expect ways got nothing either: if you have not switched on 'Manual expect elements' (zone > Configuration > Advanced settings) the header was ignored.")
     print(f"\nVerdict: {verdict}" + (f"\n{expect_note}" if expect_note else ""))
 
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         try:
             with open(summary, "a", encoding="utf-8") as f:
-                safe = lambda text: text.replace("$", "\\$")        # GitHub renders $...$ in a summary as maths
+                safe = lambda text: text.replace("$", "USD ")         # GitHub renders $...$ in a summary as maths, and a backslash did not stop it
                 f.write(f"### Otto probe, {keyword!r}\n\n| way of asking | real pages | flagged billed | seconds | failures |\n|---|--:|--:|--:|---|\n"
                         + "".join(f"| {a} | {b} | {c} | {d} | {e} |\n" for a, b, c, d, e in rows)
-                        + f"\n{safe(chr(10).join(cost_lines))}\n\n**{safe(verdict)}**\n" + (f"\n{safe(expect_note)}\n" if expect_note else ""))
+                        + f"\n{safe(chr(10).join(cost_lines))}\n\n**{safe(verdict)}**\n" + (f"\n{safe(expect_note)}\n" if expect_note else "")
+                        + (f"\nRequest IDs of failed search attempts (for a Bright Data support ticket):\n\n```\n{ticket_ids}\n```\n" if shown else ""))
         except OSError:
             pass
 
